@@ -487,11 +487,17 @@ describe('ClaudeCodeRuntime', () => {
       expect(sdkMockState.lastQueryParams?.options?.resume).toBe('persisted-session-1')
 
       await runtime.sendMessage('interrupt me')
+      await runtime.sendMessage('queued steer')
+      expect((runtime as any).inputQueue.length).toBe(2)
+      expect(runtime.getPendingCount()).toBe(1)
+
       await runtime.stopInFlight()
 
       const query = sdkMockState.instances[0]
       expect(query.interrupt).toHaveBeenCalledTimes(1)
       expect(runtime.getStatus()).toBe('idle')
+      expect(runtime.getPendingCount()).toBe(0)
+      expect((runtime as any).inputQueue.length).toBe(0)
 
       await runtime.terminate({ abort: false })
 
@@ -500,5 +506,124 @@ describe('ClaudeCodeRuntime', () => {
     } finally {
       runtimePrototype.readPersistedRuntimeState = originalReadPersistedState
     }
+  })
+
+  it('terminates runtime and rejects new sends when SDK stream exits unexpectedly', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'swarm-claude-runtime-'))
+    const descriptor = makeDescriptor(baseDir)
+    await mkdir(dirname(descriptor.sessionFile), { recursive: true })
+
+    const statuses: string[] = []
+    const runtimeErrors: Array<{ phase: string; message: string }> = []
+
+    const runtime = await ClaudeCodeRuntime.create({
+      descriptor,
+      callbacks: {
+        onStatusChange: async (_agentId, status) => {
+          statuses.push(status)
+        },
+        onRuntimeError: async (_agentId, error) => {
+          runtimeErrors.push({ phase: error.phase, message: error.message })
+        },
+      },
+      systemPrompt: 'You are a test Claude runtime.',
+      tools: makeTools(),
+    })
+
+    const query = sdkMockState.instances[0]
+    query.finish()
+
+    await flush()
+
+    expect(runtime.getStatus()).toBe('terminated')
+    expect(statuses.at(-1)).toBe('terminated')
+    expect(runtimeErrors.at(-1)?.phase).toBe('runtime_exit')
+    await expect(runtime.sendMessage('after exit')).rejects.toThrow(/terminated|unavailable/i)
+  })
+
+  it('ignores replayed user and assistant messages to avoid duplicate projection', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'swarm-claude-runtime-'))
+    const descriptor = makeDescriptor(baseDir)
+    await mkdir(dirname(descriptor.sessionFile), { recursive: true })
+
+    const sessionEvents: RuntimeSessionEvent[] = []
+
+    const runtime = await ClaudeCodeRuntime.create({
+      descriptor,
+      callbacks: {
+        onStatusChange: async () => {},
+        onSessionEvent: async (_agentId, event) => {
+          sessionEvents.push(event)
+        },
+      },
+      systemPrompt: 'You are a test Claude runtime.',
+      tools: makeTools(),
+    })
+
+    const query = sdkMockState.instances[0]
+    query.push({
+      type: 'user',
+      isReplay: true,
+      message: {
+        role: 'user',
+        content: 'historical user',
+      },
+      parent_tool_use_id: null,
+      session_id: 'session-1',
+    })
+    query.push({
+      type: 'assistant',
+      isReplay: true,
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'historical assistant',
+          },
+        ],
+      },
+      parent_tool_use_id: null,
+      session_id: 'session-1',
+    })
+    query.push({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'fresh assistant',
+          },
+        ],
+      },
+      parent_tool_use_id: null,
+      session_id: 'session-1',
+    })
+
+    await flush()
+
+    const messageEvents = sessionEvents.filter(
+      (event) => event.type === 'message_start' || event.type === 'message_end',
+    )
+
+    expect(messageEvents).toEqual([
+      {
+        type: 'message_start',
+        message: {
+          role: 'assistant',
+          content: 'fresh assistant',
+        },
+      },
+      {
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: 'fresh assistant',
+        },
+      },
+    ])
+
+    await runtime.terminate({ abort: false })
   })
 })

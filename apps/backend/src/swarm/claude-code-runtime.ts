@@ -131,6 +131,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     _requestedMode: RequestedDeliveryMode = "auto"
   ): Promise<SendMessageReceipt> {
     this.ensureNotTerminated();
+    this.ensureQueryAvailable();
 
     const message = normalizeRuntimeUserMessage(input);
     const deliveryId = randomUUID();
@@ -202,6 +203,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     }
 
     this.pendingDeliveries = [];
+    this.clearInputQueue();
     this.isProcessing = false;
     this.activeToolNameByCallId.clear();
 
@@ -281,42 +283,25 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
       return;
     }
 
+    let streamError: unknown;
+
     try {
       for await (const message of queryInstance) {
         this.captureSessionId(message);
         await this.handleSdkMessage(message);
       }
     } catch (error) {
-      if (this.status === "terminated" || error instanceof AbortError) {
+      if (this.status === "terminated") {
         return;
       }
 
-      const normalized = normalizeRuntimeError(error);
-      await this.reportRuntimeError({
-        phase: "prompt_dispatch",
-        message: normalized.message,
-        stack: normalized.stack
-      });
+      streamError = error;
     } finally {
       if (this.status === "terminated") {
         return;
       }
 
-      if (this.isCompacting) {
-        this.isCompacting = false;
-        await this.emitSessionEvent({ type: "auto_compaction_end" });
-      }
-
-      const shouldEmitAgentEnd = this.isProcessing;
-      this.isProcessing = false;
-      await this.updateStatus("idle");
-
-      if (shouldEmitAgentEnd) {
-        await this.emitSessionEvent({ type: "agent_end" });
-        if (this.callbacks.onAgentEnd) {
-          await this.callbacks.onAgentEnd(this.descriptor.agentId);
-        }
-      }
+      await this.handleUnexpectedStreamExit(streamError);
     }
   }
 
@@ -454,6 +439,10 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
       isReplay?: boolean;
     }
   ): Promise<void> {
+    if (message.isReplay) {
+      return;
+    }
+
     if (
       message.isSynthetic === true &&
       typeof message.parent_tool_use_id === "string" &&
@@ -511,8 +500,14 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
   }
 
   private async handleAssistantMessage(
-    message: Extract<SDKMessage, { type: "assistant" }>
+    message: Extract<SDKMessage, { type: "assistant" }> & {
+      isReplay?: boolean;
+    }
   ): Promise<void> {
+    if (message.isReplay) {
+      return;
+    }
+
     const content = extractAssistantContent(message.message);
 
     await this.emitSessionEvent({
@@ -632,6 +627,10 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     this.inputQueue.push(message);
   }
 
+  private clearInputQueue(): void {
+    this.inputQueue.length = 0;
+  }
+
   private resolveInputDone(): void {
     if (!this.inputResolve) {
       return;
@@ -691,6 +690,82 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     if (this.status === "terminated") {
       throw new Error(`Agent ${this.descriptor.agentId} is terminated`);
     }
+  }
+
+  private ensureQueryAvailable(): void {
+    if (this.query && !this.inputDone) {
+      return;
+    }
+
+    throw new Error(`Agent ${this.descriptor.agentId} runtime stream is unavailable`);
+  }
+
+  private async handleUnexpectedStreamExit(error: unknown): Promise<void> {
+    if (this.status === "terminated") {
+      return;
+    }
+
+    if (this.isCompacting) {
+      this.isCompacting = false;
+      await this.emitSessionEvent({ type: "auto_compaction_end" });
+    }
+
+    const hadInFlightTurn = this.isProcessing;
+    const normalized =
+      error instanceof AbortError
+        ? {
+            message: "Claude Code runtime stream was interrupted",
+            stack: error.stack
+          }
+        : error
+          ? normalizeRuntimeError(error)
+          : {
+              message: "Claude Code runtime stream exited unexpectedly",
+              stack: undefined
+            };
+
+    if (error) {
+      this.logRuntimeError("runtime_exit", error, {
+        hadInFlightTurn,
+        pendingCount: this.pendingDeliveries.length
+      });
+    } else {
+      this.logRuntimeError("runtime_exit", new Error(normalized.message), {
+        hadInFlightTurn,
+        pendingCount: this.pendingDeliveries.length
+      });
+    }
+
+    await this.reportRuntimeError({
+      phase: "runtime_exit",
+      message: normalized.message,
+      stack: normalized.stack,
+      details: {
+        hadInFlightTurn,
+        pendingCount: this.pendingDeliveries.length
+      }
+    });
+
+    this.pendingDeliveries = [];
+    this.clearInputQueue();
+    this.activeToolNameByCallId.clear();
+    this.isProcessing = false;
+    this.inputDone = true;
+    this.resolveInputDone();
+    this.query = undefined;
+
+    if (hadInFlightTurn) {
+      await this.emitSessionEvent({ type: "agent_end" });
+      if (this.callbacks.onAgentEnd) {
+        await this.callbacks.onAgentEnd(this.descriptor.agentId);
+      }
+    }
+
+    this.status = transitionAgentStatus(this.status, "terminated");
+    this.descriptor.status = this.status;
+    this.descriptor.updatedAt = this.now();
+
+    await this.emitStatus();
   }
 
   private async updateStatus(status: AgentStatus): Promise<void> {
