@@ -234,7 +234,7 @@ function AgentRow({
                 <TooltipTrigger asChild>
                   <span
                     className={cn(
-                      'ml-1 inline-flex h-5 min-w-7 shrink-0 items-center justify-center rounded-sm border border-sidebar-border/80 bg-sidebar-accent/40 px-0.5',
+                      'ml-1 inline-flex h-5 w-8 shrink-0 items-center justify-center rounded-sm border border-sidebar-border/80 bg-sidebar-accent/40 px-0.5',
                       isSelected ? 'border-sidebar-ring/60 bg-sidebar-accent-foreground/10' : '',
                     )}
                   >
