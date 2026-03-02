@@ -64,6 +64,144 @@ function makeHost(spawnImpl: (callerAgentId: string, input: SpawnAgentInput) => 
 }
 
 describe('buildSwarmTools', () => {
+  it('returns only active agents with a compact payload for list_agents', async () => {
+    const activeManager = makeManagerDescriptor()
+    const activeWorker = makeWorkerDescriptor('worker-active')
+    const stoppedWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor('worker-stopped'),
+      status: 'stopped',
+    }
+    const terminatedWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor('worker-terminated'),
+      status: 'terminated',
+    }
+
+    const host: SwarmToolHost = {
+      listAgents: () => [activeManager, activeWorker, stoppedWorker, terminatedWorker],
+      spawnAgent: async () => makeWorkerDescriptor('worker'),
+      killAgent: async () => {},
+      sendMessage: async () => ({
+        targetAgentId: 'worker',
+        deliveryId: 'delivery-1',
+        acceptedMode: 'prompt',
+      }),
+      publishToUser: async () => ({
+        targetContext: { channel: 'web' },
+      }),
+    }
+
+    const tools = buildSwarmTools(host, makeManagerDescriptor())
+    const listAgentsTool = tools.find((tool) => tool.name === 'list_agents')
+    expect(listAgentsTool).toBeDefined()
+
+    const result = await listAgentsTool!.execute(
+      'tool-call',
+      {},
+      undefined,
+      undefined,
+      undefined as any,
+    )
+
+    expect(result.details).toEqual({
+      agents: [
+        {
+          agentId: 'manager',
+          role: 'manager',
+          managerId: 'manager',
+          status: 'idle',
+          model: {
+            provider: 'openai-codex',
+            modelId: 'gpt-5.3-codex',
+            thinkingLevel: 'xhigh',
+          },
+        },
+        {
+          agentId: 'worker-active',
+          role: 'worker',
+          managerId: 'manager',
+          status: 'idle',
+          model: {
+            provider: 'anthropic',
+            modelId: 'claude-opus-4-6',
+            thinkingLevel: 'xhigh',
+          },
+        },
+      ],
+    })
+    const textContent = result.content.find((block) => block.type === 'text')
+    expect(textContent?.text).toContain('"agentId": "manager"')
+    expect(textContent?.text).toContain('"agentId": "worker-active"')
+    expect(textContent?.text).not.toContain('worker-stopped')
+    expect(textContent?.text).not.toContain('worker-terminated')
+    expect(textContent?.text).not.toContain('sessionFile')
+    expect(textContent?.text).not.toContain('cwd')
+    expect(textContent?.text).not.toContain('displayName')
+
+    const resultWithInactive = await listAgentsTool!.execute(
+      'tool-call',
+      {
+        includeTerminated: true,
+      },
+      undefined,
+      undefined,
+      undefined as any,
+    )
+
+    expect(resultWithInactive.details).toEqual({
+      agents: [
+        {
+          agentId: 'manager',
+          role: 'manager',
+          managerId: 'manager',
+          status: 'idle',
+          model: {
+            provider: 'openai-codex',
+            modelId: 'gpt-5.3-codex',
+            thinkingLevel: 'xhigh',
+          },
+        },
+        {
+          agentId: 'worker-active',
+          role: 'worker',
+          managerId: 'manager',
+          status: 'idle',
+          model: {
+            provider: 'anthropic',
+            modelId: 'claude-opus-4-6',
+            thinkingLevel: 'xhigh',
+          },
+        },
+        {
+          agentId: 'worker-stopped',
+          role: 'worker',
+          managerId: 'manager',
+          status: 'stopped',
+          model: {
+            provider: 'anthropic',
+            modelId: 'claude-opus-4-6',
+            thinkingLevel: 'xhigh',
+          },
+        },
+        {
+          agentId: 'worker-terminated',
+          role: 'worker',
+          managerId: 'manager',
+          status: 'terminated',
+          model: {
+            provider: 'anthropic',
+            modelId: 'claude-opus-4-6',
+            thinkingLevel: 'xhigh',
+          },
+        },
+      ],
+    })
+    const includeInactiveText = resultWithInactive.content.find((block) => block.type === 'text')
+    expect(includeInactiveText?.text).toContain('worker-stopped')
+    expect(includeInactiveText?.text).toContain('worker-terminated')
+    expect(includeInactiveText?.text).not.toContain('sessionFile')
+    expect(includeInactiveText?.text).not.toContain('cwd')
+  })
+
   it('propagates spawn_agent model preset to host.spawnAgent', async () => {
     let receivedInput: SpawnAgentInput | undefined
 
@@ -116,7 +254,7 @@ describe('buildSwarmTools', () => {
         undefined,
         undefined as any,
       ),
-    ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app')
+    ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app|claude-code')
   })
 
   it('forwards speak_to_user target metadata and returns resolved target context', async () => {

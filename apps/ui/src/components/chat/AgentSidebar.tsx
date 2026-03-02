@@ -27,6 +27,15 @@ type AgentLiveStatus = {
   pendingCount: number
 }
 
+function ClaudeCodeIconPair({ className }: { className?: string }) {
+  return (
+    <span className="inline-flex items-center -space-x-1" aria-hidden="true">
+      <img src="/agents/claude-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain', className)} />
+      <img src="/agents/claude-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain opacity-70', className)} />
+    </span>
+  )
+}
+
 function getAgentLiveStatus(
   agent: AgentDescriptor,
   statuses: Record<string, { status: AgentStatus; pendingCount: number; contextUsage?: AgentContextUsage }>,
@@ -73,6 +82,10 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     )
   }
 
+  if (preset === 'claude-code' || provider === 'anthropic-claude-code') {
+    return <ClaudeCodeIconPair className={className} />
+  }
+
   if (provider.includes('anthropic') || provider.includes('claude')) {
     return <img src="/agents/claude-logo.svg" alt="" aria-hidden="true" className={className} />
   }
@@ -91,6 +104,10 @@ function getModelLabel(agent: AgentDescriptor, preset: ManagerModelPreset | unde
 
   if (preset === 'pi-codex' || preset === 'codex-app') {
     return 'codex'
+  }
+
+  if (preset === 'claude-code') {
+    return 'claude-code'
   }
 
   const modelId = agent.model.modelId.trim().toLowerCase()

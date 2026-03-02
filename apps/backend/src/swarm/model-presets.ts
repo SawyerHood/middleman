@@ -20,6 +20,11 @@ const MODEL_PRESET_DESCRIPTORS: Record<SwarmModelPreset, AgentModelDescriptor> =
     provider: "openai-codex-app-server",
     modelId: "default",
     thinkingLevel: "xhigh"
+  },
+  "claude-code": {
+    provider: "anthropic-claude-code",
+    modelId: "claude-opus-4-6",
+    thinkingLevel: "xhigh"
   }
 };
 
@@ -74,6 +79,10 @@ export function inferSwarmModelPresetFromDescriptor(
 
   if (provider === "openai-codex-app-server" && modelId === "default") {
     return "codex-app";
+  }
+
+  if (provider === "anthropic-claude-code" && modelId === "claude-opus-4-6") {
+    return "claude-code";
   }
 
   return undefined;

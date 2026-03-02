@@ -16,5 +16,9 @@ export function inferModelPreset(agent: AgentDescriptor): ManagerModelPreset | u
     return 'codex-app'
   }
 
+  if (provider === 'anthropic-claude-code' && modelId === 'claude-opus-4-6') {
+    return 'claude-code'
+  }
+
   return undefined
 }
