@@ -29,7 +29,7 @@ type AgentLiveStatus = {
 
 function ClaudeCodeIconPair({ className }: { className?: string }) {
   return (
-    <span className="inline-flex items-center -space-x-1" aria-hidden="true">
+    <span className="inline-flex items-center gap-0.5" aria-hidden="true">
       <img src="/agents/claude-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain', className)} />
       <img src="/agents/claude-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain opacity-70', className)} />
     </span>
