@@ -6,7 +6,7 @@ export type AgentArchetypeId = string;
 
 export type { AgentStatus };
 
-export const SWARM_MODEL_PRESETS = ["pi-codex", "pi-opus", "codex-app"] as const;
+export const SWARM_MODEL_PRESETS = ["pi-codex", "pi-opus", "codex-app", "claude-code"] as const;
 
 export type SwarmModelPreset = (typeof SWARM_MODEL_PRESETS)[number];
 

@@ -8,6 +8,7 @@ import {
   type AgentSession
 } from "@mariozechner/pi-coding-agent";
 import { AgentRuntime } from "./agent-runtime.js";
+import { ClaudeCodeRuntime } from "./claude-code-runtime.js";
 import { CodexAgentRuntime } from "./codex-agent-runtime.js";
 import type { RuntimeErrorEvent, RuntimeSessionEvent, SwarmAgentRuntime } from "./runtime-types.js";
 import { buildSwarmTools, type SwarmToolHost } from "./swarm-tools.js";
@@ -56,6 +57,10 @@ export class RuntimeFactory {
     descriptor: AgentDescriptor,
     systemPrompt: string
   ): Promise<SwarmAgentRuntime> {
+    if (isClaudeCodeModelDescriptor(descriptor.model)) {
+      return this.createClaudeCodeRuntimeForDescriptor(descriptor, systemPrompt);
+    }
+
     if (isCodexAppServerModelDescriptor(descriptor.model)) {
       return this.createCodexRuntimeForDescriptor(descriptor, systemPrompt);
     }
@@ -230,6 +235,63 @@ export class RuntimeFactory {
     return runtime;
   }
 
+  private async createClaudeCodeRuntimeForDescriptor(
+    descriptor: AgentDescriptor,
+    systemPrompt: string
+  ): Promise<SwarmAgentRuntime> {
+    const swarmTools = buildSwarmTools(this.deps.host, descriptor);
+    const memoryResources = await this.deps.getMemoryRuntimeResources(descriptor);
+    const swarmContextFiles = await this.deps.getSwarmContextFiles(descriptor.cwd);
+
+    const claudeCodeSystemPrompt = this.buildCodexRuntimeSystemPrompt(systemPrompt, {
+      memoryContextFile: memoryResources.memoryContextFile,
+      swarmContextFiles
+    });
+
+    this.deps.logDebug("runtime:create:start", {
+      runtime: "anthropic-claude-code",
+      agentId: descriptor.agentId,
+      role: descriptor.role,
+      model: descriptor.model,
+      archetypeId: descriptor.archetypeId,
+      cwd: descriptor.cwd
+    });
+
+    const runtime = await ClaudeCodeRuntime.create({
+      descriptor,
+      callbacks: {
+        onStatusChange: async (agentId, status, pendingCount, contextUsage) => {
+          await this.deps.callbacks.onStatusChange(agentId, status, pendingCount, contextUsage);
+        },
+        onSessionEvent: async (agentId, event) => {
+          await this.deps.callbacks.onSessionEvent(agentId, event);
+        },
+        onAgentEnd: async (agentId) => {
+          await this.deps.callbacks.onAgentEnd(agentId);
+        },
+        onRuntimeError: async (agentId, error) => {
+          await this.deps.callbacks.onRuntimeError(agentId, error);
+        }
+      },
+      now: this.deps.now,
+      systemPrompt: claudeCodeSystemPrompt,
+      tools: swarmTools,
+      runtimeEnv: {
+        SWARM_DATA_DIR: this.deps.config.paths.dataDir,
+        SWARM_MEMORY_FILE: memoryResources.memoryContextFile.path
+      }
+    });
+
+    this.deps.logDebug("runtime:create:ready", {
+      runtime: "anthropic-claude-code",
+      agentId: descriptor.agentId,
+      activeTools: swarmTools.map((tool) => tool.name),
+      systemPromptPreview: previewForLog(claudeCodeSystemPrompt, 240)
+    });
+
+    return runtime;
+  }
+
   private buildCodexRuntimeSystemPrompt(
     baseSystemPrompt: string,
     options: {
@@ -288,6 +350,10 @@ export class RuntimeFactory {
 
 function isCodexAppServerModelDescriptor(descriptor: Pick<AgentModelDescriptor, "provider">): boolean {
   return descriptor.provider.trim().toLowerCase() === "openai-codex-app-server";
+}
+
+function isClaudeCodeModelDescriptor(descriptor: Pick<AgentModelDescriptor, "provider">): boolean {
+  return descriptor.provider.trim().toLowerCase() === "anthropic-claude-code";
 }
 
 function normalizeThinkingLevel(level: string): string {

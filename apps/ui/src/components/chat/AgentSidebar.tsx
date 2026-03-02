@@ -73,6 +73,10 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     )
   }
 
+  if (preset === 'claude-code') {
+    return <img src="/agents/claude-logo.svg" alt="" aria-hidden="true" className={className} />
+  }
+
   if (provider.includes('anthropic') || provider.includes('claude')) {
     return <img src="/agents/claude-logo.svg" alt="" aria-hidden="true" className={className} />
   }
@@ -91,6 +95,10 @@ function getModelLabel(agent: AgentDescriptor, preset: ManagerModelPreset | unde
 
   if (preset === 'pi-codex' || preset === 'codex-app') {
     return 'codex'
+  }
+
+  if (preset === 'claude-code') {
+    return 'claude-code'
   }
 
   const modelId = agent.model.modelId.trim().toLowerCase()

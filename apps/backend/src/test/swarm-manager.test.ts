@@ -1902,6 +1902,12 @@ describe('SwarmManager', () => {
       model: 'codex-app',
     })
 
+    const claudeCodeManager = await manager.createManager('manager', {
+      name: 'Claude Code Manager',
+      cwd: config.defaultCwd,
+      model: 'claude-code',
+    })
+
     expect(codexManager.model).toEqual({
       provider: 'openai-codex',
       modelId: 'gpt-5.3-codex',
@@ -1915,6 +1921,11 @@ describe('SwarmManager', () => {
     expect(codexAppManager.model).toEqual({
       provider: 'openai-codex-app-server',
       modelId: 'default',
+      thinkingLevel: 'xhigh',
+    })
+    expect(claudeCodeManager.model).toEqual({
+      provider: 'anthropic-claude-code',
+      modelId: 'claude-opus-4-6',
       thinkingLevel: 'xhigh',
     })
   })
@@ -1947,7 +1958,7 @@ describe('SwarmManager', () => {
         cwd: config.defaultCwd,
         model: 'invalid-model' as any,
       }),
-    ).rejects.toThrow('create_manager.model must be one of pi-codex|pi-opus|codex-app')
+    ).rejects.toThrow('create_manager.model must be one of pi-codex|pi-opus|codex-app|claude-code')
   })
 
   it('maps spawn_agent model presets to canonical runtime models with highest reasoning', async () => {
@@ -1970,6 +1981,11 @@ describe('SwarmManager', () => {
       model: 'codex-app',
     })
 
+    const claudeCodeWorker = await manager.spawnAgent('manager', {
+      agentId: 'Claude Code Worker',
+      model: 'claude-code',
+    })
+
     expect(codexWorker.model).toEqual({
       provider: 'openai-codex',
       modelId: 'gpt-5.3-codex',
@@ -1985,6 +2001,11 @@ describe('SwarmManager', () => {
       modelId: 'default',
       thinkingLevel: 'xhigh',
     })
+    expect(claudeCodeWorker.model).toEqual({
+      provider: 'anthropic-claude-code',
+      modelId: 'claude-opus-4-6',
+      thinkingLevel: 'xhigh',
+    })
   })
 
   it('rejects invalid spawn_agent model presets with a clear error', async () => {
@@ -1997,7 +2018,7 @@ describe('SwarmManager', () => {
         agentId: 'Invalid Worker',
         model: 'invalid-model' as any,
       }),
-    ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app')
+    ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app|claude-code')
   })
 
   it('allows deleting the default manager when requested', async () => {

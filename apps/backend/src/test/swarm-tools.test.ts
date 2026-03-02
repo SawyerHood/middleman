@@ -116,7 +116,7 @@ describe('buildSwarmTools', () => {
         undefined,
         undefined as any,
       ),
-    ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app')
+    ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app|claude-code')
   })
 
   it('forwards speak_to_user target metadata and returns resolved target context', async () => {

@@ -8,6 +8,7 @@ const CONTEXT_WINDOW_BY_PRESET: Record<ManagerModelPreset, number> = {
   'pi-opus': 200_000,
   'pi-codex': 1_048_576,
   'codex-app': 1_048_576,
+  'claude-code': 200_000,
 }
 
 function contextWindowForAgent(agent: AgentDescriptor | null): number | null {

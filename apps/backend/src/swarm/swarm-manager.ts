@@ -1926,7 +1926,11 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     this.logDebug("runtime:error", {
       agentId,
-      runtime: descriptor.model.provider.includes("codex-app") ? "codex-app-server" : "pi",
+      runtime: descriptor.model.provider.includes("codex-app")
+        ? "codex-app-server"
+        : descriptor.model.provider.includes("anthropic-claude-code")
+          ? "anthropic-claude-code"
+          : "pi",
       phase: error.phase,
       message,
       stack: error.stack,

@@ -126,12 +126,14 @@ describe('AgentSidebar', () => {
         manager('manager-pi', { provider: 'openai-codex', modelId: 'gpt-5.3-codex' }),
         worker('worker-opus', 'manager-pi', { provider: 'anthropic', modelId: 'claude-opus-4-6' }),
         worker('worker-codex', 'manager-pi', { provider: 'openai-codex-app-server', modelId: 'default' }),
+        worker('worker-claude-code', 'manager-pi', { provider: 'anthropic-claude-code', modelId: 'claude-opus-4-6' }),
       ],
     })
 
     expect(getByText(container, 'pi-codex')).toBeTruthy()
     expect(getByText(container, 'pi-opus')).toBeTruthy()
     expect(getByText(container, 'codex-app')).toBeTruthy()
+    expect(getByText(container, 'claude-code')).toBeTruthy()
     expect(container.querySelectorAll('img[src="/pi-logo.svg"]').length).toBeGreaterThanOrEqual(2)
     expect(container.querySelector('img[src="/agents/codex-logo.svg"]')).toBeTruthy()
   })

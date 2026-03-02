@@ -1549,7 +1549,7 @@ describe('SwarmWebSocketServer', () => {
       (event) =>
         event.type === 'error' &&
         event.code === 'INVALID_COMMAND' &&
-        event.message.includes('create_manager.model must be one of pi-codex|pi-opus|codex-app'),
+        event.message.includes('create_manager.model must be one of pi-codex|pi-opus|codex-app|claude-code'),
     )
 
     expect(errorEvent.type).toBe('error')
