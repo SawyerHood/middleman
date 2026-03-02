@@ -143,6 +143,44 @@ describe('buildClaudeCodeMcpServer', () => {
     expect(killAgentResult.content[0].text).toContain('Tool kill_agent failed: blocked')
   })
 
+  it('accepts optional includeTerminated argument for list_agents and forwards it to the tool callback', async () => {
+    const execute = vi.fn(async () => ({
+      content: [
+        {
+          type: 'text',
+          text: 'ok',
+        },
+      ],
+      details: {},
+    }))
+
+    const server = buildClaudeCodeMcpServer([
+      toolDefinition({
+        name: 'list_agents',
+        execute: execute as ToolDefinition['execute'],
+      }),
+    ])
+
+    const registeredTools = (server.instance as any)._registeredTools
+    await registeredTools.list_agents.handler(
+      {
+        includeTerminated: true,
+      },
+      {},
+    )
+
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledWith(
+      'sdk-call',
+      {
+        includeTerminated: true,
+      },
+      undefined,
+      undefined,
+      undefined,
+    )
+  })
+
   it('wires MCP handlers through swarm tools into host callbacks', async () => {
     const descriptor: AgentDescriptor = {
       agentId: 'manager',

@@ -164,7 +164,9 @@ function extractTextFromContentItems(result: unknown): string | undefined {
 function schemaForToolName(name: string): z.ZodRawShape {
   switch (name) {
     case "list_agents":
-      return {};
+      return {
+        includeTerminated: z.boolean().optional()
+      };
 
     case "send_message_to_agent":
       return {

@@ -3,6 +3,7 @@ import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { parseSwarmModelPreset } from "./model-presets.js";
 import {
   type AgentDescriptor,
+  type AgentStatus,
   type MessageChannel,
   type MessageSourceContext,
   type MessageTargetContext,
@@ -60,15 +61,38 @@ const speakToUserTargetSchema = Type.Object({
   )
 });
 
+type ListAgentsEntry = Pick<AgentDescriptor, "agentId" | "role" | "managerId" | "status" | "model">;
+
+const ACTIVE_AGENT_STATUSES = new Set<AgentStatus>(["idle", "streaming"]);
+
 export function buildSwarmTools(host: SwarmToolHost, descriptor: AgentDescriptor): ToolDefinition[] {
   const shared: ToolDefinition[] = [
     {
       name: "list_agents",
       label: "List Agents",
-      description: "List swarm agents with ids, roles, status, model, and workspace.",
-      parameters: Type.Object({}),
-      async execute() {
-        const agents = host.listAgents();
+      description:
+        "List swarm agents with ids, roles, manager ids, status, and model. Returns active agents (idle/streaming) by default; set includeTerminated=true to include inactive agents.",
+      parameters: Type.Object({
+        includeTerminated: Type.Optional(
+          Type.Boolean({
+            description: "When true, include stopped/terminated/error agents in the results."
+          })
+        )
+      }),
+      async execute(_toolCallId, params) {
+        const parsed = params as {
+          includeTerminated?: boolean;
+        };
+        const agents: ListAgentsEntry[] = host
+          .listAgents()
+          .filter((agent) => parsed.includeTerminated === true || ACTIVE_AGENT_STATUSES.has(agent.status))
+          .map((agent) => ({
+            agentId: agent.agentId,
+            role: agent.role,
+            managerId: agent.managerId,
+            status: agent.status,
+            model: agent.model
+          }));
         return {
           content: [
             {
