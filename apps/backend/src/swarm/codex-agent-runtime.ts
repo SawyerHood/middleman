@@ -35,6 +35,10 @@ import type {
 
 const CODEX_RUNTIME_STATE_ENTRY_TYPE = "swarm_codex_runtime_state";
 const CODEX_SANDBOX_MODE = "danger-full-access";
+const MAX_TOOL_ITEM_PREVIEW_BYTES = 2 * 1024;
+const MAX_TOOL_ITEM_STRING_BYTES = 256;
+const MAX_TOOL_ITEM_PREVIEW_FIELDS = 16;
+const TOOL_ITEM_PREVIEW_TRUNCATED_SUFFIX = " [truncated]";
 
 interface CodexRuntimeState {
   threadId: string;
@@ -642,7 +646,7 @@ export class CodexAgentRuntime implements SwarmAgentRuntime {
           type: "tool_execution_start",
           toolName,
           toolCallId: item.id,
-          args: item
+          args: summarizeToolItemForEvent(toolName, "start", item)
         });
         return;
       }
@@ -654,7 +658,7 @@ export class CodexAgentRuntime implements SwarmAgentRuntime {
         type: "tool_execution_end",
         toolName,
         toolCallId: item.id,
-        result: item,
+        result: summarizeToolItemForEvent(toolName, "end", item),
         isError: threadItemRepresentsError(item)
       });
     }
@@ -1107,4 +1111,90 @@ function parseDataUrl(value: string): RuntimeImageAttachment | undefined {
     mimeType: match[1],
     data: match[2]
   };
+}
+
+function summarizeToolItemForEvent(
+  toolName: string,
+  stage: "start" | "end",
+  item: { type: string; id: string; [key: string]: unknown }
+): Record<string, unknown> {
+  const status = typeof item.status === "string" ? item.status : undefined;
+  return {
+    toolName,
+    stage,
+    itemId: item.id,
+    itemType: item.type,
+    status,
+    preview: toTruncatedPreviewString(compactToolItemForPreview(item), MAX_TOOL_ITEM_PREVIEW_BYTES)
+  };
+}
+
+function compactToolItemForPreview(item: { [key: string]: unknown }): Record<string, unknown> {
+  const compact: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(item)) {
+    if (Object.keys(compact).length >= MAX_TOOL_ITEM_PREVIEW_FIELDS) {
+      compact.__truncatedFields = true;
+      break;
+    }
+
+    const compactValue = compactToolItemValue(value);
+    if (compactValue === undefined) {
+      continue;
+    }
+    compact[key] = compactValue;
+  }
+
+  return compact;
+}
+
+function compactToolItemValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return truncateUtf8(value, MAX_TOOL_ITEM_STRING_BYTES);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean" || value === null) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return `[array(${value.length})]`;
+  }
+
+  if (value && typeof value === "object") {
+    return "[object]";
+  }
+
+  return undefined;
+}
+
+function toTruncatedPreviewString(value: unknown, maxBytes: number): string {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(value);
+  } catch {
+    serialized = String(value);
+  }
+
+  return truncateUtf8(serialized, maxBytes);
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  if (maxBytes <= 0) {
+    return "";
+  }
+
+  const byteCount = Buffer.byteLength(value, "utf8");
+  if (byteCount <= maxBytes) {
+    return value;
+  }
+
+  const suffixBytes = Buffer.byteLength(TOOL_ITEM_PREVIEW_TRUNCATED_SUFFIX, "utf8");
+  if (maxBytes <= suffixBytes) {
+    return TOOL_ITEM_PREVIEW_TRUNCATED_SUFFIX;
+  }
+
+  const previewBytes = maxBytes - suffixBytes;
+  const preview = Buffer.from(value, "utf8").subarray(0, previewBytes).toString("utf8");
+  return `${preview}${TOOL_ITEM_PREVIEW_TRUNCATED_SUFFIX}`;
 }

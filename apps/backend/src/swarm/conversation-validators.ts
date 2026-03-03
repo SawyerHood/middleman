@@ -2,10 +2,12 @@ import type {
   AgentMessageEvent,
   AgentToolCallEvent,
   ConversationAttachment,
+  ConversationAttachmentMetadata,
   ConversationBinaryAttachment,
   ConversationEntryEvent,
   ConversationImageAttachment,
   ConversationLogEvent,
+  ConversationMessageAttachment,
   ConversationMessageEvent,
   ConversationTextAttachment,
   MessageSourceContext
@@ -37,7 +39,7 @@ export function isConversationMessageEvent(value: unknown): value is Conversatio
     }
 
     for (const attachment of maybe.attachments) {
-      if (!isConversationAttachment(attachment)) {
+      if (!isConversationMessageAttachment(attachment)) {
         return false;
       }
     }
@@ -104,6 +106,48 @@ export function isConversationAttachment(value: unknown): value is ConversationA
     isConversationTextAttachment(value) ||
     isConversationBinaryAttachment(value)
   );
+}
+
+export function isConversationMessageAttachment(value: unknown): value is ConversationMessageAttachment {
+  return isConversationAttachment(value) || isConversationAttachmentMetadata(value);
+}
+
+export function isConversationAttachmentMetadata(value: unknown): value is ConversationAttachmentMetadata {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const maybe = value as Partial<ConversationAttachmentMetadata>;
+
+  if (
+    maybe.type !== undefined &&
+    maybe.type !== "image" &&
+    maybe.type !== "text" &&
+    maybe.type !== "binary"
+  ) {
+    return false;
+  }
+
+  if (typeof maybe.mimeType !== "string" || maybe.mimeType.trim().length === 0) {
+    return false;
+  }
+
+  if (maybe.fileName !== undefined && typeof maybe.fileName !== "string") {
+    return false;
+  }
+
+  if (maybe.filePath !== undefined && typeof maybe.filePath !== "string") {
+    return false;
+  }
+
+  if (
+    maybe.sizeBytes !== undefined &&
+    (typeof maybe.sizeBytes !== "number" || !Number.isFinite(maybe.sizeBytes) || maybe.sizeBytes < 0)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 export function isConversationImageAttachment(value: unknown): value is ConversationImageAttachment {

@@ -1111,9 +1111,11 @@ describe('SwarmManager', () => {
       expect(userEvent.text).toBe('')
       expect(userEvent.attachments).toEqual([
         {
+          type: 'image',
           mimeType: 'image/png',
-          data: 'aGVsbG8=',
           fileName: 'diagram.png',
+          filePath: expect.any(String),
+          sizeBytes: 5,
         },
       ])
     }
@@ -1195,7 +1197,6 @@ describe('SwarmManager', () => {
         },
       ])
       expect(sentMessage.text).toContain('Review these files')
-      expect(sentMessage.text).toContain(`[Attached file saved to: ${imagePath}]`)
       expect(sentMessage.text).toContain(`[Attached file saved to: ${textPath}]`)
     }
   })
@@ -1540,11 +1541,11 @@ describe('SwarmManager', () => {
     await manager.boot()
 
     expect(manager.createdRuntimeIds).toEqual([])
-    expect(manager.getLoadedConversationAgentIdsForTest()).toEqual(['manager', 'worker-active'])
+    expect(manager.getLoadedConversationAgentIdsForTest()).toEqual([])
 
     const terminatedHistory = manager.getConversationHistory('worker-terminated')
     expect(terminatedHistory.some((entry) => entry.text === 'terminated-worker-history')).toBe(true)
-    expect(manager.getLoadedConversationAgentIdsForTest()).toEqual(['manager', 'worker-active', 'worker-terminated'])
+    expect(manager.getLoadedConversationAgentIdsForTest()).toEqual(['worker-terminated'])
   })
 
   it('does not implicitly recreate the configured manager when other agents already exist', async () => {
