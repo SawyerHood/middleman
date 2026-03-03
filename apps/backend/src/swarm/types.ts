@@ -158,12 +158,22 @@ export type ConversationAttachment =
   | ConversationTextAttachment
   | ConversationBinaryAttachment;
 
+export interface ConversationAttachmentMetadata {
+  type?: "image" | "text" | "binary";
+  mimeType: string;
+  fileName?: string;
+  filePath?: string;
+  sizeBytes?: number;
+}
+
+export type ConversationMessageAttachment = ConversationAttachment | ConversationAttachmentMetadata;
+
 export interface ConversationMessageEvent {
   type: "conversation_message";
   agentId: string;
   role: "user" | "assistant" | "system";
   text: string;
-  attachments?: ConversationAttachment[];
+  attachments?: ConversationMessageAttachment[];
   timestamp: string;
   source: "user_input" | "speak_to_user" | "system";
   sourceContext?: MessageSourceContext;

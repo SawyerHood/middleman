@@ -1,4 +1,4 @@
-import type { ConversationAttachment } from './attachments.js'
+import type { ConversationMessageAttachment } from './attachments.js'
 import type {
   AcceptedDeliveryMode,
   AgentContextUsage,
@@ -14,7 +14,7 @@ export interface ConversationMessageEvent {
   agentId: string
   role: 'user' | 'assistant' | 'system'
   text: string
-  attachments?: ConversationAttachment[]
+  attachments?: ConversationMessageAttachment[]
   timestamp: string
   source: 'user_input' | 'speak_to_user' | 'system'
   sourceContext?: MessageSourceContext

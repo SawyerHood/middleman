@@ -8,6 +8,9 @@ import { handleConversationCommand } from "./routes/conversation-routes.js";
 import { handleManagerCommand } from "./routes/manager-routes.js";
 
 const BOOTSTRAP_SUBSCRIPTION_AGENT_ID = "__bootstrap_manager__";
+const BOOTSTRAP_HISTORY_LIMIT = 200;
+const MAX_WS_EVENT_BYTES = 5 * 1024 * 1024;
+const MAX_WS_BUFFERED_AMOUNT_BYTES = 5 * 1024 * 1024;
 
 export class WsHandler {
   private readonly swarmManager: SwarmManager;
@@ -281,7 +284,9 @@ export class WsHandler {
     this.send(socket, {
       type: "conversation_history",
       agentId: targetAgentId,
-      messages: this.swarmManager.getConversationHistory(targetAgentId)
+      messages: this.swarmManager.getConversationHistory(targetAgentId, {
+        limit: BOOTSTRAP_HISTORY_LIMIT
+      })
     });
 
     const managerContextId = this.resolveManagerContextAgentId(targetAgentId);
@@ -354,6 +359,36 @@ export class WsHandler {
       return;
     }
 
-    socket.send(JSON.stringify(event));
+    if (socket.bufferedAmount > MAX_WS_BUFFERED_AMOUNT_BYTES) {
+      console.warn("[swarm] ws:drop_event:backpressure", {
+        eventType: event.type,
+        bufferedAmount: socket.bufferedAmount,
+        maxBufferedAmountBytes: MAX_WS_BUFFERED_AMOUNT_BYTES
+      });
+      return;
+    }
+
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(event);
+    } catch (error) {
+      console.warn("[swarm] ws:drop_event:serialize_failed", {
+        eventType: event.type,
+        message: error instanceof Error ? error.message : String(error)
+      });
+      return;
+    }
+
+    const eventBytes = Buffer.byteLength(serialized, "utf8");
+    if (eventBytes > MAX_WS_EVENT_BYTES) {
+      console.warn("[swarm] ws:drop_event:oversized", {
+        eventType: event.type,
+        eventBytes,
+        maxEventBytes: MAX_WS_EVENT_BYTES
+      });
+      return;
+    }
+
+    socket.send(serialized);
   }
 }

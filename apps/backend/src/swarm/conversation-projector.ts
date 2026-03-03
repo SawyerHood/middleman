@@ -22,6 +22,8 @@ import type {
 } from "./types.js";
 
 const MAX_CONVERSATION_HISTORY = 2000;
+const MAX_SAFE_JSON_BYTES = 10 * 1024;
+const SAFE_JSON_TRUNCATED_SUFFIX = " [truncated]";
 const CONVERSATION_ENTRY_TYPE = "swarm_conversation_entry";
 const MANAGER_ERROR_CONTEXT_HINT = "Try compacting the conversation to free up context space.";
 const MANAGER_ERROR_GENERIC_HINT = "Please retry. If this persists, check provider auth and rate limits.";
@@ -45,16 +47,12 @@ interface ConversationProjectorDependencies {
 export class ConversationProjector {
   constructor(private readonly deps: ConversationProjectorDependencies) {}
 
-  getConversationHistory(agentId: string): ConversationEntryEvent[] {
-    let history = this.deps.conversationEntriesByAgentId.get(agentId);
-    if (!history) {
-      const descriptor = this.deps.descriptors.get(agentId);
-      if (descriptor && !this.shouldPreloadHistoryForDescriptor(descriptor)) {
-        history = this.loadConversationHistoryForDescriptor(descriptor);
-      }
-    }
-
-    return (history ?? []).map((entry) => ({ ...entry }));
+  getConversationHistory(agentId: string, limit?: number): ConversationEntryEvent[] {
+    const history = this.getOrLoadConversationHistory(agentId);
+    const normalizedLimit =
+      typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined;
+    const visibleEntries = normalizedLimit ? history.slice(-normalizedLimit) : history;
+    return visibleEntries.map((entry) => ({ ...entry }));
   }
 
   resetConversationHistory(agentId: string): void {
@@ -228,7 +226,7 @@ export class ConversationProjector {
   }
 
   private emitConversationEntry(event: ConversationEntryEvent): void {
-    const history = this.deps.conversationEntriesByAgentId.get(event.agentId) ?? [];
+    const history = this.getOrLoadConversationHistory(event.agentId);
     history.push(event);
     trimConversationHistory(history);
     this.deps.conversationEntriesByAgentId.set(event.agentId, history);
@@ -254,7 +252,21 @@ export class ConversationProjector {
   }
 
   private shouldPreloadHistoryForDescriptor(descriptor: AgentDescriptor): boolean {
-    return descriptor.status === "idle" || descriptor.status === "streaming";
+    return descriptor.status === "streaming";
+  }
+
+  private getOrLoadConversationHistory(agentId: string): ConversationEntryEvent[] {
+    const existing = this.deps.conversationEntriesByAgentId.get(agentId);
+    if (existing) {
+      return existing;
+    }
+
+    const descriptor = this.deps.descriptors.get(agentId);
+    if (!descriptor) {
+      return [];
+    }
+
+    return this.loadConversationHistoryForDescriptor(descriptor);
   }
 
   private loadConversationHistoryForDescriptor(descriptor: AgentDescriptor): ConversationEntryEvent[] {
@@ -392,11 +404,26 @@ export class ConversationProjector {
 }
 
 function safeJson(value: unknown): string {
+  let serialized: string;
   try {
-    return JSON.stringify(value);
+    serialized = JSON.stringify(value);
   } catch {
-    return String(value);
+    serialized = String(value);
   }
+
+  const serializedBytes = Buffer.byteLength(serialized, "utf8");
+  if (serializedBytes <= MAX_SAFE_JSON_BYTES) {
+    return serialized;
+  }
+
+  const suffixBytes = Buffer.byteLength(SAFE_JSON_TRUNCATED_SUFFIX, "utf8");
+  if (MAX_SAFE_JSON_BYTES <= suffixBytes) {
+    return SAFE_JSON_TRUNCATED_SUFFIX;
+  }
+
+  const previewByteCount = MAX_SAFE_JSON_BYTES - suffixBytes;
+  const preview = Buffer.from(serialized, "utf8").subarray(0, previewByteCount).toString("utf8");
+  return `${preview}${SAFE_JSON_TRUNCATED_SUFFIX}`;
 }
 
 function buildManagerErrorConversationText(options: {
