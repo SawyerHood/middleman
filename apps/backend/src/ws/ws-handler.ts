@@ -8,7 +8,7 @@ import { handleConversationCommand } from "./routes/conversation-routes.js";
 import { handleManagerCommand } from "./routes/manager-routes.js";
 
 const BOOTSTRAP_SUBSCRIPTION_AGENT_ID = "__bootstrap_manager__";
-const BOOTSTRAP_HISTORY_LIMIT = 5000;
+const BOOTSTRAP_HISTORY_LIMIT = 200;
 const MAX_WS_EVENT_BYTES = 5 * 1024 * 1024;
 const MAX_WS_BUFFERED_AMOUNT_BYTES = 5 * 1024 * 1024;
 

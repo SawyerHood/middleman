@@ -51,8 +51,8 @@ export class ConversationProjector {
     const history = this.getOrLoadConversationHistory(agentId);
     const normalizedLimit =
       typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined;
-    const visibleEntries = normalizedLimit ? history.slice(-normalizedLimit) : history;
-    return visibleEntries.map((entry) => ({ ...entry }));
+    const startIndex = normalizedLimit ? findVisibleHistoryStartIndex(history, normalizedLimit) : 0;
+    return history.slice(startIndex).map((entry) => ({ ...entry }));
   }
 
   resetConversationHistory(agentId: string): void {
@@ -443,6 +443,27 @@ function buildManagerErrorConversationText(options: {
   }
 
   return `⚠️ Manager reply failed. ${MANAGER_ERROR_GENERIC_HINT}`;
+}
+
+function isVisibleConversationEntry(entry: ConversationEntryEvent): boolean {
+  return entry.type === "conversation_message" && (entry.source === "user_input" || entry.source === "speak_to_user");
+}
+
+function findVisibleHistoryStartIndex(entries: ConversationEntryEvent[], visibleLimit: number): number {
+  let seenVisibleEntries = 0;
+
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (!isVisibleConversationEntry(entries[index])) {
+      continue;
+    }
+
+    seenVisibleEntries += 1;
+    if (seenVisibleEntries >= visibleLimit) {
+      return index;
+    }
+  }
+
+  return 0;
 }
 
 function isPreservedWebTranscriptEntry(entry: ConversationEntryEvent): boolean {

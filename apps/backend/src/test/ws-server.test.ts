@@ -1075,6 +1075,82 @@ describe('SwarmWebSocketServer', () => {
     await server.stop()
   })
 
+  it('applies bootstrap history limits to visible transcript messages and keeps interleaved raw events', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    for (let index = 0; index < 205; index += 1) {
+      await manager.publishToUser('manager', `visible-reply-${index}`, 'speak_to_user')
+      ;(manager as any).conversationProjector.emitConversationLog({
+        type: 'conversation_log',
+        agentId: 'manager',
+        timestamp: new Date(index).toISOString(),
+        source: 'runtime_log',
+        kind: 'tool_execution_start',
+        toolName: 'bash',
+        toolCallId: `tool-${index}`,
+        text: `tool-log-${index}`,
+      })
+    }
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    const client = new WebSocket(`ws://${config.host}:${config.port}`)
+    const events: ServerEvent[] = []
+    client.on('message', (raw) => {
+      events.push(JSON.parse(raw.toString()) as ServerEvent)
+    })
+
+    await once(client, 'open')
+    client.send(JSON.stringify({ type: 'subscribe' }))
+
+    const historyEvent = await waitForEvent(events, (event) => event.type === 'conversation_history')
+    expect(historyEvent.type).toBe('conversation_history')
+    if (historyEvent.type === 'conversation_history') {
+      const visibleMessages = historyEvent.messages.filter(
+        (entry) =>
+          entry.type === 'conversation_message' &&
+          (entry.source === 'user_input' || entry.source === 'speak_to_user'),
+      )
+
+      expect(visibleMessages).toHaveLength(200)
+      expect(visibleMessages[0]?.text).toBe('visible-reply-5')
+      expect(visibleMessages.at(-1)?.text).toBe('visible-reply-204')
+
+      expect(historyEvent.messages).toHaveLength(400)
+      expect(
+        historyEvent.messages.some(
+          (entry) => entry.type === 'conversation_log' && entry.toolCallId === 'tool-5' && entry.text === 'tool-log-5',
+        ),
+      ).toBe(true)
+      expect(
+        historyEvent.messages.some(
+          (entry) => entry.type === 'conversation_log' && entry.toolCallId === 'tool-4' && entry.text === 'tool-log-4',
+        ),
+      ).toBe(false)
+
+      const firstEntry = historyEvent.messages[0]
+      expect(firstEntry.type).toBe('conversation_message')
+      if (firstEntry.type === 'conversation_message') {
+        expect(firstEntry.text).toBe('visible-reply-5')
+      }
+    }
+
+    client.close()
+    await once(client, 'close')
+    await server.stop()
+  })
+
   it('handles /new via websocket by resetting manager session and clearing history', async () => {
     const port = await getAvailablePort()
     const config = await makeTempConfig(port)
