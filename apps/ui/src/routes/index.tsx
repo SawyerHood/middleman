@@ -13,7 +13,7 @@ import {
 import { AgentSidebar } from '@/components/chat/AgentSidebar'
 import { ArtifactPanel } from '@/components/chat/ArtifactPanel'
 import { ArtifactsSidebar } from '@/components/chat/ArtifactsSidebar'
-import { ChatHeader, type ChannelView } from '@/components/chat/ChatHeader'
+import { ChatHeader } from '@/components/chat/ChatHeader'
 import { CreateManagerDialog } from '@/components/chat/CreateManagerDialog'
 import { DeleteManagerDialog } from '@/components/chat/DeleteManagerDialog'
 import { MessageInput, type MessageInputHandle } from '@/components/chat/MessageInput'
@@ -75,7 +75,6 @@ export function IndexPage() {
 
   const [activeArtifact, setActiveArtifact] = useState<ArtifactReference | null>(null)
   const [isArtifactsPanelOpen, setIsArtifactsPanelOpen] = useState(false)
-  const [channelView, setChannelView] = useState<ChannelView>('web')
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   const activeAgentId = useMemo(() => {
@@ -148,7 +147,6 @@ export function IndexPage() {
     activityMessages: state.activityMessages,
     agents: state.agents,
     activeAgent,
-    channelView,
   })
 
   const collectedArtifacts = useMemo(
@@ -377,8 +375,6 @@ export function IndexPage() {
                   activeAgentLabel={activeAgentLabel}
                   activeAgentArchetypeId={activeAgent?.archetypeId}
                   activeAgentStatus={activeAgentStatus}
-                  channelView={channelView}
-                  onChannelViewChange={setChannelView}
                   contextWindowUsage={contextWindowUsage}
                   showCompact={isActiveManager}
                   compactInProgress={isCompactingManager}
