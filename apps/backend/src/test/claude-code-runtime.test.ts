@@ -478,6 +478,353 @@ describe('ClaudeCodeRuntime', () => {
     await runtime.terminate({ abort: false })
   })
 
+  it('maps tool_result content blocks in user messages to tool_execution_end events', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'swarm-claude-runtime-'))
+    const descriptor = makeDescriptor(baseDir)
+    await mkdir(dirname(descriptor.sessionFile), { recursive: true })
+
+    const sessionEvents: RuntimeSessionEvent[] = []
+
+    const runtime = await ClaudeCodeRuntime.create({
+      descriptor,
+      callbacks: {
+        onStatusChange: async () => {},
+        onSessionEvent: async (_agentId, event) => {
+          sessionEvents.push(event)
+        },
+        onAgentEnd: async () => {},
+      },
+      systemPrompt: 'You are a test Claude runtime.',
+      tools: makeTools(),
+    })
+
+    await runtime.sendMessage('run tool')
+
+    const query = sdkMockState.instances[0]
+    query.push({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'Running bash',
+          },
+          {
+            type: 'tool_use',
+            id: 'tool-call-1',
+            name: 'bash',
+            input: {
+              command: 'pwd',
+            },
+          },
+        ],
+      },
+      parent_tool_use_id: null,
+      uuid: 'assistant-1',
+      session_id: 'session-1',
+    })
+
+    query.push({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-call-1',
+            content: [
+              {
+                type: 'text',
+                text: '/tmp',
+              },
+            ],
+            is_error: false,
+          },
+        ],
+      },
+      parent_tool_use_id: null,
+      session_id: 'session-1',
+    })
+
+    query.push({
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      duration_ms: 10,
+      duration_api_ms: 8,
+      is_error: false,
+      num_turns: 1,
+      stop_reason: null,
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+      modelUsage: {
+        'claude-opus-4-6': {
+          inputTokens: 10,
+          outputTokens: 5,
+          contextWindow: 200000,
+        },
+      },
+      permission_denials: [],
+      uuid: 'result-1',
+      session_id: 'session-1',
+    })
+
+    await flush()
+
+    const toolEndEvents = sessionEvents.filter(
+      (event): event is Extract<RuntimeSessionEvent, { type: 'tool_execution_end' }> =>
+        event.type === 'tool_execution_end',
+    )
+
+    expect(toolEndEvents).toHaveLength(1)
+    expect(toolEndEvents[0]).toMatchObject({
+      type: 'tool_execution_end',
+      toolName: 'bash',
+      toolCallId: 'tool-call-1',
+      isError: false,
+      result: {
+        type: 'tool_result',
+        tool_use_id: 'tool-call-1',
+      },
+    })
+
+    await runtime.terminate({ abort: false })
+  })
+
+  it('uses tool_use_summary messages to finish tool calls when explicit tool results are absent', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'swarm-claude-runtime-'))
+    const descriptor = makeDescriptor(baseDir)
+    await mkdir(dirname(descriptor.sessionFile), { recursive: true })
+
+    const sessionEvents: RuntimeSessionEvent[] = []
+
+    const runtime = await ClaudeCodeRuntime.create({
+      descriptor,
+      callbacks: {
+        onStatusChange: async () => {},
+        onSessionEvent: async (_agentId, event) => {
+          sessionEvents.push(event)
+        },
+        onAgentEnd: async () => {},
+      },
+      systemPrompt: 'You are a test Claude runtime.',
+      tools: makeTools(),
+    })
+
+    await runtime.sendMessage('run tool')
+
+    const query = sdkMockState.instances[0]
+    query.push({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'tool-call-1',
+            name: 'bash',
+            input: {
+              command: 'pwd',
+            },
+          },
+        ],
+      },
+      parent_tool_use_id: null,
+      uuid: 'assistant-1',
+      session_id: 'session-1',
+    })
+
+    query.push({
+      type: 'tool_use_summary',
+      summary: 'Command completed successfully.',
+      preceding_tool_use_ids: ['tool-call-1'],
+      uuid: 'summary-1',
+      session_id: 'session-1',
+    })
+
+    // Duplicate completion signal should not emit a second tool_execution_end.
+    query.push({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: '',
+      },
+      parent_tool_use_id: 'tool-call-1',
+      tool_use_result: {
+        status: 'completed',
+      },
+      session_id: 'session-1',
+    })
+
+    query.push({
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      duration_ms: 10,
+      duration_api_ms: 8,
+      is_error: false,
+      num_turns: 1,
+      stop_reason: null,
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+      modelUsage: {
+        'claude-opus-4-6': {
+          inputTokens: 10,
+          outputTokens: 5,
+          contextWindow: 200000,
+        },
+      },
+      permission_denials: [],
+      uuid: 'result-1',
+      session_id: 'session-1',
+    })
+
+    await flush()
+
+    const toolEndEvents = sessionEvents.filter(
+      (event): event is Extract<RuntimeSessionEvent, { type: 'tool_execution_end' }> =>
+        event.type === 'tool_execution_end' && event.toolCallId === 'tool-call-1',
+    )
+
+    expect(toolEndEvents).toHaveLength(1)
+    expect(toolEndEvents[0]).toMatchObject({
+      type: 'tool_execution_end',
+      toolName: 'bash',
+      toolCallId: 'tool-call-1',
+      isError: false,
+      result: {
+        summary: 'Command completed successfully.',
+      },
+    })
+
+    await runtime.terminate({ abort: false })
+  })
+
+  it('maps task_notification tool_use_id to the original tool call completion', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'swarm-claude-runtime-'))
+    const descriptor = makeDescriptor(baseDir)
+    await mkdir(dirname(descriptor.sessionFile), { recursive: true })
+
+    const sessionEvents: RuntimeSessionEvent[] = []
+
+    const runtime = await ClaudeCodeRuntime.create({
+      descriptor,
+      callbacks: {
+        onStatusChange: async () => {},
+        onSessionEvent: async (_agentId, event) => {
+          sessionEvents.push(event)
+        },
+        onAgentEnd: async () => {},
+      },
+      systemPrompt: 'You are a test Claude runtime.',
+      tools: makeTools(),
+    })
+
+    await runtime.sendMessage('run tool')
+
+    const query = sdkMockState.instances[0]
+    query.push({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'tool-call-1',
+            name: 'bash',
+            input: {
+              command: 'pwd',
+            },
+          },
+        ],
+      },
+      parent_tool_use_id: null,
+      uuid: 'assistant-1',
+      session_id: 'session-1',
+    })
+
+    query.push({
+      type: 'system',
+      subtype: 'task_notification',
+      task_id: 'task-1',
+      tool_use_id: 'tool-call-1',
+      status: 'completed',
+      output_file: '/tmp/task-output.txt',
+      summary: 'Task complete',
+      usage: {
+        total_tokens: 25,
+        tool_uses: 1,
+        duration_ms: 120,
+      },
+      uuid: 'task-end-1',
+      session_id: 'session-1',
+    })
+
+    query.push({
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      duration_ms: 10,
+      duration_api_ms: 8,
+      is_error: false,
+      num_turns: 1,
+      stop_reason: null,
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+      modelUsage: {
+        'claude-opus-4-6': {
+          inputTokens: 10,
+          outputTokens: 5,
+          contextWindow: 200000,
+        },
+      },
+      permission_denials: [],
+      uuid: 'result-1',
+      session_id: 'session-1',
+    })
+
+    await flush()
+
+    const toolEndEvents = sessionEvents.filter(
+      (event): event is Extract<RuntimeSessionEvent, { type: 'tool_execution_end' }> =>
+        event.type === 'tool_execution_end',
+    )
+
+    expect(toolEndEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'tool_execution_end',
+        toolName: 'bash',
+        toolCallId: 'tool-call-1',
+        isError: false,
+      }),
+    )
+
+    expect(toolEndEvents).not.toContainEqual(
+      expect.objectContaining({
+        type: 'tool_execution_end',
+        toolCallId: 'task-1',
+      }),
+    )
+
+    await runtime.terminate({ abort: false })
+  })
+
   it('resumes persisted sessions and supports stop/terminate lifecycle controls', async () => {
     const baseDir = await mkdtemp(join(tmpdir(), 'swarm-claude-runtime-'))
     const descriptor = makeDescriptor(baseDir)

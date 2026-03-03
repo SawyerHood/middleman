@@ -73,6 +73,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
   private isCompacting = false;
 
   private readonly activeToolNameByCallId = new Map<string, string>();
+  private readonly completedToolCallIds = new Set<string>();
 
   private inputResolve: ((value: IteratorResult<SDKUserMessage>) => void) | null = null;
   private readonly inputQueue: SDKUserMessage[] = [];
@@ -180,6 +181,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     this.isProcessing = false;
     this.isCompacting = false;
     this.activeToolNameByCallId.clear();
+    this.completedToolCallIds.clear();
 
     this.status = transitionAgentStatus(this.status, "terminated");
     this.descriptor.status = this.status;
@@ -206,6 +208,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     this.clearInputQueue();
     this.isProcessing = false;
     this.activeToolNameByCallId.clear();
+    this.completedToolCallIds.clear();
 
     await this.updateStatus("idle");
   }
@@ -353,6 +356,26 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
         await this.handleResultMessage(message as SDKResultMessage);
         return;
 
+      case "tool_use_summary": {
+        const toolUseSummary = message as Extract<SDKMessage, { type: "tool_use_summary" }>;
+
+        for (const toolUseId of toolUseSummary.preceding_tool_use_ids) {
+          if (typeof toolUseId !== "string" || toolUseId.length === 0) {
+            continue;
+          }
+
+          await this.emitToolExecutionEndForCallId({
+            toolCallId: toolUseId,
+            result: {
+              summary: toolUseSummary.summary
+            },
+            isError: false
+          });
+        }
+
+        return;
+      }
+
       default:
         return;
     }
@@ -384,6 +407,20 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
       }
 
       case "task_started": {
+        if (typeof message.tool_use_id === "string" && message.tool_use_id.length > 0) {
+          await this.emitSessionEvent({
+            type: "tool_execution_update",
+            toolName: this.activeToolNameByCallId.get(message.tool_use_id) ?? `task:${message.task_id}`,
+            toolCallId: message.tool_use_id,
+            partialResult: {
+              description: message.description,
+              taskType: message.task_type,
+              taskId: message.task_id
+            }
+          });
+          return;
+        }
+
         await this.emitSessionEvent({
           type: "tool_execution_start",
           toolName: `task:${message.task_id}`,
@@ -398,6 +435,24 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
       }
 
       case "task_progress": {
+        if (typeof message.tool_use_id === "string" && message.tool_use_id.length > 0) {
+          await this.emitSessionEvent({
+            type: "tool_execution_update",
+            toolName:
+              this.activeToolNameByCallId.get(message.tool_use_id) ??
+              message.last_tool_name ??
+              `task:${message.task_id}`,
+            toolCallId: message.tool_use_id,
+            partialResult: {
+              description: message.description,
+              usage: message.usage,
+              lastToolName: message.last_tool_name,
+              taskId: message.task_id
+            }
+          });
+          return;
+        }
+
         await this.emitSessionEvent({
           type: "tool_execution_update",
           toolName: `task:${message.task_id}`,
@@ -413,6 +468,22 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
       }
 
       case "task_notification": {
+        if (typeof message.tool_use_id === "string" && message.tool_use_id.length > 0) {
+          await this.emitToolExecutionEndForCallId({
+            toolCallId: message.tool_use_id,
+            toolName: this.activeToolNameByCallId.get(message.tool_use_id) ?? `task:${message.task_id}`,
+            result: {
+              summary: message.summary,
+              outputFile: message.output_file,
+              status: message.status,
+              usage: message.usage,
+              taskId: message.task_id
+            },
+            isError: message.status !== "completed"
+          });
+          return;
+        }
+
         await this.emitSessionEvent({
           type: "tool_execution_end",
           toolName: `task:${message.task_id}`,
@@ -443,21 +514,15 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
       return;
     }
 
-    if (
-      typeof message.parent_tool_use_id === "string" &&
-      message.parent_tool_use_id.length > 0 &&
-      message.tool_use_result !== undefined
-    ) {
-      const toolName = this.activeToolNameByCallId.get(message.parent_tool_use_id) ?? "tool";
-      this.activeToolNameByCallId.delete(message.parent_tool_use_id);
-
-      await this.emitSessionEvent({
-        type: "tool_execution_end",
-        toolName,
-        toolCallId: message.parent_tool_use_id,
-        result: message.tool_use_result,
-        isError: toolUseResultRepresentsError(message.tool_use_result)
-      });
+    const toolResultCompletions = extractToolResultCompletionsFromUserMessage(message);
+    if (toolResultCompletions.length > 0) {
+      for (const completion of toolResultCompletions) {
+        await this.emitToolExecutionEndForCallId({
+          toolCallId: completion.toolUseId,
+          result: completion.result,
+          isError: completion.isError
+        });
+      }
       return;
     }
 
@@ -518,6 +583,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     });
 
     for (const toolUse of extractAssistantToolUses(message.message)) {
+      this.completedToolCallIds.delete(toolUse.id);
       this.activeToolNameByCallId.set(toolUse.id, toolUse.name);
 
       await this.emitSessionEvent({
@@ -538,10 +604,27 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
   }
 
   private async handleResultMessage(message: SDKResultMessage): Promise<void> {
+    if (this.activeToolNameByCallId.size > 0) {
+      const unresolvedToolCallIds = Array.from(this.activeToolNameByCallId.keys());
+      const shouldTreatAsError = message.subtype !== "success";
+
+      for (const toolCallId of unresolvedToolCallIds) {
+        await this.emitToolExecutionEndForCallId({
+          toolCallId,
+          result: {
+            status: shouldTreatAsError ? "failed" : "completed",
+            source: "result_message"
+          },
+          isError: shouldTreatAsError
+        });
+      }
+    }
+
     this.lastContextUsage = normalizeContextUsage(message.modelUsage);
 
     const wasProcessing = this.isProcessing;
     this.isProcessing = false;
+    this.completedToolCallIds.clear();
 
     if (this.status !== "terminated") {
       await this.updateStatus("idle");
@@ -748,6 +831,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     this.pendingDeliveries = [];
     this.clearInputQueue();
     this.activeToolNameByCallId.clear();
+    this.completedToolCallIds.clear();
     this.isProcessing = false;
     this.inputDone = true;
     this.resolveInputDone();
@@ -796,6 +880,34 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     }
 
     await this.callbacks.onSessionEvent(this.descriptor.agentId, event);
+  }
+
+  private async emitToolExecutionEndForCallId(options: {
+    toolCallId: string;
+    result: unknown;
+    isError: boolean;
+    toolName?: string;
+  }): Promise<void> {
+    const toolCallId = options.toolCallId.trim();
+    if (toolCallId.length === 0) {
+      return;
+    }
+
+    if (this.completedToolCallIds.has(toolCallId)) {
+      return;
+    }
+
+    const toolName = this.activeToolNameByCallId.get(toolCallId) ?? options.toolName ?? "tool";
+    this.activeToolNameByCallId.delete(toolCallId);
+    this.completedToolCallIds.add(toolCallId);
+
+    await this.emitSessionEvent({
+      type: "tool_execution_end",
+      toolName,
+      toolCallId,
+      result: options.result,
+      isError: options.isError
+    });
   }
 
   private async reportRuntimeError(error: RuntimeErrorEvent): Promise<void> {
@@ -1034,6 +1146,111 @@ function extractAssistantToolUses(message: unknown): Array<{
   }
 
   return toolUses;
+}
+
+function extractToolResultCompletionsFromUserMessage(
+  message: SDKUserMessage
+): Array<{
+  toolUseId: string;
+  result: unknown;
+  isError: boolean;
+}> {
+  const completions: Array<{
+    toolUseId: string;
+    result: unknown;
+    isError: boolean;
+  }> = [];
+
+  if (
+    typeof message.parent_tool_use_id === "string" &&
+    message.parent_tool_use_id.length > 0 &&
+    message.tool_use_result !== undefined
+  ) {
+    completions.push({
+      toolUseId: message.parent_tool_use_id,
+      result: message.tool_use_result,
+      isError: toolUseResultRepresentsError(message.tool_use_result)
+    });
+  }
+
+  const content = (message.message as { content?: unknown } | undefined)?.content;
+  if (!Array.isArray(content)) {
+    return dedupeToolResultCompletions(completions);
+  }
+
+  for (const block of content) {
+    if (!block || typeof block !== "object") {
+      continue;
+    }
+
+    const typed = block as {
+      type?: unknown;
+      tool_use_id?: unknown;
+      toolUseId?: unknown;
+    };
+
+    if (typed.type !== "tool_result") {
+      continue;
+    }
+
+    const toolUseId =
+      typeof typed.tool_use_id === "string" && typed.tool_use_id.length > 0
+        ? typed.tool_use_id
+        : typeof typed.toolUseId === "string" && typed.toolUseId.length > 0
+          ? typed.toolUseId
+          : undefined;
+
+    if (!toolUseId) {
+      continue;
+    }
+
+    completions.push({
+      toolUseId,
+      result: block,
+      isError: toolUseResultRepresentsError(block)
+    });
+  }
+
+  return dedupeToolResultCompletions(completions);
+}
+
+function dedupeToolResultCompletions(
+  completions: Array<{
+    toolUseId: string;
+    result: unknown;
+    isError: boolean;
+  }>
+): Array<{
+  toolUseId: string;
+  result: unknown;
+  isError: boolean;
+}> {
+  if (completions.length <= 1) {
+    return completions;
+  }
+
+  const dedupedByToolUseId = new Map<
+    string,
+    {
+      toolUseId: string;
+      result: unknown;
+      isError: boolean;
+    }
+  >();
+
+  for (const completion of completions) {
+    if (!dedupedByToolUseId.has(completion.toolUseId)) {
+      dedupedByToolUseId.set(completion.toolUseId, completion);
+      continue;
+    }
+
+    const existing = dedupedByToolUseId.get(completion.toolUseId)!;
+    if (existing.result === undefined && completion.result !== undefined) {
+      dedupedByToolUseId.set(completion.toolUseId, completion);
+    }
+  }
+
+  return Array.from(dedupedByToolUseId.values());
 }
 
 function extractStreamEventTextDelta(event: unknown): string | undefined {
