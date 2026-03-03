@@ -13,16 +13,12 @@ import { ContextWindowIndicator } from '@/components/chat/ContextWindowIndicator
 import { cn } from '@/lib/utils'
 import type { AgentStatus } from '@middleman/protocol'
 
-export type ChannelView = 'web' | 'all'
-
 interface ChatHeaderProps {
   connected: boolean
   activeAgentId: string | null
   activeAgentLabel: string
   activeAgentArchetypeId?: string | null
   activeAgentStatus: AgentStatus | null
-  channelView: ChannelView
-  onChannelViewChange: (view: ChannelView) => void
   contextWindowUsage: { usedTokens: number; contextWindow: number } | null
   showCompact: boolean
   compactInProgress: boolean
@@ -55,40 +51,12 @@ function formatAgentStatus(status: AgentStatus | null): string {
   }
 }
 
-function ChannelToggleButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        'h-[22px] min-w-10 rounded-[4px] px-2 text-[11px] font-medium transition-colors',
-        active
-          ? 'bg-background text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground',
-      )}
-      onClick={onClick}
-      aria-pressed={active}
-    >
-      {label}
-    </button>
-  )
-}
-
 export function ChatHeader({
   connected,
   activeAgentId,
   activeAgentLabel,
   activeAgentArchetypeId,
   activeAgentStatus,
-  channelView,
-  onChannelViewChange,
   contextWindowUsage,
   showCompact,
   compactInProgress,
@@ -169,21 +137,8 @@ export function ChatHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
-        {/* ── Inline: channel toggle + context window ── */}
-        <div className="hidden sm:inline-flex items-center gap-1">
-          <div className="inline-flex h-7 items-center rounded-md border border-border/60 bg-muted/30 p-0.5">
-            <ChannelToggleButton
-              label="Web"
-              active={channelView === 'web'}
-              onClick={() => onChannelViewChange('web')}
-            />
-            <ChannelToggleButton
-              label="All"
-              active={channelView === 'all'}
-              onClick={() => onChannelViewChange('all')}
-            />
-          </div>
-
+        {/* ── Inline: context window ── */}
+        <div className="hidden sm:inline-flex items-center">
           {contextWindowUsage ? (
             <ContextWindowIndicator
               usedTokens={contextWindowUsage.usedTokens}

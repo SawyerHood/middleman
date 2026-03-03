@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import type { ChannelView } from '@/components/chat/ChatHeader'
 import type { AgentDescriptor, ConversationEntry } from '@middleman/protocol'
 
 function toEpochMillis(timestamp: string): number {
@@ -60,25 +59,19 @@ function buildManagerScopedAgentIds(agents: AgentDescriptor[], managerId: string
   return scopedAgentIds
 }
 
-function isManagerScopedAllViewEntry(
+function isUserTranscriptEntry(entry: ConversationEntry): boolean {
+  if (entry.type !== 'conversation_message') {
+    return false
+  }
+
+  return entry.source === 'user_input' || entry.source === 'speak_to_user'
+}
+
+function isManagerScopedTranscriptEntry(
   entry: ConversationEntry,
-  managerId: string,
   scopedAgentIds: ReadonlySet<string>,
 ): boolean {
-  if (entry.type === 'agent_tool_call') {
-    return entry.agentId === managerId && entry.actorAgentId === managerId
-  }
-
-  if (entry.type === 'agent_message') {
-    if (entry.agentId !== managerId) {
-      return false
-    }
-
-    const fromAgentId = entry.fromAgentId?.trim()
-    return scopedAgentIds.has(entry.toAgentId) || (!!fromAgentId && scopedAgentIds.has(fromAgentId))
-  }
-
-  return scopedAgentIds.has(entry.agentId)
+  return isUserTranscriptEntry(entry) && scopedAgentIds.has(entry.agentId)
 }
 
 interface UseVisibleMessagesOptions {
@@ -86,7 +79,6 @@ interface UseVisibleMessagesOptions {
   activityMessages: ConversationEntry[]
   agents: AgentDescriptor[]
   activeAgent: AgentDescriptor | null
-  channelView: ChannelView
 }
 
 export function useVisibleMessages({
@@ -94,7 +86,6 @@ export function useVisibleMessages({
   activityMessages,
   agents,
   activeAgent,
-  channelView,
 }: UseVisibleMessagesOptions): {
   allMessages: ConversationEntry[]
   visibleMessages: ConversationEntry[]
@@ -113,13 +104,9 @@ export function useVisibleMessages({
   )
 
   const visibleMessages = useMemo(() => {
-    if (channelView === 'all') {
-      if (activeAgent?.role !== 'manager' || !managerScopedAgentIds) {
-        return allMessages
-      }
-
+    if (activeAgent?.role === 'manager' && managerScopedAgentIds) {
       return allMessages.filter((entry) =>
-        isManagerScopedAllViewEntry(entry, activeAgent.agentId, managerScopedAgentIds),
+        isManagerScopedTranscriptEntry(entry, managerScopedAgentIds),
       )
     }
 
@@ -130,7 +117,7 @@ export function useVisibleMessages({
 
       return (entry.sourceContext?.channel ?? 'web') === 'web'
     })
-  }, [activeAgent, allMessages, channelView, managerScopedAgentIds, messages])
+  }, [activeAgent, allMessages, managerScopedAgentIds, messages])
 
   return {
     allMessages,
