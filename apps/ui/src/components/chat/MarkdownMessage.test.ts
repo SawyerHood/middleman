@@ -24,7 +24,7 @@ describe('MarkdownMessage', () => {
 
     expect(html).toContain('href="https://example.com"')
     expect(html).toContain('>pnpm test</code>')
-    expect(html).toContain('data-slot="scroll-area"')
+    expect(html).toContain('<pre class="overflow-x-auto p-4">')
     expect(html).toContain('<ul class="mb-2 list-disc space-y-0.5 pl-5')
     expect(html).toContain('<strong class="font-semibold')
     expect(html).toContain('<em class="italic">italic</em>')

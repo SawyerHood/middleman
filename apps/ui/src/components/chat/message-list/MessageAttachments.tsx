@@ -1,10 +1,32 @@
 import { File, FileText } from 'lucide-react'
-import { isImageAttachment } from '@/lib/file-attachments'
 import { cn } from '@/lib/utils'
 import type {
-  ConversationAttachment,
   ConversationImageAttachment,
+  ConversationMessageAttachment,
 } from '@middleman/protocol'
+
+function isMessageImageAttachment(
+  attachment: ConversationMessageAttachment,
+): attachment is ConversationImageAttachment {
+  const maybeType = attachment.type
+  if (maybeType === 'text' || maybeType === 'binary') {
+    return false
+  }
+
+  return 'data' in attachment && typeof attachment.data === 'string' && attachment.data.length > 0
+}
+
+function fileAttachmentSubtitle(attachment: ConversationMessageAttachment): string {
+  if (attachment.type === 'text') {
+    return 'Text file'
+  }
+
+  if (attachment.type === 'binary') {
+    return 'Binary file'
+  }
+
+  return 'Image file'
+}
 
 function MessageImageAttachments({
   attachments,
@@ -45,7 +67,7 @@ function MessageFileAttachments({
   attachments,
   isUser,
 }: {
-  attachments: ConversationAttachment[]
+  attachments: ConversationMessageAttachment[]
   isUser: boolean
 }) {
   if (attachments.length === 0) {
@@ -57,7 +79,7 @@ function MessageFileAttachments({
       {attachments.map((attachment, index) => {
         const isTextFile = attachment.type === 'text'
         const fileName = attachment.fileName || `Attachment ${index + 1}`
-        const subtitle = isTextFile ? 'Text file' : 'Binary file'
+        const subtitle = fileAttachmentSubtitle(attachment)
 
         return (
           <div
@@ -103,11 +125,11 @@ export function MessageAttachments({
   attachments,
   isUser,
 }: {
-  attachments: ConversationAttachment[]
+  attachments: ConversationMessageAttachment[]
   isUser: boolean
 }) {
-  const imageAttachments = attachments.filter(isImageAttachment)
-  const fileAttachments = attachments.filter((attachment) => !isImageAttachment(attachment))
+  const imageAttachments = attachments.filter(isMessageImageAttachment)
+  const fileAttachments = attachments.filter((attachment) => !isMessageImageAttachment(attachment))
 
   if (imageAttachments.length === 0 && fileAttachments.length === 0) {
     return null

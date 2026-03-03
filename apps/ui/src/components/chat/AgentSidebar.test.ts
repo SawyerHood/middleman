@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { getByRole, getByText, queryByText } from '@testing-library/dom'
+import { getByText, queryByText, within } from '@testing-library/dom'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
@@ -68,6 +68,15 @@ function click(element: HTMLElement): void {
   })
 }
 
+function getPrimarySidebar(): HTMLElement {
+  const sidebar = container.querySelector('aside')
+  if (!sidebar) {
+    throw new Error('Expected sidebar to render')
+  }
+
+  return sidebar
+}
+
 function renderSidebar({
   agents,
   selectedAgentId = null,
@@ -108,19 +117,20 @@ function renderSidebar({
 }
 
 describe('AgentSidebar', () => {
-  it('shows workers expanded by default and toggles collapse/expand per manager', () => {
+  it('shows workers collapsed by default and toggles expand/collapse per manager', () => {
     renderSidebar({ agents: [manager('manager-alpha'), worker('worker-alpha', 'manager-alpha')] })
+    const sidebar = getPrimarySidebar()
 
-    expect(queryByText(container, 'worker-alpha')).toBeTruthy()
+    expect(queryByText(sidebar, 'worker-alpha')).toBeNull()
 
-    click(getByRole(container, 'button', { name: 'Collapse manager manager-alpha' }))
-    expect(queryByText(container, 'worker-alpha')).toBeNull()
+    click(within(sidebar).getByRole('button', { name: 'Expand manager manager-alpha' }))
+    expect(queryByText(sidebar, 'worker-alpha')).toBeTruthy()
 
-    click(getByRole(container, 'button', { name: 'Expand manager manager-alpha' }))
-    expect(queryByText(container, 'worker-alpha')).toBeTruthy()
+    click(within(sidebar).getByRole('button', { name: 'Collapse manager manager-alpha' }))
+    expect(queryByText(sidebar, 'worker-alpha')).toBeNull()
   })
 
-  it('shows runtime icons and compact model labels from model presets', () => {
+  it('shows runtime icons from model presets', () => {
     renderSidebar({
       agents: [
         manager('manager-pi', { provider: 'openai-codex', modelId: 'gpt-5.3-codex' }),
@@ -129,15 +139,14 @@ describe('AgentSidebar', () => {
         worker('worker-claude-code', 'manager-pi', { provider: 'anthropic-claude-code', modelId: 'claude-opus-4-6' }),
       ],
     })
+    const sidebar = getPrimarySidebar()
 
-    expect(getByText(container, 'pi-codex')).toBeTruthy()
-    expect(getByText(container, 'pi-opus')).toBeTruthy()
-    expect(getByText(container, 'codex-app')).toBeTruthy()
-    expect(getByText(container, 'claude-code')).toBeTruthy()
+    click(within(sidebar).getByRole('button', { name: 'Expand manager manager-pi' }))
+
     expect(container.querySelectorAll('img[src="/pi-logo.svg"]').length).toBeGreaterThanOrEqual(2)
     expect(container.querySelector('img[src="/agents/codex-logo.svg"]')).toBeTruthy()
 
-    const claudeCodeRow = getByText(container, 'worker-claude-code').closest('button') as HTMLButtonElement
+    const claudeCodeRow = getByText(sidebar, 'worker-claude-code').closest('button') as HTMLButtonElement
     expect(claudeCodeRow).toBeTruthy()
     expect(claudeCodeRow.querySelectorAll('img[src="/agents/claude-logo.svg"]').length).toBe(2)
   })
@@ -149,15 +158,16 @@ describe('AgentSidebar', () => {
       agents: [manager('manager-alpha'), worker('worker-alpha', 'manager-alpha')],
       onSelectAgent,
     })
+    const sidebar = getPrimarySidebar()
 
-    const getManagerRowButton = () => getByText(container, 'manager-alpha').closest('button') as HTMLButtonElement
+    const getManagerRowButton = () => getByText(sidebar, 'manager-alpha').closest('button') as HTMLButtonElement
     expect(getManagerRowButton()).toBeTruthy()
 
     click(getManagerRowButton())
     expect(onSelectAgent).toHaveBeenCalledTimes(1)
     expect(onSelectAgent).toHaveBeenLastCalledWith('manager-alpha')
 
-    click(getByRole(container, 'button', { name: 'Collapse manager manager-alpha' }))
+    click(within(sidebar).getByRole('button', { name: 'Expand manager manager-alpha' }))
     expect(onSelectAgent).toHaveBeenCalledTimes(1)
 
     click(getManagerRowButton())
@@ -165,23 +175,29 @@ describe('AgentSidebar', () => {
     expect(onSelectAgent).toHaveBeenLastCalledWith('manager-alpha')
   })
 
-  it('preserves existing delete controls for managers and workers', () => {
+  it('keeps manager and worker selection separate from delete callbacks', () => {
     const onDeleteAgent = vi.fn()
     const onDeleteManager = vi.fn()
+    const onSelectAgent = vi.fn()
 
     renderSidebar({
       agents: [manager('manager-alpha'), worker('worker-alpha', 'manager-alpha')],
       onDeleteAgent,
       onDeleteManager,
+      onSelectAgent,
     })
+    const sidebar = getPrimarySidebar()
 
-    click(getByRole(container, 'button', { name: 'Delete manager manager-alpha' }))
-    expect(onDeleteManager).toHaveBeenCalledTimes(1)
-    expect(onDeleteManager).toHaveBeenCalledWith('manager-alpha')
+    const managerRowButton = within(sidebar).getByRole('button', { name: 'manager-alpha' })
+    click(managerRowButton)
+    expect(onSelectAgent).toHaveBeenCalledWith('manager-alpha')
+    expect(onDeleteManager).not.toHaveBeenCalled()
 
-    click(getByRole(container, 'button', { name: 'Delete worker-alpha' }))
-    expect(onDeleteAgent).toHaveBeenCalledTimes(1)
-    expect(onDeleteAgent).toHaveBeenCalledWith('worker-alpha')
+    click(within(sidebar).getByRole('button', { name: 'Expand manager manager-alpha' }))
+    const workerRowButton = within(sidebar).getByRole('button', { name: 'worker-alpha' })
+    click(workerRowButton)
+    expect(onSelectAgent).toHaveBeenCalledWith('worker-alpha')
+    expect(onDeleteAgent).not.toHaveBeenCalled()
   })
 
   it('calls onOpenSettings when the settings button is clicked', () => {
@@ -191,8 +207,9 @@ describe('AgentSidebar', () => {
       agents: [manager('manager-alpha')],
       onOpenSettings,
     })
+    const sidebar = getPrimarySidebar()
 
-    click(getByRole(container, 'button', { name: 'Settings' }))
+    click(within(sidebar).getByRole('button', { name: 'Settings' }))
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 

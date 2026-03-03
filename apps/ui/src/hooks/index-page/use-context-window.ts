@@ -1,7 +1,14 @@
 import { useMemo } from 'react'
 import { inferModelPreset } from '@/lib/model-preset'
 import type { ManagerWsState } from '@/lib/ws-state'
-import type { AgentContextUsage, AgentDescriptor, ConversationEntry, ManagerModelPreset } from '@middleman/protocol'
+import type {
+  AgentContextUsage,
+  AgentDescriptor,
+  ConversationEntry,
+  ConversationMessageAttachment,
+  ConversationTextAttachment,
+  ManagerModelPreset,
+} from '@middleman/protocol'
 
 const CHARS_PER_TOKEN_ESTIMATE = 4
 const CONTEXT_WINDOW_BY_PRESET: Record<ManagerModelPreset, number> = {
@@ -20,6 +27,12 @@ function contextWindowForAgent(agent: AgentDescriptor | null): number | null {
   return modelPreset ? CONTEXT_WINDOW_BY_PRESET[modelPreset] : null
 }
 
+function isTextAttachmentWithContent(
+  attachment: ConversationMessageAttachment,
+): attachment is ConversationTextAttachment {
+  return attachment.type === 'text' && 'text' in attachment && typeof attachment.text === 'string'
+}
+
 function estimateUsedTokens(messages: ConversationEntry[]): number {
   let totalChars = 0
 
@@ -31,7 +44,7 @@ function estimateUsedTokens(messages: ConversationEntry[]): number {
     totalChars += entry.text.length
 
     for (const attachment of entry.attachments ?? []) {
-      if (attachment.type === 'text') {
+      if (isTextAttachmentWithContent(attachment)) {
         totalChars += attachment.text.length
       }
     }
