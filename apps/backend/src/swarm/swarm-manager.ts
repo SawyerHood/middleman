@@ -631,6 +631,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.descriptors.delete(targetManagerId);
     this.conversationProjector.deleteConversationHistory(targetManagerId);
 
+    await this.deleteManagerSchedulesFile(targetManagerId);
     await this.saveStore();
     this.emitAgentsSnapshot();
 
@@ -2024,6 +2025,10 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
   private async deleteManagerSessionFile(sessionFile: string): Promise<void> {
     await this.persistenceService.deleteManagerSessionFile(sessionFile);
+  }
+
+  private async deleteManagerSchedulesFile(managerId: string): Promise<void> {
+    await this.persistenceService.deleteManagerSchedulesFile(managerId);
   }
 
   private async loadStore(): Promise<AgentsStoreFile> {

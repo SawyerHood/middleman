@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { getScheduleFilePath } from "../scheduler/schedule-storage.js";
 import { getAgentMemoryPath as getAgentMemoryPathForDataDir } from "./memory-paths.js";
 import type { AgentDescriptor, AgentsStoreFile, SwarmConfig } from "./types.js";
 
@@ -87,6 +88,19 @@ export class PersistenceService {
   async deleteManagerSessionFile(sessionFile: string): Promise<void> {
     try {
       await unlink(sessionFile);
+    } catch (error) {
+      if (isEnoentError(error)) {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  async deleteManagerSchedulesFile(managerId: string): Promise<void> {
+    const schedulesFile = getScheduleFilePath(this.deps.config.paths.dataDir, managerId);
+
+    try {
+      await unlink(schedulesFile);
     } catch (error) {
       if (isEnoentError(error)) {
         return;

@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SessionManager } from '@mariozechner/pi-coding-agent'
 import { getScheduleFilePath } from '../scheduler/schedule-storage.js'
@@ -1877,6 +1877,48 @@ describe('SwarmManager', () => {
     expect(deleted.terminatedWorkerIds).toContain(ownedWorker.agentId)
     expect(manager.listAgents().some((agent) => agent.agentId === secondary.agentId)).toBe(false)
     expect(manager.listAgents().some((agent) => agent.agentId === ownedWorker.agentId)).toBe(false)
+  })
+
+  it('deletes the manager schedule file when deleting a manager', async () => {
+    const config = await makeTempConfig()
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const secondary = await manager.createManager('manager', {
+      name: 'Schedule Owner',
+      cwd: config.defaultCwd,
+    })
+
+    const secondaryScheduleFile = getScheduleFilePath(config.paths.dataDir, secondary.agentId)
+    await mkdir(dirname(secondaryScheduleFile), { recursive: true })
+    await writeFile(
+      secondaryScheduleFile,
+      JSON.stringify(
+        {
+          schedules: [
+            {
+              id: 'schedule-1',
+              name: 'daily',
+              cron: '0 9 * * *',
+              message: 'status update',
+              oneShot: false,
+              timezone: 'UTC',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              nextFireAt: '2026-01-01T09:00:00.000Z',
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    await manager.deleteManager('manager', secondary.agentId)
+
+    await expect(readFile(secondaryScheduleFile, 'utf8')).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
   })
 
   it('maps create_manager model presets to canonical runtime models with highest reasoning', async () => {
