@@ -12,15 +12,12 @@ const oauthMockState = vi.hoisted(() => ({
   openaiLogin: vi.fn(),
 }))
 
-vi.mock('@mariozechner/pi-ai/dist/utils/oauth/anthropic.js', () => ({
+vi.mock('@mariozechner/pi-ai/oauth', () => ({
   anthropicOAuthProvider: {
     name: 'Anthropic',
     usesCallbackServer: false,
     login: (callbacks: unknown) => oauthMockState.anthropicLogin(callbacks),
   },
-}))
-
-vi.mock('@mariozechner/pi-ai/dist/utils/oauth/openai-codex.js', () => ({
   openaiCodexOAuthProvider: {
     name: 'OpenAI Codex',
     usesCallbackServer: false,

@@ -1,10 +1,9 @@
-import { anthropicOAuthProvider } from "@mariozechner/pi-ai/dist/utils/oauth/anthropic.js";
-import { openaiCodexOAuthProvider } from "@mariozechner/pi-ai/dist/utils/oauth/openai-codex.js";
 import type {
   OAuthCredentials,
   OAuthLoginCallbacks,
   OAuthProviderInterface
-} from "@mariozechner/pi-ai/dist/utils/oauth/types.js";
+} from "@mariozechner/pi-ai";
+import * as piAiOAuth from "@mariozechner/pi-ai/oauth";
 import { AuthStorage } from "@mariozechner/pi-coding-agent";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { SwarmManager } from "../../swarm/swarm-manager.js";
@@ -44,6 +43,11 @@ interface SettingsAuthLoginFlow {
   abortController: AbortController;
   closed: boolean;
 }
+
+const anthropicOAuthProvider = (piAiOAuth as { anthropicOAuthProvider: OAuthProviderInterface })
+  .anthropicOAuthProvider;
+const openaiCodexOAuthProvider = (piAiOAuth as { openaiCodexOAuthProvider: OAuthProviderInterface })
+  .openaiCodexOAuthProvider;
 
 const SETTINGS_AUTH_LOGIN_PROVIDERS: Record<OAuthLoginProviderId, OAuthProviderInterface> = {
   anthropic: anthropicOAuthProvider,
