@@ -262,7 +262,7 @@ export function ArtifactPanel({ artifact, wsUrl, onClose, onArtifactClick }: Art
                     <img
                       src={imageFileUrl}
                       alt={artifact?.fileName || 'Artifact image'}
-                      className="max-h-[calc(100vh-180px)] max-w-full rounded-lg border border-border/60 bg-muted/20 object-contain"
+                      className="max-h-[calc(100dvh-180px)] max-w-full rounded-lg border border-border/60 bg-muted/20 object-contain"
                     />
                   </div>
                 ) : (

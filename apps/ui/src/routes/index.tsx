@@ -325,8 +325,8 @@ export function IndexPage() {
   }, [])
 
   return (
-    <main className="h-screen bg-background text-foreground">
-      <div className="flex h-screen w-full min-w-0 overflow-hidden bg-background">
+    <main className="h-dvh bg-background text-foreground">
+      <div className="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
         <AgentSidebar
           connected={state.connected}
           agents={state.agents}
