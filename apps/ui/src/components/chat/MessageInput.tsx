@@ -345,7 +345,17 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   )
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key !== 'Enter') return
+
+    const isMobile = window.matchMedia('(pointer: coarse)').matches
+
+    if (isMobile) {
+      // On mobile, Enter inserts a newline (default behavior); no keyboard shortcut to send
+      return
+    }
+
+    // On desktop, Enter sends and Shift+Enter inserts a newline
+    if (!event.shiftKey) {
       event.preventDefault()
       submitMessage()
     }
