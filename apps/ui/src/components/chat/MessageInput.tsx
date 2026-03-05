@@ -26,6 +26,7 @@ import type { ConversationAttachment } from '@middleman/protocol'
 
 const TEXTAREA_MAX_HEIGHT = 186
 const ACTIVE_WAVEFORM_BAR_COUNT = 16
+const VIRTUAL_KEYBOARD_OPEN_THRESHOLD_PX = 140
 const OPENAI_KEY_REQUIRED_MESSAGE = 'OpenAI API key required \u2014 add it in Settings.'
 
 interface MessageInputProps {
@@ -64,6 +65,19 @@ function stretchWaveformBars(source: number[], targetCount: number): number[] {
     const upperValue = source[upper] ?? lowerValue
     return lowerValue + (upperValue - lowerValue) * ratio
   })
+}
+
+function isVirtualKeyboardLikelyOpen(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  const viewport = window.visualViewport
+  if (!viewport) {
+    return false
+  }
+
+  return window.innerHeight - viewport.height > VIRTUAL_KEYBOARD_OPEN_THRESHOLD_PX
 }
 
 async function hasConfiguredOpenAiKey(endpoint: string): Promise<boolean> {
@@ -347,18 +361,16 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter') return
 
-    const isMobile = window.matchMedia('(pointer: coarse)').matches
+    if (event.shiftKey) return
+    if (event.nativeEvent.isComposing) return
 
-    if (isMobile) {
-      // On mobile, Enter inserts a newline (default behavior); no keyboard shortcut to send
+    if (isVirtualKeyboardLikelyOpen()) {
+      // When the virtual keyboard is open, Enter should keep newline behavior.
       return
     }
 
-    // On desktop, Enter sends and Shift+Enter inserts a newline
-    if (!event.shiftKey) {
-      event.preventDefault()
-      submitMessage()
-    }
+    event.preventDefault()
+    submitMessage()
   }
 
   const hasContent = input.trim().length > 0 || attachedFiles.length > 0
@@ -421,6 +433,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               placeholder={placeholder}
               disabled={disabled}
               rows={1}
+              enterKeyHint="enter"
               className={cn(
                 'w-full resize-none border-0 bg-transparent text-sm leading-normal text-foreground shadow-none focus:outline-none',
                 'min-h-[44px]',
