@@ -1400,6 +1400,220 @@ describe('SwarmWebSocketServer', () => {
     await server.stop()
   })
 
+  it('streams worker detail history and live updates on demand without changing the primary subscription', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port, true)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+    const worker = await manager.spawnAgent('manager', { agentId: 'Detail Worker' })
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    const client = new WebSocket(`ws://${config.host}:${config.port}`)
+    const events: ServerEvent[] = []
+
+    client.on('message', (raw) => {
+      events.push(JSON.parse(raw.toString()) as ServerEvent)
+    })
+
+    await once(client, 'open')
+    client.send(JSON.stringify({ type: 'subscribe', agentId: 'manager' }))
+
+    await waitForEvent(
+      events,
+      (event) => event.type === 'ready' && event.subscribedAgentId === 'manager',
+    )
+    await waitForEvent(
+      events,
+      (event) => event.type === 'conversation_history' && event.agentId === 'manager',
+    )
+
+    await manager.publishToUser(worker.agentId, 'worker system note', 'system')
+    ;(manager as any).conversationProjector.emitConversationLog({
+      type: 'conversation_log',
+      agentId: worker.agentId,
+      timestamp: new Date().toISOString(),
+      source: 'runtime_log',
+      kind: 'tool_execution_start',
+      toolName: 'read',
+      toolCallId: 'detail-log-call',
+      text: '{"path":"README.md"}',
+    })
+    ;(manager as any).conversationProjector.emitAgentMessage({
+      type: 'agent_message',
+      agentId: worker.agentId,
+      timestamp: new Date().toISOString(),
+      source: 'agent_to_agent',
+      fromAgentId: 'manager',
+      toAgentId: worker.agentId,
+      text: 'detail ping',
+    })
+    ;(manager as any).conversationProjector.emitAgentToolCall({
+      type: 'agent_tool_call',
+      agentId: worker.agentId,
+      actorAgentId: worker.agentId,
+      timestamp: new Date().toISOString(),
+      kind: 'tool_execution_start',
+      toolName: 'bash',
+      toolCallId: 'detail-tool-call',
+      text: '{"command":"pwd"}',
+    })
+
+    client.send(JSON.stringify({ type: 'subscribe_agent_detail', agentId: worker.agentId }))
+
+    const detailHistoryEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'conversation_history' && event.agentId === worker.agentId,
+    )
+
+    expect(detailHistoryEvent.type).toBe('conversation_history')
+    if (detailHistoryEvent.type === 'conversation_history') {
+      const historyTypes = new Set(detailHistoryEvent.messages.map((entry) => entry.type))
+      expect(historyTypes.has('conversation_message')).toBe(true)
+      expect(historyTypes.has('conversation_log')).toBe(true)
+      expect(historyTypes.has('agent_message')).toBe(true)
+      expect(historyTypes.has('agent_tool_call')).toBe(true)
+    }
+
+    ;(manager as any).conversationProjector.emitConversationLog({
+      type: 'conversation_log',
+      agentId: worker.agentId,
+      timestamp: new Date().toISOString(),
+      source: 'runtime_log',
+      kind: 'tool_execution_end',
+      toolName: 'read',
+      toolCallId: 'detail-live-call',
+      text: '{"ok":true}',
+    })
+
+    const liveWorkerLog = await waitForEvent(
+      events,
+      (event) =>
+        event.type === 'conversation_log' &&
+        event.agentId === worker.agentId &&
+        event.toolCallId === 'detail-live-call',
+    )
+    expect(liveWorkerLog.type).toBe('conversation_log')
+
+    client.send(JSON.stringify({ type: 'unsubscribe_agent_detail', agentId: worker.agentId }))
+    await new Promise((resolve) => setTimeout(resolve, 25))
+
+    const workerPostUnsubscribeCallId = 'detail-post-unsubscribe'
+    const workerEventsBefore = events.filter(
+      (event) =>
+        event.type === 'conversation_log' &&
+        event.agentId === worker.agentId &&
+        event.toolCallId === workerPostUnsubscribeCallId,
+    ).length
+
+    ;(manager as any).conversationProjector.emitConversationLog({
+      type: 'conversation_log',
+      agentId: worker.agentId,
+      timestamp: new Date().toISOString(),
+      source: 'runtime_log',
+      kind: 'tool_execution_end',
+      toolName: 'read',
+      toolCallId: workerPostUnsubscribeCallId,
+      text: '{"ok":true}',
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 75))
+
+    const workerEventsAfter = events.filter(
+      (event) =>
+        event.type === 'conversation_log' &&
+        event.agentId === worker.agentId &&
+        event.toolCallId === workerPostUnsubscribeCallId,
+    ).length
+
+    expect(workerEventsAfter).toBe(workerEventsBefore)
+
+    client.close()
+    await once(client, 'close')
+    await server.stop()
+  })
+
+  it('truncates oversized worker detail history payloads and reports truncation', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port, true)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+    const worker = await manager.spawnAgent('manager', { agentId: 'Large Detail Worker' })
+
+    const largeChunk = 'x'.repeat(400_000)
+    for (let index = 0; index < 20; index += 1) {
+      ;(manager as any).conversationProjector.emitConversationLog({
+        type: 'conversation_log',
+        agentId: worker.agentId,
+        timestamp: new Date(index).toISOString(),
+        source: 'runtime_log',
+        kind: 'tool_execution_start',
+        toolName: 'bash',
+        toolCallId: `detail-large-${index}`,
+        text: `${index}:${largeChunk}`,
+      })
+    }
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    const client = new WebSocket(`ws://${config.host}:${config.port}`)
+    const events: ServerEvent[] = []
+
+    client.on('message', (raw) => {
+      events.push(JSON.parse(raw.toString()) as ServerEvent)
+    })
+
+    await once(client, 'open')
+    client.send(JSON.stringify({ type: 'subscribe', agentId: 'manager' }))
+    await waitForEvent(
+      events,
+      (event) => event.type === 'conversation_history' && event.agentId === 'manager',
+    )
+
+    client.send(JSON.stringify({ type: 'subscribe_agent_detail', agentId: worker.agentId }))
+
+    const detailHistoryEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'conversation_history' && event.agentId === worker.agentId,
+    )
+    expect(detailHistoryEvent.type).toBe('conversation_history')
+    if (detailHistoryEvent.type === 'conversation_history') {
+      expect(detailHistoryEvent.messages.length).toBeGreaterThan(0)
+      expect(detailHistoryEvent.messages.length).toBeLessThan(20)
+      expect(detailHistoryEvent.messages.every((entry) => entry.type === 'conversation_log')).toBe(true)
+    }
+
+    const truncationEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'error' && event.code === 'AGENT_DETAIL_HISTORY_TRUNCATED',
+    )
+    expect(truncationEvent.type).toBe('error')
+    if (truncationEvent.type === 'error') {
+      expect(truncationEvent.message).toContain('loaded')
+      expect(truncationEvent.message).toContain('payload limits')
+    }
+
+    client.close()
+    await once(client, 'close')
+    await server.stop()
+  })
+
   it('kills a worker via kill_agent command and emits updated status + snapshot events', async () => {
     const port = await getAvailablePort()
     const config = await makeTempConfig(port, true)

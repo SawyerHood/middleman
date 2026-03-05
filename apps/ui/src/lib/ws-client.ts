@@ -70,6 +70,7 @@ const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: 
 export class ManagerWsClient {
   private readonly url: string
   private desiredAgentId: string | null
+  private desiredDetailAgentId: string | null = null
 
   private socket: WebSocket | null = null
   private connectTimer: ReturnType<typeof setTimeout> | undefined
@@ -152,6 +153,56 @@ export class ManagerWsClient {
     this.send({
       type: 'subscribe',
       agentId: trimmed,
+    })
+  }
+
+  subscribeToAgentDetail(agentId: string): void {
+    const trimmed = agentId.trim()
+    if (!trimmed) {
+      return
+    }
+
+    if (this.desiredDetailAgentId === trimmed) {
+      return
+    }
+
+    const previousDetailAgentId = this.desiredDetailAgentId
+    this.desiredDetailAgentId = trimmed
+
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    if (previousDetailAgentId && previousDetailAgentId !== trimmed) {
+      this.send({
+        type: 'unsubscribe_agent_detail',
+        agentId: previousDetailAgentId,
+      })
+    }
+
+    this.send({
+      type: 'subscribe_agent_detail',
+      agentId: trimmed,
+    })
+  }
+
+  unsubscribeFromAgentDetail(agentId?: string): void {
+    const normalizedAgentId = normalizeAgentId(agentId) ?? this.desiredDetailAgentId
+    if (!normalizedAgentId) {
+      return
+    }
+
+    if (this.desiredDetailAgentId === normalizedAgentId) {
+      this.desiredDetailAgentId = null
+    }
+
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    this.send({
+      type: 'unsubscribe_agent_detail',
+      agentId: normalizedAgentId,
     })
   }
 
@@ -353,6 +404,13 @@ export class ManagerWsClient {
         agentId: this.desiredAgentId ?? undefined,
       })
 
+      if (this.desiredDetailAgentId) {
+        this.send({
+          type: 'subscribe_agent_detail',
+          agentId: this.desiredDetailAgentId,
+        })
+      }
+
       if (shouldReload && typeof window !== 'undefined' && typeof window.location?.reload === 'function') {
         window.location.reload()
       }
@@ -547,6 +605,10 @@ export class ManagerWsClient {
 
   private applyAgentsSnapshot(agents: AgentDescriptor[]): void {
     const liveAgentIds = new Set(agents.map((agent) => agent.agentId))
+    if (this.desiredDetailAgentId && !liveAgentIds.has(this.desiredDetailAgentId)) {
+      this.desiredDetailAgentId = null
+    }
+
     const statuses = Object.fromEntries(
       agents.map((agent) => {
         const previous = this.state.statuses[agent.agentId]

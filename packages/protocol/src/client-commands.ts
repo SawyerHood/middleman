@@ -3,6 +3,8 @@ import type { DeliveryMode, ManagerModelPreset } from './shared-types.js'
 
 export type ClientCommand =
   | { type: 'subscribe'; agentId?: string }
+  | { type: 'subscribe_agent_detail'; agentId: string }
+  | { type: 'unsubscribe_agent_detail'; agentId: string }
   | {
       type: 'user_message'
       text: string

@@ -396,6 +396,125 @@ describe('ManagerWsClient', () => {
     client.destroy()
   })
 
+  it('subscribes and unsubscribes agent detail streams for worker views', () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'worker-1',
+    })
+
+    client.subscribeToAgentDetail('worker-1')
+
+    expect(JSON.parse(socket.sentPayloads.at(-1) ?? '')).toEqual({
+      type: 'subscribe_agent_detail',
+      agentId: 'worker-1',
+    })
+
+    emitServerEvent(socket, {
+      type: 'conversation_history',
+      agentId: 'worker-1',
+      messages: [
+        {
+          type: 'conversation_message',
+          agentId: 'worker-1',
+          role: 'assistant',
+          text: 'worker response',
+          timestamp: new Date().toISOString(),
+          source: 'system',
+        },
+        {
+          type: 'conversation_log',
+          agentId: 'worker-1',
+          timestamp: new Date().toISOString(),
+          source: 'runtime_log',
+          kind: 'tool_execution_start',
+          toolName: 'read',
+          toolCallId: 'detail-call',
+          text: '{"path":"README.md"}',
+        },
+        {
+          type: 'agent_message',
+          agentId: 'worker-1',
+          timestamp: new Date().toISOString(),
+          source: 'agent_to_agent',
+          fromAgentId: 'manager',
+          toAgentId: 'worker-1',
+          text: 'worker instruction',
+        },
+        {
+          type: 'agent_tool_call',
+          agentId: 'worker-1',
+          actorAgentId: 'worker-1',
+          timestamp: new Date().toISOString(),
+          kind: 'tool_execution_update',
+          toolName: 'bash',
+          toolCallId: 'detail-tool',
+          text: '{"ok":true}',
+        },
+      ],
+    })
+
+    const state = client.getState()
+    expect(state.messages.map((entry) => entry.type)).toEqual(['conversation_message', 'conversation_log'])
+    expect(state.activityMessages.map((entry) => entry.type)).toEqual(['agent_message', 'agent_tool_call'])
+
+    client.unsubscribeFromAgentDetail()
+    expect(JSON.parse(socket.sentPayloads.at(-1) ?? '')).toEqual({
+      type: 'unsubscribe_agent_detail',
+      agentId: 'worker-1',
+    })
+
+    client.destroy()
+  })
+
+  it('re-subscribes active worker detail streams after reconnect', () => {
+    const reload = vi.fn()
+    ;(globalThis as any).window = {
+      location: {
+        reload,
+      },
+    }
+
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'worker-1',
+    })
+
+    client.subscribeToAgentDetail('worker-1')
+    socket.close()
+
+    vi.advanceTimersByTime(1200)
+    const reconnectedSocket = FakeWebSocket.instances[1]
+    expect(reconnectedSocket).toBeDefined()
+
+    reconnectedSocket.emit('open')
+
+    const reconnectPayloads = reconnectedSocket.sentPayloads.map((payload) => JSON.parse(payload))
+    expect(reconnectPayloads).toEqual([
+      { type: 'subscribe', agentId: 'manager' },
+      { type: 'subscribe_agent_detail', agentId: 'worker-1' },
+    ])
+
+    client.destroy()
+  })
+
   it('preserves conversation messages when history includes many tool-call events', () => {
     const client = new ManagerWsClient('ws://127.0.0.1:8787', 'voice')
 

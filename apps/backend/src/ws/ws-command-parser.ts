@@ -34,6 +34,34 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
     return { ok: true, command: { type: "subscribe", agentId: maybe.agentId } };
   }
 
+  if (maybe.type === "subscribe_agent_detail") {
+    if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
+      return { ok: false, error: "subscribe_agent_detail.agentId must be a non-empty string" };
+    }
+
+    return {
+      ok: true,
+      command: {
+        type: "subscribe_agent_detail",
+        agentId: maybe.agentId.trim()
+      }
+    };
+  }
+
+  if (maybe.type === "unsubscribe_agent_detail") {
+    if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
+      return { ok: false, error: "unsubscribe_agent_detail.agentId must be a non-empty string" };
+    }
+
+    return {
+      ok: true,
+      command: {
+        type: "unsubscribe_agent_detail",
+        agentId: maybe.agentId.trim()
+      }
+    };
+  }
+
   if (maybe.type === "kill_agent") {
     if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
       return { ok: false, error: "kill_agent.agentId must be a non-empty string" };
@@ -247,6 +275,8 @@ export function extractRequestId(command: ClientCommand): string | undefined {
       return command.requestId;
 
     case "subscribe":
+    case "subscribe_agent_detail":
+    case "unsubscribe_agent_detail":
     case "user_message":
     case "kill_agent":
     case "ping":

@@ -10,6 +10,7 @@ import { handleManagerCommand } from "./routes/manager-routes.js";
 const BOOTSTRAP_SUBSCRIPTION_AGENT_ID = "__bootstrap_manager__";
 const BOOTSTRAP_HISTORY_LIMIT = 200;
 const BOOTSTRAP_HISTORY_TRUNCATED_CODE = "HISTORY_TRUNCATED";
+const AGENT_DETAIL_HISTORY_TRUNCATED_CODE = "AGENT_DETAIL_HISTORY_TRUNCATED";
 const MAX_WS_EVENT_BYTES = 5 * 1024 * 1024;
 const MAX_WS_BUFFERED_AMOUNT_BYTES = 5 * 1024 * 1024;
 
@@ -20,6 +21,7 @@ export class WsHandler {
 
   private wss: WebSocketServer | null = null;
   private readonly subscriptions = new Map<WebSocket, string>();
+  private readonly agentDetailSubscriptions = new Map<WebSocket, string>();
 
   constructor(options: {
     swarmManager: SwarmManager;
@@ -41,10 +43,12 @@ export class WsHandler {
 
       socket.on("close", () => {
         this.subscriptions.delete(socket);
+        this.agentDetailSubscriptions.delete(socket);
       });
 
       socket.on("error", () => {
         this.subscriptions.delete(socket);
+        this.agentDetailSubscriptions.delete(socket);
       });
     });
   }
@@ -52,6 +56,7 @@ export class WsHandler {
   reset(): void {
     this.wss = null;
     this.subscriptions.clear();
+    this.agentDetailSubscriptions.clear();
   }
 
   broadcastToSubscribed(event: ServerEvent): void {
@@ -68,6 +73,7 @@ export class WsHandler {
       if (!subscribedAgent) {
         continue;
       }
+      const detailSubscribedAgent = this.agentDetailSubscriptions.get(client);
 
       if (
         event.type === "conversation_message" ||
@@ -76,7 +82,7 @@ export class WsHandler {
         event.type === "agent_tool_call" ||
         event.type === "conversation_reset"
       ) {
-        if (subscribedAgent !== event.agentId) {
+        if (subscribedAgent !== event.agentId && detailSubscribedAgent !== event.agentId) {
           continue;
         }
       }
@@ -125,6 +131,16 @@ export class WsHandler {
 
     if (command.type === "subscribe") {
       await this.handleSubscribe(socket, command.agentId);
+      return;
+    }
+
+    if (command.type === "subscribe_agent_detail") {
+      this.handleSubscribeAgentDetail(socket, command.agentId);
+      return;
+    }
+
+    if (command.type === "unsubscribe_agent_detail") {
+      this.handleUnsubscribeAgentDetail(socket, command.agentId);
       return;
     }
 
@@ -243,6 +259,36 @@ export class WsHandler {
     return fallbackAgentId;
   }
 
+  private handleSubscribeAgentDetail(socket: WebSocket, targetAgentId: string): void {
+    const targetDescriptor = this.swarmManager.getAgent(targetAgentId);
+    if (!targetDescriptor) {
+      this.send(socket, {
+        type: "error",
+        code: "UNKNOWN_AGENT",
+        message: `Agent ${targetAgentId} does not exist.`
+      });
+      return;
+    }
+
+    this.agentDetailSubscriptions.set(socket, targetAgentId);
+    const fullConversationHistory = this.swarmManager.getConversationHistory(targetAgentId);
+    this.sendConversationHistoryWithProgressiveFallback(
+      socket,
+      targetAgentId,
+      fullConversationHistory,
+      AGENT_DETAIL_HISTORY_TRUNCATED_CODE,
+      "entries"
+    );
+  }
+
+  private handleUnsubscribeAgentDetail(socket: WebSocket, targetAgentId: string): void {
+    if (this.agentDetailSubscriptions.get(socket) !== targetAgentId) {
+      return;
+    }
+
+    this.agentDetailSubscriptions.delete(socket);
+  }
+
   private resolveManagerContextAgentId(subscribedAgentId: string): string | undefined {
     const descriptor = this.swarmManager.getAgent(subscribedAgentId);
     if (!descriptor) {
@@ -270,6 +316,14 @@ export class WsHandler {
       this.subscriptions.set(socket, fallbackAgentId);
       this.sendSubscriptionBootstrap(socket, fallbackAgentId);
     }
+
+    for (const [socket, detailSubscribedAgentId] of this.agentDetailSubscriptions.entries()) {
+      if (!deletedAgentIds.has(detailSubscribedAgentId)) {
+        continue;
+      }
+
+      this.agentDetailSubscriptions.delete(socket);
+    }
   }
 
   private sendSubscriptionBootstrap(socket: WebSocket, targetAgentId: string): void {
@@ -295,8 +349,23 @@ export class WsHandler {
     const transcriptMessages = this.swarmManager.getVisibleTranscript(targetAgentId, {
       limit: BOOTSTRAP_HISTORY_LIMIT
     });
+    this.sendConversationHistoryWithProgressiveFallback(
+      socket,
+      targetAgentId,
+      transcriptMessages,
+      BOOTSTRAP_HISTORY_TRUNCATED_CODE,
+      "transcript messages"
+    );
+  }
 
-    if (transcriptMessages.length === 0) {
+  private sendConversationHistoryWithProgressiveFallback(
+    socket: WebSocket,
+    targetAgentId: string,
+    historyMessages: Extract<ServerEvent, { type: "conversation_history" }>["messages"],
+    truncationCode: string,
+    historyLabel: string
+  ): void {
+    if (historyMessages.length === 0) {
       this.send(socket, {
         type: "conversation_history",
         agentId: targetAgentId,
@@ -305,11 +374,11 @@ export class WsHandler {
       return;
     }
 
-    const totalCount = transcriptMessages.length;
+    const totalCount = historyMessages.length;
     let sendCount = totalCount;
 
     while (sendCount > 0) {
-      const messages = transcriptMessages.slice(totalCount - sendCount);
+      const messages = historyMessages.slice(totalCount - sendCount);
       const event: ServerEvent = {
         type: "conversation_history",
         agentId: targetAgentId,
@@ -320,7 +389,14 @@ export class WsHandler {
         this.send(socket, event);
 
         if (sendCount < totalCount) {
-          this.sendBootstrapHistoryTruncatedNotice(socket, targetAgentId, totalCount, sendCount);
+          this.sendConversationHistoryTruncatedNotice(
+            socket,
+            targetAgentId,
+            totalCount,
+            sendCount,
+            truncationCode,
+            historyLabel
+          );
         }
         return;
       }
@@ -334,19 +410,28 @@ export class WsHandler {
       agentId: targetAgentId,
       messages: []
     });
-    this.sendBootstrapHistoryTruncatedNotice(socket, targetAgentId, totalCount, 0);
+    this.sendConversationHistoryTruncatedNotice(
+      socket,
+      targetAgentId,
+      totalCount,
+      0,
+      truncationCode,
+      historyLabel
+    );
   }
 
-  private sendBootstrapHistoryTruncatedNotice(
+  private sendConversationHistoryTruncatedNotice(
     socket: WebSocket,
     targetAgentId: string,
     originalCount: number,
-    deliveredCount: number
+    deliveredCount: number,
+    truncationCode: string,
+    historyLabel: string
   ): void {
     this.send(socket, {
       type: "error",
-      code: BOOTSTRAP_HISTORY_TRUNCATED_CODE,
-      message: `Conversation history was truncated for ${targetAgentId}: loaded ${deliveredCount} of ${originalCount} transcript messages due payload limits.`
+      code: truncationCode,
+      message: `Conversation history was truncated for ${targetAgentId}: loaded ${deliveredCount} of ${originalCount} ${historyLabel} due payload limits.`
     });
   }
 

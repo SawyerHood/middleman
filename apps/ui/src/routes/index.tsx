@@ -246,6 +246,20 @@ export function IndexPage() {
     state.targetAgentId,
   ])
 
+  useEffect(() => {
+    const client = clientRef.current
+    if (!client) {
+      return
+    }
+
+    if (activeView !== 'chat' || activeAgent?.role !== 'worker') {
+      client.unsubscribeFromAgentDetail()
+      return
+    }
+
+    client.subscribeToAgentDetail(activeAgent.agentId)
+  }, [activeAgent?.agentId, activeAgent?.role, activeView, clientRef])
+
   const handleSend = (text: string, attachments?: ConversationAttachment[]) => {
     if (!activeAgentId) {
       return

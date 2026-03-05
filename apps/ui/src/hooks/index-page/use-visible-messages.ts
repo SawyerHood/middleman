@@ -110,6 +110,10 @@ export function useVisibleMessages({
       )
     }
 
+    if (activeAgent?.role === 'worker') {
+      return allMessages
+    }
+
     return messages.filter((entry) => {
       if (entry.type !== 'conversation_message') {
         return true
