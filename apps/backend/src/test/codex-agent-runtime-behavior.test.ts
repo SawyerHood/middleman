@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -246,6 +246,77 @@ describe('CodexAgentRuntime behavior', () => {
     } finally {
       runtimePrototype.readPersistedRuntimeState = originalReadPersistedState
     }
+  })
+
+  it('persists custom session entries even without assistant session messages', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'swarm-codex-runtime-'))
+    const descriptor = makeDescriptor(tempDir)
+    await mkdir(dirname(descriptor.sessionFile), { recursive: true })
+
+    rpcMockState.requestImpl.mockImplementation(async (_client: any, method: string) => {
+      if (method === 'initialize') {
+        return {}
+      }
+
+      if (method === 'account/read') {
+        return { requiresOpenaiAuth: false, account: { id: 'acct-1' } }
+      }
+
+      if (method === 'thread/start') {
+        return { thread: { id: 'thread-1' } }
+      }
+
+      throw new Error(`Unexpected method: ${method}`)
+    })
+
+    const runtime = await CodexAgentRuntime.create({
+      descriptor,
+      callbacks: {
+        onStatusChange: async () => {},
+      },
+      systemPrompt: 'You are a test codex runtime.',
+      tools: [],
+    })
+
+    runtime.appendCustomEntry('swarm_codex_runtime_state', {
+      threadId: 'thread-1',
+    })
+    runtime.appendCustomEntry('swarm_conversation_entry', {
+      type: 'conversation_log',
+      agentId: descriptor.agentId,
+      timestamp: new Date().toISOString(),
+      source: 'runtime_log',
+      kind: 'message_end',
+      role: 'assistant',
+      text: 'persisted output',
+    })
+
+    await runtime.terminate({ abort: false })
+
+    const serialized = await readFile(descriptor.sessionFile, 'utf8')
+    const lines = serialized
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as { type?: string; customType?: string; data?: unknown })
+
+    expect(lines[0]?.type).toBe('session')
+    expect(
+      lines.some(
+        (entry) =>
+          entry.type === 'custom' &&
+          entry.customType === 'swarm_codex_runtime_state' &&
+          (entry.data as { threadId?: string }).threadId === 'thread-1',
+      ),
+    ).toBe(true)
+    expect(
+      lines.some(
+        (entry) =>
+          entry.type === 'custom' &&
+          entry.customType === 'swarm_conversation_entry' &&
+          (entry.data as { type?: string }).type === 'conversation_log',
+      ),
+    ).toBe(true)
   })
 
   it('queues steer while turn/start is pending and flushes steers in order once start resolves', async () => {

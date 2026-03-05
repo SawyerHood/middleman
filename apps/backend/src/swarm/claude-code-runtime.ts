@@ -24,6 +24,10 @@ import {
   normalizeRuntimeImageAttachments,
   normalizeRuntimeUserMessage
 } from "./runtime-utils.js";
+import {
+  persistSessionEntryForCustomRuntime,
+  requiresManualCustomEntryPersistence
+} from "./session-custom-entry-persistence.js";
 import type {
   RuntimeErrorEvent,
   RuntimeSessionEvent,
@@ -58,6 +62,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
   private readonly now: () => string;
   private readonly systemPrompt: string;
   private readonly sessionManager: SessionManager;
+  private readonly requiresManualCustomEntryPersistence: boolean;
   private readonly runtimeEnv: Record<string, string | undefined>;
   private readonly tools: ToolDefinition[];
 
@@ -96,6 +101,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
 
     this.status = options.descriptor.status;
     this.sessionManager = SessionManager.open(options.descriptor.sessionFile);
+    this.requiresManualCustomEntryPersistence = requiresManualCustomEntryPersistence(this.sessionManager);
     this.mcpServer = buildClaudeCodeMcpServer(options.tools, {
       serverName: CLAUDE_CODE_MCP_SERVER_NAME
     });
@@ -232,7 +238,20 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
   }
 
   appendCustomEntry(customType: string, data?: unknown): void {
-    this.sessionManager.appendCustomEntry(customType, data);
+    const entryId = this.sessionManager.appendCustomEntry(customType, data);
+
+    if (!this.requiresManualCustomEntryPersistence) {
+      return;
+    }
+
+    try {
+      persistSessionEntryForCustomRuntime(this.sessionManager, entryId);
+    } catch (error) {
+      this.logRuntimeError("startup", error, {
+        action: "persist_custom_entry",
+        customType
+      });
+    }
   }
 
   private startQuery(): void {

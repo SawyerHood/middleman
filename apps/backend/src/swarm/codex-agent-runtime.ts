@@ -16,6 +16,10 @@ import {
   previewForLog
 } from "./runtime-utils.js";
 import { transitionAgentStatus } from "./agent-state-machine.js";
+import {
+  persistSessionEntryForCustomRuntime,
+  requiresManualCustomEntryPersistence
+} from "./session-custom-entry-persistence.js";
 import type {
   RuntimeImageAttachment,
   RuntimeErrorEvent,
@@ -71,6 +75,7 @@ export class CodexAgentRuntime implements SwarmAgentRuntime {
   private readonly now: () => string;
   private readonly systemPrompt: string;
   private readonly sessionManager: SessionManager;
+  private readonly requiresManualCustomEntryPersistence: boolean;
   private readonly toolBridge: CodexToolBridge;
   private readonly sandboxSettings: CodexSandboxSettings;
 
@@ -100,6 +105,7 @@ export class CodexAgentRuntime implements SwarmAgentRuntime {
     this.status = options.descriptor.status;
 
     this.sessionManager = SessionManager.open(options.descriptor.sessionFile);
+    this.requiresManualCustomEntryPersistence = requiresManualCustomEntryPersistence(this.sessionManager);
     this.toolBridge = createCodexToolBridge(options.tools);
     this.sandboxSettings = buildCodexSandboxSettings();
 
@@ -296,7 +302,20 @@ export class CodexAgentRuntime implements SwarmAgentRuntime {
   }
 
   appendCustomEntry(customType: string, data?: unknown): void {
-    this.sessionManager.appendCustomEntry(customType, data);
+    const entryId = this.sessionManager.appendCustomEntry(customType, data);
+
+    if (!this.requiresManualCustomEntryPersistence) {
+      return;
+    }
+
+    try {
+      persistSessionEntryForCustomRuntime(this.sessionManager, entryId);
+    } catch (error) {
+      this.logRuntimeError("startup", error, {
+        action: "persist_custom_entry",
+        customType
+      });
+    }
   }
 
   private async initialize(): Promise<void> {

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -868,6 +868,61 @@ describe('ClaudeCodeRuntime', () => {
     } finally {
       runtimePrototype.readPersistedRuntimeState = originalReadPersistedState
     }
+  })
+
+  it('persists custom session entries even without assistant session messages', async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), 'swarm-claude-runtime-'))
+    const descriptor = makeDescriptor(baseDir)
+    await mkdir(dirname(descriptor.sessionFile), { recursive: true })
+
+    const runtime = await ClaudeCodeRuntime.create({
+      descriptor,
+      callbacks: {
+        onStatusChange: async () => {},
+      },
+      systemPrompt: 'You are a test Claude runtime.',
+      tools: makeTools(),
+    })
+
+    runtime.appendCustomEntry('swarm_claude_code_runtime_state', {
+      sessionId: 'session-1',
+    })
+    runtime.appendCustomEntry('swarm_conversation_entry', {
+      type: 'conversation_log',
+      agentId: descriptor.agentId,
+      timestamp: new Date().toISOString(),
+      source: 'runtime_log',
+      kind: 'message_end',
+      role: 'assistant',
+      text: 'persisted output',
+    })
+
+    await runtime.terminate({ abort: false })
+
+    const serialized = await readFile(descriptor.sessionFile, 'utf8')
+    const lines = serialized
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as { type?: string; customType?: string; data?: unknown })
+
+    expect(lines[0]?.type).toBe('session')
+    expect(
+      lines.some(
+        (entry) =>
+          entry.type === 'custom' &&
+          entry.customType === 'swarm_claude_code_runtime_state' &&
+          (entry.data as { sessionId?: string }).sessionId === 'session-1',
+      ),
+    ).toBe(true)
+    expect(
+      lines.some(
+        (entry) =>
+          entry.type === 'custom' &&
+          entry.customType === 'swarm_conversation_entry' &&
+          (entry.data as { type?: string }).type === 'conversation_log',
+      ),
+    ).toBe(true)
   })
 
   it('terminates runtime and rejects new sends when SDK stream exits unexpectedly', async () => {
