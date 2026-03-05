@@ -1953,7 +1953,7 @@ describe('SwarmManager', () => {
 
     expect(codexManager.model).toEqual({
       provider: 'openai-codex',
-      modelId: 'gpt-5.3-codex',
+      modelId: 'gpt-5.4',
       thinkingLevel: 'xhigh',
     })
     expect(opusManager.model).toEqual({
@@ -1985,7 +1985,7 @@ describe('SwarmManager', () => {
 
     expect(created.model).toEqual({
       provider: 'openai-codex',
-      modelId: 'gpt-5.3-codex',
+      modelId: 'gpt-5.4',
       thinkingLevel: 'xhigh',
     })
   })
@@ -2031,7 +2031,7 @@ describe('SwarmManager', () => {
 
     expect(codexWorker.model).toEqual({
       provider: 'openai-codex',
-      modelId: 'gpt-5.3-codex',
+      modelId: 'gpt-5.4',
       thinkingLevel: 'xhigh',
     })
     expect(opusWorker.model).toEqual({
