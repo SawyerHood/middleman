@@ -16,6 +16,9 @@ const config = defineConfig({
     minify: buildMinifier,
     cssMinify: buildMinifier,
   },
+  define: {
+    'import.meta.env.VITE_MINIFY': JSON.stringify(minifyFlag ?? ''),
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
