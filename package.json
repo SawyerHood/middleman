@@ -17,8 +17,10 @@
     "dev:site": "pnpm --filter @middleman/site dev",
     "build": "pnpm --filter @middleman/backend build && pnpm --filter @middleman/ui build && pnpm --filter @middleman/site build",
     "prod": "pnpm build && pnpm prod:start",
-    "prod:start": "concurrently --kill-others-on-fail --names backend,ui \"NODE_ENV=production MIDDLEMAN_PORT=47287 pnpm --filter @middleman/backend start\" \"pnpm --filter @middleman/ui preview -- --port 47289 --strictPort --host ${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)}\"",
+    "prod:debug": "MINIFY=false pnpm build && pnpm prod:start",
+    "prod:start": "concurrently --kill-others-on-fail --names backend,ui \"NODE_ENV=production MIDDLEMAN_PORT=${MIDDLEMAN_PORT:-47287} pnpm --filter @middleman/backend start\" \"pnpm --filter @middleman/ui exec vite preview --port ${MIDDLEMAN_UI_PREVIEW_PORT:-47289} --strictPort --host ${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)}\"",
     "prod:daemon": "node scripts/prod-daemon.mjs",
+    "prod:debug:daemon": "SWARM_PROD_DAEMON_COMMAND='pnpm prod:debug' pnpm prod:daemon",
     "prod:restart": "node scripts/prod-daemon-restart.mjs",
     "test": "pnpm --filter @middleman/backend test && pnpm --filter @middleman/ui test"
   },
