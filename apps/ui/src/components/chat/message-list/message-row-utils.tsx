@@ -67,7 +67,7 @@ export function SourceBadge({
       className={cn(
         'inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none',
         isUser
-          ? 'border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground/90'
+          ? 'user-message-bubble-pill'
           : sourceContext.channel === 'slack'
             ? 'border-violet-500/35 bg-violet-500/10 text-violet-700 dark:text-violet-300'
             : sourceContext.channel === 'telegram'

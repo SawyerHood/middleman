@@ -53,7 +53,7 @@ export function ConversationMessageRow({
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-primary px-3 py-2 text-primary-foreground">
+        <div className="user-message-bubble max-w-[85%] rounded-lg rounded-tr-sm px-3 py-2">
           <div className="space-y-2">
             <MessageAttachments attachments={attachments} isUser wsUrl={wsUrl} />
             {hasText ? (
@@ -66,7 +66,7 @@ export function ConversationMessageRow({
             <div className="mt-1 flex items-center justify-end gap-1.5">
               <SourceBadge sourceContext={sourceContext} isUser />
               {timestampLabel ? (
-                <p className="text-right text-[10px] leading-none text-primary-foreground/70">
+                <p className="user-message-bubble-meta text-right text-[10px] leading-none">
                   {timestampLabel}
                 </p>
               ) : null}

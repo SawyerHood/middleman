@@ -81,9 +81,7 @@ function MessageImageAttachments({
             alt={attachment.fileName || `Attached image ${index + 1}`}
             className={cn(
               'max-h-56 w-full rounded-lg object-cover',
-              isUser
-                ? 'border border-primary-foreground/25'
-                : 'border border-border',
+              isUser ? 'user-message-bubble-border border' : 'border border-border',
             )}
             loading="lazy"
           />
@@ -117,7 +115,7 @@ function MessageFileAttachments({
             className={cn(
               'flex items-center gap-2 rounded-md border px-2 py-1.5',
               isUser
-                ? 'border-primary-foreground/25 bg-primary-foreground/10 text-primary-foreground'
+                ? 'user-message-bubble-surface'
                 : 'border-border bg-muted/35 text-foreground',
             )}
           >
@@ -125,7 +123,7 @@ function MessageFileAttachments({
               className={cn(
                 'inline-flex size-6 items-center justify-center rounded',
                 isUser
-                  ? 'bg-primary-foreground/15 text-primary-foreground'
+                  ? 'user-message-bubble-icon'
                   : 'bg-muted text-muted-foreground',
               )}
             >
@@ -137,7 +135,7 @@ function MessageFileAttachments({
                 className={cn(
                   'truncate text-[11px]',
                   isUser
-                    ? 'text-primary-foreground/80'
+                    ? 'user-message-bubble-meta'
                     : 'text-muted-foreground',
                 )}
               >

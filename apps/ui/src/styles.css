@@ -44,6 +44,16 @@
   --chat-code-font-size: 12px;
   --chat-block-gap: 12px;
   --chat-tool-assistant-gap: 16px;
+  --chat-user-bubble-bg: color-mix(in srgb, var(--muted) 84%, var(--background));
+  --chat-user-bubble-fg: var(--foreground);
+  --chat-user-bubble-border: color-mix(in srgb, var(--border) 88%, transparent);
+  --chat-user-bubble-muted: color-mix(in srgb, var(--foreground) 62%, transparent);
+  --chat-user-bubble-surface: color-mix(in srgb, var(--background) 72%, var(--muted));
+  --chat-user-bubble-surface-strong: color-mix(
+    in srgb,
+    var(--background) 52%,
+    var(--muted)
+  );
   --chat-exec-muted: color-mix(in srgb, var(--foreground) 62%, transparent);
   --chat-exec-muted-strong: color-mix(in srgb, var(--foreground) 82%, transparent);
   --chat-exec-border: color-mix(in srgb, var(--border) 78%, transparent);
@@ -87,6 +97,15 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
+  --chat-user-bubble-bg: color-mix(in srgb, var(--secondary) 78%, var(--background));
+  --chat-user-bubble-border: color-mix(in srgb, var(--border) 92%, transparent);
+  --chat-user-bubble-muted: color-mix(in srgb, var(--foreground) 72%, transparent);
+  --chat-user-bubble-surface: color-mix(in srgb, var(--background) 52%, var(--secondary));
+  --chat-user-bubble-surface-strong: color-mix(
+    in srgb,
+    var(--background) 36%,
+    var(--secondary)
+  );
   --chat-exec-muted: color-mix(in srgb, var(--foreground) 64%, transparent);
   --chat-exec-muted-strong: color-mix(in srgb, var(--foreground) 84%, transparent);
   --chat-exec-border: color-mix(in srgb, var(--border) 80%, transparent);
@@ -174,6 +193,37 @@
 
   .font-editor {
     font-family: var(--font-mono), monospace;
+  }
+
+  .user-message-bubble {
+    border: 1px solid var(--chat-user-bubble-border);
+    background: var(--chat-user-bubble-bg);
+    color: var(--chat-user-bubble-fg);
+  }
+
+  .user-message-bubble-border {
+    border-color: var(--chat-user-bubble-border);
+  }
+
+  .user-message-bubble-meta {
+    color: var(--chat-user-bubble-muted);
+  }
+
+  .user-message-bubble-surface {
+    border-color: var(--chat-user-bubble-border);
+    background: var(--chat-user-bubble-surface);
+    color: var(--chat-user-bubble-fg);
+  }
+
+  .user-message-bubble-pill {
+    border-color: var(--chat-user-bubble-border);
+    background: var(--chat-user-bubble-surface);
+    color: var(--chat-user-bubble-muted);
+  }
+
+  .user-message-bubble-icon {
+    background: var(--chat-user-bubble-surface-strong);
+    color: var(--chat-user-bubble-muted);
   }
 }
 
