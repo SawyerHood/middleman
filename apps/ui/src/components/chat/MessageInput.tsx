@@ -30,6 +30,7 @@ const OPENAI_KEY_REQUIRED_MESSAGE = 'OpenAI API key required \u2014 add it in Se
 
 interface MessageInputProps {
   onSend: (message: string, attachments?: ConversationAttachment[]) => void
+  onSubmitted?: () => void
   isLoading: boolean
   disabled?: boolean
   agentLabel?: string
@@ -103,6 +104,7 @@ async function hasConfiguredOpenAiKey(endpoint: string): Promise<boolean> {
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
   {
     onSend,
+    onSubmitted,
     isLoading,
     disabled = false,
     agentLabel = 'agent',
@@ -334,7 +336,19 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
     setInput('')
     setAttachedFiles([])
-  }, [attachedFiles, blockedByLoading, disabled, input, isRecording, isTranscribingVoice, onSend])
+    requestAnimationFrame(() => {
+      onSubmitted?.()
+    })
+  }, [
+    attachedFiles,
+    blockedByLoading,
+    disabled,
+    input,
+    isRecording,
+    isTranscribingVoice,
+    onSend,
+    onSubmitted,
+  ])
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {

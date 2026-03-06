@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { ArtifactReference } from '@/lib/artifacts'
@@ -23,6 +31,10 @@ interface MessageListProps {
   onSuggestionClick?: (suggestion: string) => void
   onArtifactClick?: (artifact: ArtifactReference) => void
   wsUrl?: string
+}
+
+export interface MessageListHandle {
+  scrollToBottom: (behavior?: ScrollBehavior) => void
 }
 
 const AUTO_SCROLL_THRESHOLD_PX = 100
@@ -349,7 +361,7 @@ function LoadingIndicator() {
   )
 }
 
-export function MessageList({
+export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({
   messages,
   isLoading,
   activeAgentId,
@@ -357,7 +369,7 @@ export function MessageList({
   onSuggestionClick,
   onArtifactClick,
   wsUrl,
-}: MessageListProps) {
+}, ref) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const previousAgentIdRef = useRef<string | null>(null)
@@ -368,6 +380,30 @@ export function MessageList({
   const [showScrollButton, setShowScrollButton] = useState(false)
 
   const displayEntries = useMemo(() => buildDisplayEntries(messages), [messages])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const container = scrollContainerRef.current
+    if (!container) {
+      return
+    }
+
+    if (behavior === 'smooth') {
+      container.scrollTo({ top: container.scrollHeight, behavior })
+    } else {
+      container.scrollTop = container.scrollHeight
+    }
+
+    isAtBottomRef.current = true
+    setShowScrollButton(false)
+  }, [])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToBottom,
+    }),
+    [scrollToBottom],
+  )
 
   const updateIsAtBottom = () => {
     const container = scrollContainerRef.current
@@ -409,19 +445,14 @@ export function MessageList({
     const shouldAutoScroll = shouldForceScroll || isAtBottomRef.current
 
     if (shouldAutoScroll) {
-      bottomRef.current?.scrollIntoView({
-        behavior: shouldForceScroll ? 'instant' : 'smooth',
-        block: 'end',
-      })
-      isAtBottomRef.current = true
-      setShowScrollButton(false)
+      scrollToBottom(shouldForceScroll ? 'auto' : 'smooth')
     }
 
     hasScrolledRef.current = true
     previousAgentIdRef.current = nextAgentId
     previousFirstEntryIdRef.current = nextFirstEntryId
     previousEntryCountRef.current = nextEntryCount
-  }, [activeAgentId, displayEntries, isLoading])
+  }, [activeAgentId, displayEntries, isLoading, scrollToBottom])
 
   if (displayEntries.length === 0 && !isLoading) {
     return (
@@ -433,9 +464,7 @@ export function MessageList({
   }
 
   const handleScrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-    isAtBottomRef.current = true
-    setShowScrollButton(false)
+    scrollToBottom('smooth')
   }
 
   return (
@@ -524,4 +553,4 @@ export function MessageList({
       </div>
     </div>
   )
-}
+})
