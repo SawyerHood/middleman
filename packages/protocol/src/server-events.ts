@@ -183,6 +183,12 @@ export interface TaskCompletionResultEvent {
   requestId?: string
 }
 
+export interface TaskCommentResultEvent {
+  type: 'task_comment_result'
+  task: UserTask
+  requestId?: string
+}
+
 export interface TaskUpdateResultEvent {
   type: 'task_update_result'
   task: UserTask
@@ -234,5 +240,6 @@ export type ServerEvent =
   | TaskUpdatedEvent
   | TasksDeletedEvent
   | TaskCompletionResultEvent
+  | TaskCommentResultEvent
   | TaskUpdateResultEvent
   | { type: 'error'; code: string; message: string; requestId?: string }

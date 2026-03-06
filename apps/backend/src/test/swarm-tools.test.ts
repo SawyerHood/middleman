@@ -1,16 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildSwarmTools, type SwarmToolHost } from '../swarm/swarm-tools.js'
-import type { AgentDescriptor, SendMessageReceipt, SpawnAgentInput, UserTask } from '../swarm/types.js'
-
-function makeTask(): UserTask {
-  return {
-    id: 'task-1',
-    managerId: 'manager',
-    title: 'Review the deployment',
-    status: 'pending',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  }
-}
+import type { AgentDescriptor, SendMessageReceipt, SpawnAgentInput } from '../swarm/types.js'
 
 function makeManagerDescriptor(): AgentDescriptor {
   return {
@@ -70,12 +60,6 @@ function makeHost(spawnImpl: (callerAgentId: string, input: SpawnAgentInput) => 
         targetContext: { channel: 'web' },
       }
     },
-    async assignTask(): Promise<UserTask> {
-      return makeTask()
-    },
-    async getOutstandingTasks(): Promise<UserTask[]> {
-      return [makeTask()]
-    },
   }
 }
 
@@ -104,8 +88,6 @@ describe('buildSwarmTools', () => {
       publishToUser: async () => ({
         targetContext: { channel: 'web' },
       }),
-      assignTask: async () => makeTask(),
-      getOutstandingTasks: async () => [makeTask()],
     }
 
     const tools = buildSwarmTools(host, makeManagerDescriptor())
@@ -275,48 +257,11 @@ describe('buildSwarmTools', () => {
     ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app|claude-code')
   })
 
-  it('wires assign_task and get_outstanding_tasks through the host', async () => {
-    const assignedTask = makeTask()
-    const assignTask = async () => assignedTask
-    const getOutstandingTasks = async () => [assignedTask]
-    const host: SwarmToolHost = {
-      ...makeHost(async () => makeWorkerDescriptor('worker')),
-      assignTask,
-      getOutstandingTasks,
-    }
+  it('does not inject task management tools for managers', () => {
+    const tools = buildSwarmTools(makeHost(async () => makeWorkerDescriptor('worker')), makeManagerDescriptor())
 
-    const tools = buildSwarmTools(host, makeManagerDescriptor())
-    const assignTool = tools.find((tool) => tool.name === 'assign_task')
-    const outstandingTool = tools.find((tool) => tool.name === 'get_outstanding_tasks')
-
-    expect(assignTool).toBeDefined()
-    expect(outstandingTool).toBeDefined()
-
-    const assigned = await assignTool!.execute(
-      'tool-call',
-      {
-        title: 'Review the deployment',
-        description: 'Double-check the final status update.',
-      },
-      undefined,
-      undefined,
-      undefined as any,
-    )
-    expect(assigned.details).toMatchObject({
-      id: 'task-1',
-      title: 'Review the deployment',
-    })
-
-    const outstanding = await outstandingTool!.execute(
-      'tool-call',
-      {},
-      undefined,
-      undefined,
-      undefined as any,
-    )
-    expect(outstanding.details).toEqual({
-      tasks: [assignedTask],
-    })
+    expect(tools.some((tool) => tool.name === 'assign_task')).toBe(false)
+    expect(tools.some((tool) => tool.name === 'get_outstanding_tasks')).toBe(false)
   })
 
   it('forwards speak_to_user target metadata and returns resolved target context', async () => {
@@ -342,8 +287,6 @@ describe('buildSwarmTools', () => {
           },
         }
       },
-      assignTask: async () => makeTask(),
-      getOutstandingTasks: async () => [makeTask()],
     }
 
     const tools = buildSwarmTools(host, makeManagerDescriptor())

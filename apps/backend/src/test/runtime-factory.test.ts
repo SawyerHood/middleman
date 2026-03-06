@@ -24,7 +24,14 @@ function makeDescriptor(provider: string, modelId: string): AgentDescriptor {
 function makeFactory(): RuntimeFactory {
   return new RuntimeFactory({
     host: {} as any,
-    config: {} as any,
+    config: {
+      host: '127.0.0.1',
+      port: 47187,
+      paths: {
+        rootDir: '/repo',
+        dataDir: '/repo/data',
+      },
+    } as any,
     now: () => '2026-01-01T00:00:00.000Z',
     logDebug: () => {},
     getMemoryRuntimeResources: async () => ({
@@ -77,5 +84,28 @@ describe('RuntimeFactory routing', () => {
 
     expect(createClaudeCodeRuntimeForDescriptor).toHaveBeenCalledTimes(1)
     expect(createClaudeCodeRuntimeForDescriptor).toHaveBeenCalledWith(claudeDescriptor, 'claude-system')
+  })
+
+  it('builds runtime env with CLI path and agent metadata', () => {
+    const factory = makeFactory()
+    const descriptor = makeDescriptor('openai-codex-app-server', 'gpt-5.4')
+    const previousPath = process.env.PATH
+    process.env.PATH = '/usr/bin:/bin'
+
+    try {
+      const env = (factory as any).buildAgentRuntimeEnv(descriptor, '/repo/data/memory/manager.md')
+
+      expect(env).toMatchObject({
+        SWARM_DATA_DIR: '/repo/data',
+        SWARM_MEMORY_FILE: '/repo/data/memory/manager.md',
+        MIDDLEMAN_AGENT_ID: descriptor.agentId,
+        MIDDLEMAN_API_BASE_URL: 'http://127.0.0.1:47187',
+      })
+      expect(env.PATH).toContain('/repo/apps/cli/bin')
+      expect(env.PATH).toContain('/repo/node_modules/.bin')
+      expect(env.PATH).toContain('/usr/bin:/bin')
+    } finally {
+      process.env.PATH = previousPath
+    }
   })
 })

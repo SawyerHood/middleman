@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.30.1",
   "type": "module",
   "workspaces": [
+    "apps/cli",
     "apps/backend",
     "apps/ui",
     "apps/site",
@@ -15,7 +16,7 @@
     "dev:backend": "pnpm --filter @middleman/backend dev",
     "dev:ui": "pnpm --filter @middleman/ui dev -- --host ${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)}",
     "dev:site": "pnpm --filter @middleman/site dev",
-    "build": "pnpm --filter @middleman/backend build && pnpm --filter @middleman/ui build && pnpm --filter @middleman/site build",
+    "build": "pnpm --filter @middleman/cli build && pnpm --filter @middleman/backend build && pnpm --filter @middleman/ui build && pnpm --filter @middleman/site build",
     "prod": "pnpm build && pnpm prod:start",
     "prod:debug": "MINIFY=false pnpm build && pnpm prod:start",
     "prod:start": "concurrently --kill-others-on-fail --names backend,ui \"NODE_ENV=production MIDDLEMAN_PORT=${MIDDLEMAN_PORT:-47287} pnpm --filter @middleman/backend start\" \"pnpm --filter @middleman/ui exec vite preview --port ${MIDDLEMAN_UI_PREVIEW_PORT:-47289} --strictPort --host ${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)}\"",

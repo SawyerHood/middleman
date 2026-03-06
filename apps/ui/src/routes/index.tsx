@@ -352,6 +352,15 @@ export function IndexPage() {
     await client.completeTask(taskId, comment)
   }
 
+  const handleAddTaskComment = async (taskId: string, comment: string) => {
+    const client = clientRef.current
+    if (!client) {
+      throw new Error('WebSocket client is not available.')
+    }
+
+    await client.addTaskComment(taskId, comment)
+  }
+
   const handleUpdateTask = async (input: {
     taskId: string
     title?: string
@@ -443,6 +452,7 @@ export function IndexPage() {
                     agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
                   })
                 }
+                onAddTaskComment={handleAddTaskComment}
                 onCompleteTask={handleCompleteTask}
                 onUpdateTask={handleUpdateTask}
                 onToggleMobileSidebar={() => setIsMobileSidebarOpen((previous) => !previous)}

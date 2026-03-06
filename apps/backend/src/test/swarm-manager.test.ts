@@ -387,6 +387,9 @@ describe('SwarmManager', () => {
     expect(managerPrompt).toContain('End users only see two things')
     expect(managerPrompt).toContain('prefixed with "SYSTEM:"')
     expect(managerPrompt).toContain('Your manager memory file is `${SWARM_MEMORY_FILE}`')
+    expect(managerPrompt).toContain('middleman task add --title')
+    expect(managerPrompt).not.toContain('assign_task')
+    expect(managerPrompt).not.toContain('get_outstanding_tasks')
 
     const worker = await manager.spawnAgent('manager', { agentId: 'Prompt Worker' })
     const workerPrompt = manager.systemPromptByAgentId.get(worker.agentId)
@@ -2133,12 +2136,12 @@ describe('SwarmManager', () => {
     expect(workerRuntime?.sendCalls.at(-1)?.message).toBe('hello owned worker')
   })
 
-  it('assigns user tasks, persists them, and delivers completion messages back to the manager', async () => {
+  it('assigns user tasks, stores user comments separately, and delivers generic completion messages back to the manager', async () => {
     const config = await makeTempConfig()
     const manager = new TestSwarmManager(config)
     await bootWithDefaultManager(manager, config)
 
-    const assignedTask = await manager.assignTask('manager', {
+    const assignedTask = await manager.createTaskForManager('manager', {
       title: 'Review the deployment checklist',
       description: 'Confirm the release notes and monitoring links are correct.',
     })
@@ -2162,21 +2165,31 @@ describe('SwarmManager', () => {
     })
 
     expect(completedTask.status).toBe('completed')
-    expect(completedTask.completionComment).toBe('Finished and verified the dashboard links.')
+    expect(completedTask.completionComment).toBeUndefined()
+    expect(completedTask.comments).toMatchObject([
+      {
+        body: 'Finished and verified the dashboard links.',
+        type: 'comment',
+      },
+      {
+        body: 'User completed this task.',
+        type: 'completion',
+      },
+    ])
     await expect(readFile(getTasksFilePath(config.paths.dataDir), 'utf8')).resolves.toContain('"status": "completed"')
-    await expect(manager.getOutstandingTasks('manager')).resolves.toEqual([])
+    await expect(manager.listOutstandingTasksForManager('manager')).resolves.toEqual([])
 
     const completionMessage = managerRuntime?.sendCalls.at(-1)?.message
     expect(typeof completionMessage).toBe('string')
-    expect(completionMessage).toContain('Task completed: Review the deployment checklist')
-    expect(completionMessage).toContain('Comment: Finished and verified the dashboard links.')
+    expect(completionMessage).toContain('User completed task: Review the deployment checklist')
+    expect(completionMessage).toContain('Check task comments for details.')
 
     const managerHistory = manager.getConversationHistory('manager')
     const userCompletionEvent = [...managerHistory].reverse().find(
       (event) =>
         event.type === 'conversation_message' &&
         event.source === 'user_input' &&
-        event.text.includes('Task completed: Review the deployment checklist'),
+        event.text.includes('User completed task: Review the deployment checklist'),
     )
     expect(userCompletionEvent).toBeDefined()
   })
@@ -2186,7 +2199,7 @@ describe('SwarmManager', () => {
     const manager = new TestSwarmManager(config)
     await bootWithDefaultManager(manager, config)
 
-    const assignedTask = await manager.assignTask('manager', {
+    const assignedTask = await manager.createTaskForManager('manager', {
       title: 'Review the deployment checklist',
       description: 'Confirm the release notes and monitoring links are correct.',
     })
@@ -2206,7 +2219,41 @@ describe('SwarmManager', () => {
     await expect(readFile(getTasksFilePath(config.paths.dataDir), 'utf8')).resolves.toContain(
       'Review the launch checklist',
     )
-    await expect(manager.getOutstandingTasks('manager')).resolves.toEqual([updatedTask])
+    await expect(manager.listOutstandingTasksForManager('manager')).resolves.toEqual([updatedTask])
+  })
+
+  it('adds task comments and lets the manager close a task on behalf of the user', async () => {
+    const config = await makeTempConfig()
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const assignedTask = await manager.createTaskForManager('manager', {
+      title: 'Prepare release notes',
+      description: 'Document rollout caveats before launch.',
+    })
+
+    const commentedTask = await manager.addTaskComment(assignedTask.id, 'User said the docs are almost done.')
+    expect(commentedTask.comments).toMatchObject([
+      {
+        body: 'User said the docs are almost done.',
+        type: 'comment',
+      },
+    ])
+
+    const closedTask = await manager.closeTaskForManager('manager', assignedTask.id, {
+      comment: 'Closed after the user confirmed completion in chat.',
+    })
+
+    expect(closedTask).toMatchObject({
+      id: assignedTask.id,
+      status: 'completed',
+      completionComment: 'Closed after the user confirmed completion in chat.',
+    })
+    expect(closedTask.comments?.at(-1)).toMatchObject({
+      body: 'Closed after the user confirmed completion in chat.',
+      type: 'completion',
+    })
+    await expect(manager.listOutstandingTasksForManager('manager')).resolves.toEqual([])
   })
 
   it('accepts any existing directory for manager and worker creation', async () => {

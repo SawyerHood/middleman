@@ -78,6 +78,32 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
     };
   }
 
+  if (maybe.type === "add_task_comment") {
+    const taskId = (maybe as { taskId?: unknown }).taskId;
+    const comment = (maybe as { comment?: unknown }).comment;
+    const requestId = (maybe as { requestId?: unknown }).requestId;
+
+    if (typeof taskId !== "string" || taskId.trim().length === 0) {
+      return { ok: false, error: "add_task_comment.taskId must be a non-empty string" };
+    }
+    if (typeof comment !== "string" || comment.trim().length === 0) {
+      return { ok: false, error: "add_task_comment.comment must be a non-empty string" };
+    }
+    if (requestId !== undefined && typeof requestId !== "string") {
+      return { ok: false, error: "add_task_comment.requestId must be a string when provided" };
+    }
+
+    return {
+      ok: true,
+      command: {
+        type: "add_task_comment",
+        taskId: taskId.trim(),
+        comment: comment.trim(),
+        requestId
+      }
+    };
+  }
+
   if (maybe.type === "complete_task") {
     const taskId = (maybe as { taskId?: unknown }).taskId;
     const comment = (maybe as { comment?: unknown }).comment;
@@ -354,6 +380,7 @@ export function extractRequestId(command: ClientCommand): string | undefined {
     case "validate_directory":
     case "pick_directory":
     case "get_all_tasks":
+    case "add_task_comment":
     case "complete_task":
     case "update_task":
       return command.requestId;

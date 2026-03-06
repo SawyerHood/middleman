@@ -667,14 +667,14 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     return { managerId: targetManagerId, terminatedWorkerIds };
   }
 
-  async assignTask(
-    callerAgentId: string,
+  async createTaskForManager(
+    managerId: string,
     input: { title: string; description?: string }
   ): Promise<UserTask> {
-    const manager = this.assertManager(callerAgentId, "assign tasks");
+    const manager = this.assertManager(managerId, "manage tasks");
     const title = input.title.trim();
     if (title.length === 0) {
-      throw new Error("assign_task title must be a non-empty string");
+      throw new Error("task title must be a non-empty string");
     }
 
     const task = await this.taskStorage.create({
@@ -693,19 +693,30 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     return task;
   }
 
-  async getOutstandingTasks(callerAgentId: string, managerId?: string): Promise<UserTask[]> {
-    const manager = this.assertManager(callerAgentId, "inspect outstanding tasks");
-    const normalizedManagerId = managerId?.trim() || manager.agentId;
-
-    if (normalizedManagerId !== manager.agentId) {
-      throw new Error(`Manager ${manager.agentId} can only inspect its own outstanding tasks`);
-    }
-
-    return this.taskStorage.listOutstanding(normalizedManagerId);
+  async listOutstandingTasksForManager(managerId: string): Promise<UserTask[]> {
+    const manager = this.assertManager(managerId, "manage tasks");
+    return this.taskStorage.listOutstanding(manager.agentId);
   }
 
   listAllTasks(): UserTask[] {
     return this.taskStorage.listAll();
+  }
+
+  async addTaskComment(taskId: string, comment: string): Promise<UserTask> {
+    const normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.length === 0) {
+      throw new Error("add_task_comment taskId must be a non-empty string");
+    }
+
+    const updatedTask = await this.taskStorage.addComment(normalizedTaskId, comment);
+
+    this.logDebug("task:comment", {
+      taskId: updatedTask.id,
+      managerId: updatedTask.managerId
+    });
+    this.emitTaskUpdated(updatedTask);
+
+    return updatedTask;
   }
 
   async updateTask(
@@ -736,6 +747,27 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     return updatedTask;
   }
 
+  async updateTaskForManager(
+    managerId: string,
+    taskId: string,
+    input: {
+      title?: string;
+      description?: string;
+    }
+  ): Promise<UserTask> {
+    const manager = this.assertManager(managerId, "manage tasks");
+    const existingTask = this.taskStorage.get(taskId.trim());
+    if (!existingTask) {
+      throw new Error(`Unknown task: ${taskId.trim()}`);
+    }
+
+    if (existingTask.managerId !== manager.agentId) {
+      throw new Error(`Task ${existingTask.id} does not belong to manager ${manager.agentId}`);
+    }
+
+    return this.updateTask(existingTask.id, input);
+  }
+
   async completeTask(
     taskId: string,
     options?: {
@@ -757,9 +789,14 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       return existingTask;
     }
 
+    const normalizedComment = normalizeOptionalMetadataValue(options?.comment);
+    if (normalizedComment) {
+      await this.taskStorage.addComment(normalizedTaskId, normalizedComment);
+    }
+
     const sourceContext = normalizeMessageSourceContext(options?.sourceContext ?? { channel: "web" });
     await this.handleUserMessage(
-      formatTaskCompletionMessage(existingTask.title, options?.comment),
+      formatTaskCompletionMessage(existingTask.title),
       {
         targetAgentId: existingTask.managerId,
         sourceContext
@@ -767,13 +804,55 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     );
 
     const completedTask = await this.taskStorage.complete(normalizedTaskId, {
-      comment: options?.comment
+      completionEntryBody: "User completed this task."
     });
 
     this.logDebug("task:complete", {
       managerId: completedTask.managerId,
       taskId: completedTask.id,
-      hasComment: Boolean(completedTask.completionComment)
+      hasComment: Boolean(normalizedComment)
+    });
+    this.emitTaskUpdated(completedTask);
+
+    return completedTask;
+  }
+
+  async closeTaskForManager(
+    managerId: string,
+    taskId: string,
+    options?: {
+      comment?: string;
+    }
+  ): Promise<UserTask> {
+    const manager = this.assertManager(managerId, "manage tasks");
+    const normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.length === 0) {
+      throw new Error("task id must be a non-empty string");
+    }
+
+    const existingTask = this.taskStorage.get(normalizedTaskId);
+    if (!existingTask) {
+      throw new Error(`Unknown task: ${normalizedTaskId}`);
+    }
+
+    if (existingTask.managerId !== manager.agentId) {
+      throw new Error(`Task ${existingTask.id} does not belong to manager ${manager.agentId}`);
+    }
+
+    if (existingTask.status === "completed") {
+      return existingTask;
+    }
+
+    const normalizedComment = normalizeOptionalMetadataValue(options?.comment);
+    const completedTask = await this.taskStorage.complete(normalizedTaskId, {
+      comment: normalizedComment,
+      completionEntryBody: normalizedComment ?? "Task closed by manager."
+    });
+
+    this.logDebug("task:close", {
+      managerId: completedTask.managerId,
+      taskId: completedTask.id,
+      hasComment: Boolean(normalizedComment)
     });
     this.emitTaskUpdated(completedTask);
 
@@ -2667,15 +2746,9 @@ function formatInboundUserMessageForManager(text: string, sourceContext: Message
   return `${sourceMetadataLine}\n\n${trimmed}`;
 }
 
-function formatTaskCompletionMessage(title: string, comment?: string): string {
+function formatTaskCompletionMessage(title: string): string {
   const normalizedTitle = title.trim();
-  const normalizedComment = comment?.trim();
-
-  if (normalizedComment && normalizedComment.length > 0) {
-    return `Task completed: ${normalizedTitle}\nComment: ${normalizedComment}`;
-  }
-
-  return `Task completed: ${normalizedTitle}`;
+  return `User completed task: ${normalizedTitle}. Check task comments for details.`;
 }
 
 function parseCompactSlashCommand(text: string): { customInstructions?: string } | undefined {

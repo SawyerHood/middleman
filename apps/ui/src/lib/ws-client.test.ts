@@ -1121,6 +1121,70 @@ describe('ManagerWsClient', () => {
     client.destroy()
   })
 
+  it('sends add_task_comment commands and resolves from task_comment_result', async () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    const initialTaskRequest = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+    emitServerEvent(socket, {
+      type: 'tasks_snapshot',
+      requestId: initialTaskRequest.requestId,
+      tasks: [],
+    })
+
+    const commentPromise = client.addTaskComment('task-2', 'Captured the latest rollout notes.')
+    const commentPayload = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+
+    expect(commentPayload).toMatchObject({
+      type: 'add_task_comment',
+      taskId: 'task-2',
+      comment: 'Captured the latest rollout notes.',
+    })
+
+    emitServerEvent(socket, {
+      type: 'task_comment_result',
+      requestId: commentPayload.requestId,
+      task: {
+        id: 'task-2',
+        managerId: 'manager',
+        title: 'Track rollout status',
+        status: 'pending',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        comments: [
+          {
+            id: 'comment-1',
+            body: 'Captured the latest rollout notes.',
+            createdAt: '2026-01-03T00:10:00.000Z',
+            type: 'comment',
+          },
+        ],
+      },
+    })
+
+    await expect(commentPromise).resolves.toMatchObject({
+      id: 'task-2',
+      comments: [
+        expect.objectContaining({
+          body: 'Captured the latest rollout notes.',
+          type: 'comment',
+        }),
+      ],
+    })
+
+    client.destroy()
+  })
+
   it('sends update_task commands and resolves from task_update_result', async () => {
     const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
 

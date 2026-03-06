@@ -2175,7 +2175,7 @@ describe('SwarmWebSocketServer', () => {
     await server.stop()
   })
 
-  it('lists and completes user tasks over websocket, broadcasting task updates and manager notifications', async () => {
+  it('lists, comments on, and completes user tasks over websocket, broadcasting task updates and manager notifications', async () => {
     const port = await getAvailablePort()
     const config = await makeTempConfig(port, true)
 
@@ -2202,7 +2202,7 @@ describe('SwarmWebSocketServer', () => {
     client.send(JSON.stringify({ type: 'subscribe', agentId: 'manager' }))
     await waitForEvent(events, (event) => event.type === 'ready' && event.subscribedAgentId === 'manager')
 
-    const assignedTask = await manager.assignTask('manager', {
+    const assignedTask = await manager.createTaskForManager('manager', {
       title: 'Verify release smoke tests',
       description: 'Run the quick post-deploy checks and report back.',
     })
@@ -2261,9 +2261,31 @@ describe('SwarmWebSocketServer', () => {
 
     client.send(
       JSON.stringify({
+        type: 'add_task_comment',
+        taskId: assignedTask.id,
+        comment: 'Captured the smoke-test notes in the deployment thread.',
+        requestId: 'comment-1',
+      }),
+    )
+
+    const commentResultEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_comment_result' && event.requestId === 'comment-1',
+    )
+    expect(commentResultEvent.type).toBe('task_comment_result')
+    if (commentResultEvent.type === 'task_comment_result') {
+      expect(commentResultEvent.task.comments).toMatchObject([
+        {
+          body: 'Captured the smoke-test notes in the deployment thread.',
+          type: 'comment',
+        },
+      ])
+    }
+
+    client.send(
+      JSON.stringify({
         type: 'complete_task',
         taskId: assignedTask.id,
-        comment: 'Ran the checks and everything looks stable.',
         requestId: 'complete-1',
       }),
     )
@@ -2278,7 +2300,16 @@ describe('SwarmWebSocketServer', () => {
     expect(updatedEvent.type).toBe('task_updated')
     if (updatedEvent.type === 'task_updated') {
       expect(updatedEvent.task.status).toBe('completed')
-      expect(updatedEvent.task.completionComment).toBe('Ran the checks and everything looks stable.')
+      expect(updatedEvent.task.comments).toMatchObject([
+        {
+          body: 'Captured the smoke-test notes in the deployment thread.',
+          type: 'comment',
+        },
+        {
+          body: 'User completed this task.',
+          type: 'completion',
+        },
+      ])
     }
 
     const resultEvent = await waitForEvent(
@@ -2296,13 +2327,112 @@ describe('SwarmWebSocketServer', () => {
         event.type === 'conversation_message' &&
         event.agentId === 'manager' &&
         event.source === 'user_input' &&
-        event.text.includes('Task completed: Verify release smoke test pass'),
+        event.text.includes('User completed task: Verify release smoke test pass'),
     )
     expect(managerMessageEvent.type).toBe('conversation_message')
+    if (managerMessageEvent.type === 'conversation_message') {
+      expect(managerMessageEvent.text).toContain('Check task comments for details.')
+    }
 
     client.close()
     await once(client, 'close')
     await server.stop()
+  })
+
+  it('creates, lists, updates, and closes manager tasks over HTTP', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port, true)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    try {
+      const createResponse = await fetch(`http://${config.host}:${config.port}/api/tasks`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          managerId: 'manager',
+          title: 'Prepare the launch checklist',
+          description: 'Confirm rollout docs and rollback links.',
+        }),
+      })
+
+      expect(createResponse.status).toBe(201)
+      const createdPayload = (await createResponse.json()) as {
+        task: { id: string; title: string; description?: string }
+      }
+      expect(createdPayload.task.title).toBe('Prepare the launch checklist')
+
+      const listResponse = await fetch(
+        `http://${config.host}:${config.port}/api/tasks?managerId=${encodeURIComponent('manager')}`,
+      )
+      expect(listResponse.status).toBe(200)
+      const listPayload = (await listResponse.json()) as {
+        tasks: Array<{ id: string; title: string }>
+      }
+      expect(listPayload.tasks).toHaveLength(1)
+      expect(listPayload.tasks[0]?.id).toBe(createdPayload.task.id)
+
+      const updateResponse = await fetch(
+        `http://${config.host}:${config.port}/api/tasks/${encodeURIComponent(createdPayload.task.id)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            managerId: 'manager',
+            title: 'Prepare the final launch checklist',
+            description: 'Confirm rollout docs, rollback links, and support notes.',
+          }),
+        },
+      )
+      expect(updateResponse.status).toBe(200)
+      const updatePayload = (await updateResponse.json()) as {
+        task: { title: string; description?: string; status: string }
+      }
+      expect(updatePayload.task).toMatchObject({
+        title: 'Prepare the final launch checklist',
+        description: 'Confirm rollout docs, rollback links, and support notes.',
+        status: 'pending',
+      })
+
+      const closeResponse = await fetch(
+        `http://${config.host}:${config.port}/api/tasks/${encodeURIComponent(createdPayload.task.id)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            managerId: 'manager',
+            status: 'completed',
+            comment: 'Closed after the user confirmed the checklist was complete.',
+          }),
+        },
+      )
+      expect(closeResponse.status).toBe(200)
+      const closePayload = (await closeResponse.json()) as {
+        task: { status: string; completionComment?: string }
+      }
+      expect(closePayload.task).toMatchObject({
+        status: 'completed',
+        completionComment: 'Closed after the user confirmed the checklist was complete.',
+      })
+    } finally {
+      await server.stop()
+    }
   })
 
   it('rejects non-manager subscription with explicit error', async () => {

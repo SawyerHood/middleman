@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLI_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+DIST_ENTRY="$CLI_DIR/dist/index.js"
+
+if [ -f "$DIST_ENTRY" ]; then
+  exec node "$DIST_ENTRY" "$@"
+fi
+
+exec pnpm --dir "$CLI_DIR" exec tsx src/index.ts "$@"

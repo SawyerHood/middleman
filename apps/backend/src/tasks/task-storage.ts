@@ -44,7 +44,7 @@ function validateComment(candidate: unknown): UserTaskComment | undefined {
     comment.body.trim().length === 0 ||
     typeof comment.createdAt !== "string" ||
     comment.createdAt.trim().length === 0 ||
-    comment.type !== "completion"
+    (comment.type !== "comment" && comment.type !== "completion")
   ) {
     return undefined;
   }
@@ -53,7 +53,7 @@ function validateComment(candidate: unknown): UserTaskComment | undefined {
     id: comment.id.trim(),
     body: comment.body.trim(),
     createdAt: comment.createdAt.trim(),
-    type: "completion"
+    type: comment.type
   };
 }
 
@@ -165,7 +165,39 @@ export class TaskStorage {
     return cloneTask(task);
   }
 
-  async complete(taskId: string, options?: { comment?: string }): Promise<UserTask> {
+  async addComment(taskId: string, body: string): Promise<UserTask> {
+    const existing = this.tasks.get(taskId);
+    if (!existing) {
+      throw new Error(`Unknown task: ${taskId}`);
+    }
+
+    const normalizedBody = body.trim();
+    if (normalizedBody.length === 0) {
+      throw new Error("task comment body must be a non-empty string");
+    }
+
+    const updatedTask: UserTask = {
+      ...existing,
+      comments: [
+        ...(existing.comments ?? []),
+        {
+          id: this.options.generateId?.() ?? randomUUID(),
+          body: normalizedBody,
+          createdAt: this.options.now(),
+          type: "comment"
+        }
+      ]
+    };
+
+    this.tasks.set(taskId, updatedTask);
+    await this.save();
+    return cloneTask(updatedTask);
+  }
+
+  async complete(
+    taskId: string,
+    options?: { comment?: string; completionEntryBody?: string }
+  ): Promise<UserTask> {
     const existing = this.tasks.get(taskId);
     if (!existing) {
       throw new Error(`Unknown task: ${taskId}`);
@@ -177,6 +209,7 @@ export class TaskStorage {
 
     const completedAt = this.options.now();
     const completionComment = normalizeOptionalText(options?.comment);
+    const completionEntryBody = normalizeOptionalText(options?.completionEntryBody) ?? completionComment ?? "Task completed.";
     const completedTask: UserTask = {
       ...existing,
       status: "completed",
@@ -186,7 +219,7 @@ export class TaskStorage {
         ...(existing.comments ?? []),
         {
           id: this.options.generateId?.() ?? randomUUID(),
-          body: completionComment ?? "Task completed.",
+          body: completionEntryBody,
           createdAt: completedAt,
           type: "completion"
         }

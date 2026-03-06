@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, CalendarDays, ListTodo, PanelLeft, UserRound, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -13,8 +12,9 @@ import type { AgentDescriptor, UserTask } from '@middleman/protocol'
 interface TaskViewProps {
   tasks: UserTask[]
   managers: AgentDescriptor[]
+  onAddTaskComment: (taskId: string, comment: string) => Promise<void>
   onBack: () => void
-  onCompleteTask: (taskId: string, comment?: string) => Promise<void>
+  onCompleteTask: (taskId: string) => Promise<void>
   onToggleMobileSidebar: () => void
   onUpdateTask: (input: { taskId: string; title?: string; description?: string }) => Promise<void>
 }
@@ -24,6 +24,7 @@ type EditableField = 'title' | 'description' | null
 export function TaskView({
   tasks,
   managers,
+  onAddTaskComment,
   onBack,
   onCompleteTask,
   onToggleMobileSidebar,
@@ -31,8 +32,10 @@ export function TaskView({
 }: TaskViewProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
-  const [completionComment, setCompletionComment] = useState('')
   const [completionError, setCompletionError] = useState<string | null>(null)
+  const [commentDraft, setCommentDraft] = useState('')
+  const [commentError, setCommentError] = useState<string | null>(null)
+  const [commentingTaskId, setCommentingTaskId] = useState<string | null>(null)
   const [editingField, setEditingField] = useState<EditableField>(null)
   const [titleDraft, setTitleDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
@@ -79,11 +82,18 @@ export function TaskView({
     if (selectedTaskId && !selectedTask) {
       setSelectedTaskId(null)
       setEditingField(null)
-      setCompletionComment('')
       setCompletionError(null)
+      setCommentDraft('')
+      setCommentError(null)
       setUpdateError(null)
     }
   }, [selectedTask, selectedTaskId])
+
+  useEffect(() => {
+    setCommentDraft('')
+    setCommentError(null)
+    setCompletionError(null)
+  }, [selectedTask?.id])
 
   useEffect(() => {
     if (!selectedTask) {
@@ -120,12 +130,29 @@ export function TaskView({
     setCompletionError(null)
 
     try {
-      await onCompleteTask(selectedTask.id, completionComment)
-      setCompletionComment('')
+      await onCompleteTask(selectedTask.id)
     } catch (error) {
       setCompletionError(error instanceof Error ? error.message : 'Failed to complete task.')
     } finally {
       setCompletingTaskId((currentTaskId) => (currentTaskId === selectedTask.id ? null : currentTaskId))
+    }
+  }
+
+  const handleAddComment = async () => {
+    if (!selectedTask) {
+      return
+    }
+
+    setCommentingTaskId(selectedTask.id)
+    setCommentError(null)
+
+    try {
+      await onAddTaskComment(selectedTask.id, commentDraft)
+      setCommentDraft('')
+    } catch (error) {
+      setCommentError(error instanceof Error ? error.message : 'Failed to send comment.')
+    } finally {
+      setCommentingTaskId((currentTaskId) => (currentTaskId === selectedTask.id ? null : currentTaskId))
     }
   }
 
@@ -224,9 +251,7 @@ export function TaskView({
                 <h1 className="truncate text-sm font-semibold sm:text-base">Tasks</h1>
                 <Badge variant="outline">{sortedTasks.length}</Badge>
               </div>
-              <p className="truncate text-xs text-muted-foreground">
-                Compact list with an Asana-style detail drawer
-              </p>
+              <p className="truncate text-xs text-muted-foreground">Assigned work across managers</p>
             </div>
           </div>
         </div>
@@ -247,87 +272,85 @@ export function TaskView({
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <Card className="m-4 min-h-0 flex-1 overflow-hidden py-0 shadow-sm">
-            <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Assigned tasks</p>
-                <p className="text-xs text-muted-foreground">
-                  Click a row to open details or use the checkbox to complete immediately.
+          <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Assigned tasks</p>
+              <p className="text-xs text-muted-foreground">
+                Open a task for details or use the checkbox to complete it immediately.
+              </p>
+            </div>
+            <Badge variant="outline">{pendingCount} open</Badge>
+          </div>
+
+          <ScrollArea className="min-h-0 flex-1">
+            {sortedTasks.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl border border-border/70 bg-muted/30">
+                  <ListTodo className="size-5 text-muted-foreground" />
+                </div>
+                <h2 className="text-base font-semibold">No tasks assigned yet</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Tasks assigned by managers will show up here in real time.
                 </p>
               </div>
-              <Badge variant="outline">{pendingCount} open</Badge>
-            </div>
+            ) : (
+              <div>
+                {sortedTasks.map((task) => {
+                  const managerName = managerNameById.get(task.managerId) ?? task.managerId
+                  const isSelected = selectedTaskId === task.id
+                  const isCompleting = completingTaskId === task.id
 
-            <ScrollArea className="min-h-0 flex-1">
-              {sortedTasks.length === 0 ? (
-                <div className="px-6 py-12 text-center">
-                  <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl border border-border/70 bg-muted/30">
-                    <ListTodo className="size-5 text-muted-foreground" />
-                  </div>
-                  <h2 className="text-base font-semibold">No tasks assigned yet</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Tasks assigned by managers will show up here in real time.
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  {sortedTasks.map((task) => {
-                    const managerName = managerNameById.get(task.managerId) ?? task.managerId
-                    const isSelected = selectedTaskId === task.id
-                    const isCompleting = completingTaskId === task.id
-
-                    return (
+                  return (
+                    <div
+                      key={task.id}
+                      className={cn(
+                        'flex items-center gap-3 border-b border-border/70 px-4 py-3 transition-colors last:border-b-0',
+                        isSelected ? 'bg-muted/35' : 'hover:bg-muted/20',
+                      )}
+                    >
                       <div
-                        key={task.id}
-                        className={cn(
-                          'flex items-center gap-3 border-b border-border/70 px-4 py-3 transition-colors last:border-b-0',
-                          isSelected ? 'bg-muted/45' : 'hover:bg-muted/25',
-                        )}
+                        className="shrink-0"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                        }}
                       >
-                        <div
-                          className="shrink-0"
-                          onClick={(event) => {
-                            event.stopPropagation()
+                        <Checkbox
+                          checked={task.status === 'completed'}
+                          disabled={task.status === 'completed' || isCompleting}
+                          aria-label={`Complete task ${task.title}`}
+                          onCheckedChange={(checked) => {
+                            if (checked === true && task.status === 'pending') {
+                              void handleQuickComplete(task.id)
+                            }
                           }}
-                        >
-                          <Checkbox
-                            checked={task.status === 'completed'}
-                            disabled={task.status === 'completed' || isCompleting}
-                            aria-label={`Complete task ${task.title}`}
-                            onCheckedChange={(checked) => {
-                              if (checked === true && task.status === 'pending') {
-                                void handleQuickComplete(task.id)
-                              }
-                            }}
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedTaskId(task.id)
-                            setCompletionComment('')
-                            setCompletionError(null)
-                            setUpdateError(null)
-                          }}
-                          className="min-w-0 flex-1 text-left"
-                        >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="truncate text-sm font-medium text-foreground">{task.title}</span>
-                            <TaskStatusBadge status={task.status} />
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <span>{managerName}</span>
-                            <span>{formatDate(task.createdAt)}</span>
-                          </div>
-                        </button>
+                        />
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </ScrollArea>
-          </Card>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTaskId(task.id)
+                          setCompletionError(null)
+                          setCommentError(null)
+                          setUpdateError(null)
+                        }}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-sm font-medium text-foreground">{task.title}</span>
+                          <TaskStatusBadge status={task.status} />
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span>{managerName}</span>
+                          <span>{formatDate(task.createdAt)}</span>
+                        </div>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </ScrollArea>
         </div>
 
         {selectedTask ? (
@@ -347,11 +370,59 @@ export function TaskView({
         >
           {selectedTask ? (
             <div className="flex h-full min-h-0 flex-col">
-              <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <TaskStatusBadge status={selectedTask.status} />
-                  <Badge variant="outline">{managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}</Badge>
+              <div className="flex items-start justify-between gap-4 border-b border-border/70 px-4 py-4">
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TaskStatusBadge status={selectedTask.status} />
+                    <Badge variant="outline">{managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}</Badge>
+                  </div>
+
+                  {editingField === 'title' ? (
+                    <Input
+                      value={titleDraft}
+                      onChange={(event) => setTitleDraft(event.target.value)}
+                      onBlur={() => {
+                        if (shouldSkipBlurSave('title')) {
+                          return
+                        }
+                        void saveTitle()
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          skipNextBlurSaveRef.current = 'title'
+                          void saveTitle()
+                          event.currentTarget.blur()
+                        }
+                        if (event.key === 'Escape') {
+                          skipNextBlurSaveRef.current = 'title'
+                          setTitleDraft(selectedTask.title)
+                          setEditingField(null)
+                          setUpdateError(null)
+                          event.currentTarget.blur()
+                        }
+                      }}
+                      disabled={updatingField === 'title'}
+                      autoFocus
+                      className="h-11 border-transparent bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:border-input focus-visible:bg-background"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => {
+                        setTitleDraft(selectedTask.title)
+                        setEditingField('title')
+                        setUpdateError(null)
+                      }}
+                    >
+                      <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                        {selectedTask.title}
+                      </h2>
+                    </button>
+                  )}
                 </div>
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -363,196 +434,170 @@ export function TaskView({
                 </Button>
               </div>
 
+              <div className="border-b border-border/70 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <UserRound className="size-3.5" />
+                    {managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarDays className="size-3.5" />
+                    Created {formatDateTime(selectedTask.createdAt)}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    type="button"
+                    variant={selectedTask.status === 'completed' ? 'secondary' : 'default'}
+                    onClick={() => {
+                      void handleDetailComplete()
+                    }}
+                    disabled={selectedTask.status === 'completed' || completingTaskId === selectedTask.id}
+                  >
+                    {selectedTask.status === 'completed'
+                      ? 'Completed'
+                      : completingTaskId === selectedTask.id
+                        ? 'Completing...'
+                        : 'Mark complete'}
+                  </Button>
+                </div>
+
+                {completionError ? <p className="mt-2 text-xs text-destructive">{completionError}</p> : null}
+              </div>
+
               <ScrollArea className="min-h-0 flex-1">
-                <div className="space-y-4 p-4">
-                  <Card className="py-0">
-                    <CardHeader className="border-b border-border/70 py-4">
-                      <div className="space-y-3">
-                        {editingField === 'title' ? (
-                          <Input
-                            value={titleDraft}
-                            onChange={(event) => setTitleDraft(event.target.value)}
-                            onBlur={() => {
-                              if (shouldSkipBlurSave('title')) {
-                                return
-                              }
-                              void saveTitle()
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault()
-                                skipNextBlurSaveRef.current = 'title'
-                                void saveTitle()
-                                event.currentTarget.blur()
-                              }
-                              if (event.key === 'Escape') {
-                                skipNextBlurSaveRef.current = 'title'
-                                setTitleDraft(selectedTask.title)
-                                setEditingField(null)
-                                setUpdateError(null)
-                                event.currentTarget.blur()
-                              }
-                            }}
-                            disabled={updatingField === 'title'}
-                            autoFocus
-                            className="h-11 text-lg font-semibold"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className="w-full text-left"
-                            onClick={() => {
-                              setTitleDraft(selectedTask.title)
-                              setEditingField('title')
-                              setUpdateError(null)
-                            }}
-                          >
-                            <CardTitle className="text-xl">{selectedTask.title}</CardTitle>
-                          </button>
-                        )}
+                <div className="border-b border-border/70 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Description
+                  </p>
 
-                        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                          <span className="inline-flex items-center gap-1.5">
-                            <UserRound className="size-3.5" />
-                            {managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <CalendarDays className="size-3.5" />
-                            Created {formatDateTime(selectedTask.createdAt)}
-                          </span>
-                        </div>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                          Description
-                        </p>
-                        {editingField === 'description' ? (
-                          <Textarea
-                            value={descriptionDraft}
-                            onChange={(event) => setDescriptionDraft(event.target.value)}
-                            onBlur={() => {
-                              if (shouldSkipBlurSave('description')) {
-                                return
-                              }
-                              void saveDescription()
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' && !event.shiftKey) {
-                                event.preventDefault()
-                                skipNextBlurSaveRef.current = 'description'
-                                void saveDescription()
-                                event.currentTarget.blur()
-                              }
-                              if (event.key === 'Escape') {
-                                skipNextBlurSaveRef.current = 'description'
-                                setDescriptionDraft(selectedTask.description ?? '')
-                                setEditingField(null)
-                                setUpdateError(null)
-                                event.currentTarget.blur()
-                              }
-                            }}
-                            rows={6}
-                            disabled={updatingField === 'description'}
-                            autoFocus
-                            placeholder="Add task details"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className={cn(
-                              'w-full rounded-lg border border-dashed border-border/70 px-3 py-3 text-left text-sm transition-colors hover:border-border hover:bg-muted/20',
-                              !selectedTask.description ? 'text-muted-foreground' : 'text-foreground',
-                            )}
-                            onClick={() => {
-                              setDescriptionDraft(selectedTask.description ?? '')
-                              setEditingField('description')
-                              setUpdateError(null)
-                            }}
-                          >
-                            {selectedTask.description?.trim() ? selectedTask.description : 'Add a description'}
-                          </button>
-                        )}
-                      </div>
-
-                      {updateError ? (
-                        <p className="text-xs text-destructive">{updateError}</p>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="py-0">
-                    <CardHeader className="border-b border-border/70 py-4">
-                      <CardTitle className="text-base">Complete task</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 py-4">
+                  <div className="mt-3">
+                    {editingField === 'description' ? (
                       <Textarea
-                        value={completionComment}
-                        onChange={(event) => setCompletionComment(event.target.value)}
-                        placeholder="Add an optional completion note back to the manager."
-                        rows={4}
-                        disabled={selectedTask.status === 'completed' || completingTaskId === selectedTask.id}
+                        value={descriptionDraft}
+                        onChange={(event) => setDescriptionDraft(event.target.value)}
+                        onBlur={() => {
+                          if (shouldSkipBlurSave('description')) {
+                            return
+                          }
+                          void saveDescription()
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault()
+                            skipNextBlurSaveRef.current = 'description'
+                            void saveDescription()
+                            event.currentTarget.blur()
+                          }
+                          if (event.key === 'Escape') {
+                            skipNextBlurSaveRef.current = 'description'
+                            setDescriptionDraft(selectedTask.description ?? '')
+                            setEditingField(null)
+                            setUpdateError(null)
+                            event.currentTarget.blur()
+                          }
+                        }}
+                        rows={6}
+                        disabled={updatingField === 'description'}
+                        autoFocus
+                        placeholder="Add task details"
                       />
+                    ) : (
+                      <button
+                        type="button"
+                        className={cn(
+                          'w-full rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted/20',
+                          !selectedTask.description ? 'text-muted-foreground' : 'text-foreground',
+                        )}
+                        onClick={() => {
+                          setDescriptionDraft(selectedTask.description ?? '')
+                          setEditingField('description')
+                          setUpdateError(null)
+                        }}
+                      >
+                        {selectedTask.description?.trim() ? selectedTask.description : 'Add a description'}
+                      </button>
+                    )}
+                  </div>
 
-                      {completionError ? (
-                        <p className="text-xs text-destructive">{completionError}</p>
-                      ) : null}
+                  {updateError ? <p className="mt-2 text-xs text-destructive">{updateError}</p> : null}
+                </div>
 
-                      <div className="flex justify-end">
-                        <Button
-                          type="button"
-                          onClick={() => {
-                            void handleDetailComplete()
-                          }}
-                          disabled={selectedTask.status === 'completed' || completingTaskId === selectedTask.id}
-                        >
-                          {selectedTask.status === 'completed'
-                            ? 'Completed'
-                            : completingTaskId === selectedTask.id
-                              ? 'Completing...'
-                              : 'Mark complete'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                <div className="px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Comments
+                    </p>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedTaskComments.length} {selectedTaskComments.length === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </div>
 
-                  <Card className="py-0">
-                    <CardHeader className="border-b border-border/70 py-4">
-                      <CardTitle className="text-base">Comments</CardTitle>
-                    </CardHeader>
-                    <CardContent className="py-4">
-                      {selectedTaskComments.length > 0 ? (
-                        <div className="space-y-3">
-                          {selectedTaskComments.map((comment) => (
-                            <div
-                              key={comment.id}
-                              className="rounded-xl border border-border/70 bg-muted/20 px-3 py-3"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                                  Completion update
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDateTime(comment.createdAt)}
-                                </p>
-                              </div>
-                              <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/90">
-                                {comment.body}
-                              </p>
-                            </div>
-                          ))}
+                  {selectedTaskComments.length > 0 ? (
+                    <div className="mt-4 space-y-4">
+                      {selectedTaskComments.map((comment) => (
+                        <div key={comment.id} className="border-b border-border/60 pb-4 last:border-b-0 last:pb-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <Badge variant="outline" className="capitalize">
+                              {comment.type === 'completion' ? 'Completed' : 'Comment'}
+                            </Badge>
+                            <p className="text-xs text-muted-foreground">{formatDateTime(comment.createdAt)}</p>
+                          </div>
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/90">
+                            {comment.body}
+                          </p>
                         </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Completion notes will appear here after the task is marked complete.
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Leave a comment before completing the task if you want the manager to review it.
+                    </p>
+                  )}
                 </div>
               </ScrollArea>
+
+              <div className="border-t border-border/70 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Add comment
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {selectedTask.status === 'completed'
+                    ? 'Manager has already been notified that this task is complete.'
+                    : 'When you complete this task, the manager will be told to check task comments for details.'}
+                </p>
+
+                <Textarea
+                  value={commentDraft}
+                  onChange={(event) => setCommentDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault()
+                      void handleAddComment()
+                    }
+                  }}
+                  placeholder="Leave a note for the manager."
+                  rows={4}
+                  className="mt-3"
+                  disabled={commentingTaskId === selectedTask.id}
+                />
+
+                {commentError ? <p className="mt-2 text-xs text-destructive">{commentError}</p> : null}
+
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      void handleAddComment()
+                    }}
+                    disabled={commentingTaskId === selectedTask.id || commentDraft.trim().length === 0}
+                  >
+                    {commentingTaskId === selectedTask.id ? 'Sending...' : 'Send comment'}
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : null}
         </aside>

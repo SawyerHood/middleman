@@ -36,7 +36,7 @@ export interface UserTaskComment {
   id: string
   body: string
   createdAt: string
-  type: 'completion'
+  type: 'comment' | 'completion'
 }
 
 export interface UserTask {

@@ -11,7 +11,6 @@ import {
   type SendMessageReceipt,
   type SpawnAgentInput
 } from "./types.js";
-import type { UserTask } from "./types.js";
 
 export interface SwarmToolHost {
   listAgents(): AgentDescriptor[];
@@ -29,11 +28,6 @@ export interface SwarmToolHost {
     source?: "speak_to_user" | "system",
     targetContext?: MessageTargetContext
   ): Promise<{ targetContext: MessageSourceContext }>;
-  assignTask(
-    callerAgentId: string,
-    input: { title: string; description?: string }
-  ): Promise<UserTask>;
-  getOutstandingTasks(callerAgentId: string, managerId?: string): Promise<UserTask[]>;
 }
 
 const deliveryModeSchema = Type.Union([
@@ -152,67 +146,6 @@ export function buildSwarmTools(host: SwarmToolHost, descriptor: AgentDescriptor
   }
 
   const managerOnly: ToolDefinition[] = [
-    {
-      name: "assign_task",
-      label: "Assign Task",
-      description:
-        "Assign a task to the user. Use this when progress depends on the user taking action outside the swarm.",
-      parameters: Type.Object({
-        title: Type.String({ description: "Short task title shown to the user." }),
-        description: Type.Optional(
-          Type.String({ description: "Optional supporting detail or instructions for the task." })
-        )
-      }),
-      async execute(_toolCallId, params) {
-        const parsed = params as {
-          title: string;
-          description?: string;
-        };
-
-        const task = await host.assignTask(descriptor.agentId, {
-          title: parsed.title,
-          description: parsed.description
-        });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Assigned task ${task.id}: ${task.title}`
-            }
-          ],
-          details: task
-        };
-      }
-    },
-    {
-      name: "get_outstanding_tasks",
-      label: "Get Outstanding Tasks",
-      description:
-        "Return all pending tasks this manager has assigned to the user. Optionally pass managerId, which must match this manager.",
-      parameters: Type.Object({
-        managerId: Type.Optional(
-          Type.String({ description: "Optional manager id filter. Must match the current manager." })
-        )
-      }),
-      async execute(_toolCallId, params) {
-        const parsed = params as {
-          managerId?: string;
-        };
-
-        const tasks = await host.getOutstandingTasks(descriptor.agentId, parsed.managerId);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ tasks }, null, 2)
-            }
-          ],
-          details: { tasks }
-        };
-      }
-    },
     {
       name: "spawn_agent",
       label: "Spawn Agent",

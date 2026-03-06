@@ -48,6 +48,7 @@ type WsRequestResultMap = {
   validate_directory: DirectoryValidationResult
   pick_directory: string | null
   get_all_tasks: UserTask[]
+  add_task_comment: UserTask
   complete_task: UserTask
   update_task: UserTask
 }
@@ -61,6 +62,7 @@ const WS_REQUEST_TYPES: WsRequestType[] = [
   'validate_directory',
   'pick_directory',
   'get_all_tasks',
+  'add_task_comment',
   'complete_task',
   'update_task',
 ]
@@ -73,6 +75,7 @@ const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: 
   { requestType: 'validate_directory', codeFragment: 'validate_directory' },
   { requestType: 'pick_directory', codeFragment: 'pick_directory' },
   { requestType: 'get_all_tasks', codeFragment: 'get_all_tasks' },
+  { requestType: 'add_task_comment', codeFragment: 'add_task_comment' },
   { requestType: 'complete_task', codeFragment: 'complete_task' },
   { requestType: 'update_task', codeFragment: 'update_task' },
 ]
@@ -404,6 +407,29 @@ export class ManagerWsClient {
     }))
   }
 
+  async addTaskComment(taskId: string, comment: string): Promise<UserTask> {
+    const trimmedTaskId = taskId.trim()
+    if (!trimmedTaskId) {
+      throw new Error('Task id is required.')
+    }
+
+    const trimmedComment = comment.trim()
+    if (!trimmedComment) {
+      throw new Error('Comment is required.')
+    }
+
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket is disconnected. Reconnecting...')
+    }
+
+    return this.enqueueRequest('add_task_comment', (requestId) => ({
+      type: 'add_task_comment',
+      taskId: trimmedTaskId,
+      comment: trimmedComment,
+      requestId,
+    }))
+  }
+
   async completeTask(taskId: string, comment?: string): Promise<UserTask> {
     const trimmedTaskId = taskId.trim()
     if (!trimmedTaskId) {
@@ -681,6 +707,11 @@ export class ManagerWsClient {
 
       case 'task_completion_result': {
         this.requestTracker.resolve('complete_task', event.requestId, event.task)
+        break
+      }
+
+      case 'task_comment_result': {
+        this.requestTracker.resolve('add_task_comment', event.requestId, event.task)
         break
       }
 
