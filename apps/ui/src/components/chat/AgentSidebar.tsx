@@ -1,7 +1,6 @@
 import { ChevronDown, ChevronRight, CircleDashed, Settings, SquarePen, UserStar, X } from 'lucide-react'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { useState } from 'react'
-import { AgentStatusIndicator } from '@/components/chat/AgentStatusIndicator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { buildManagerTreeRows } from '@/lib/agent-hierarchy'
 import { inferModelPreset } from '@/lib/model-preset'
@@ -126,11 +125,11 @@ function getModelLabel(agent: AgentDescriptor, preset: ManagerModelPreset | unde
 
 
 function AgentActivitySlot({
-  status,
+  isActive,
   isSelected,
   streamingWorkerCount,
 }: {
-  status: AgentStatus
+  isActive: boolean
   isSelected: boolean
   streamingWorkerCount?: number
 }) {
@@ -167,7 +166,19 @@ function AgentActivitySlot({
     )
   }
 
-  return <AgentStatusIndicator status={status} size="sm" />
+  if (!isActive) {
+    return <span className="inline-block size-3.5 shrink-0" aria-hidden="true" />
+  }
+
+  return (
+    <CircleDashed
+      className={cn(
+        'size-3.5 shrink-0 animate-spin',
+        isSelected ? 'text-sidebar-accent-foreground/80' : 'text-muted-foreground',
+      )}
+      aria-label="Active"
+    />
+  )
 }
 
 function AgentRow({
@@ -190,6 +201,7 @@ function AgentRow({
   streamingWorkerCount?: number
 }) {
   const title = agent.displayName || agent.agentId
+  const isActive = liveStatus.status === 'streaming'
   const preset = inferModelPreset(agent)
   const modelLabel = getModelLabel(agent, preset)
   const modelDescription = `${agent.model.provider}/${agent.model.modelId}`
@@ -211,11 +223,7 @@ function AgentRow({
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60"
           title={title}
         >
-          <AgentActivitySlot
-            status={liveStatus.status}
-            isSelected={isSelected}
-            streamingWorkerCount={streamingWorkerCount}
-          />
+          <AgentActivitySlot isActive={isActive} isSelected={isSelected} streamingWorkerCount={streamingWorkerCount} />
           <span className={cn('min-w-0 flex-1 truncate text-sm leading-5', nameClassName)}>{title}</span>
 
           <TooltipProvider delay={200}>
