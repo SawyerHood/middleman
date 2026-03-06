@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ServerEvent } from "@middleman/protocol";
+import { TaskStorage } from "../tasks/task-storage.js";
 import {
   loadArchetypePromptRegistry,
   normalizeArchetypeId,
@@ -76,7 +77,8 @@ import type {
   SkillEnvRequirement,
   SpawnAgentInput,
   SwarmConfig,
-  SwarmModelPreset
+  SwarmModelPreset,
+  UserTask
 } from "./types.js";
 
 const DEFAULT_WORKER_SYSTEM_PROMPT = `You are a worker agent in a swarm.
@@ -217,6 +219,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private readonly conversationEntriesByAgentId = new Map<string, ConversationEntryEvent[]>();
   private readonly conversationProjector: ConversationProjector;
   private readonly persistenceService: PersistenceService;
+  private readonly taskStorage: TaskStorage;
   private readonly runtimeFactory: RuntimeFactory;
   private readonly skillMetadataService: SkillMetadataService;
   private readonly secretsEnvService: SecretsEnvService;
@@ -242,6 +245,10 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       validateAgentDescriptor,
       extractDescriptorAgentId,
       logDebug: (message, details) => this.logDebug(message, details)
+    });
+    this.taskStorage = new TaskStorage({
+      dataDir: this.config.paths.dataDir,
+      now: this.now
     });
     this.conversationProjector = new ConversationProjector({
       descriptors: this.descriptors,
@@ -297,6 +304,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     });
 
     await this.ensureDirectories();
+    await this.taskStorage.load();
     await this.loadSecretsStore();
     await this.reloadSkillMetadata();
 
@@ -642,16 +650,213 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.conversationProjector.deleteConversationHistory(targetManagerId);
 
     await this.deleteManagerSchedulesFile(targetManagerId);
+    const deletedTaskIds = await this.taskStorage.deleteForManager(targetManagerId);
     await this.saveStore();
     this.emitAgentsSnapshot();
+    if (deletedTaskIds.length > 0) {
+      this.emitTasksDeleted(deletedTaskIds);
+    }
 
     this.logDebug("manager:delete", {
       callerAgentId,
       targetManagerId,
-      terminatedWorkerIds
+      terminatedWorkerIds,
+      deletedTaskIds
     });
 
     return { managerId: targetManagerId, terminatedWorkerIds };
+  }
+
+  async createTaskForManager(
+    managerId: string,
+    input: { title: string; description?: string }
+  ): Promise<UserTask> {
+    const manager = this.assertManager(managerId, "manage tasks");
+    const title = input.title.trim();
+    if (title.length === 0) {
+      throw new Error("task title must be a non-empty string");
+    }
+
+    const task = await this.taskStorage.create({
+      managerId: manager.agentId,
+      title,
+      description: input.description
+    });
+
+    this.logDebug("task:assign", {
+      managerId: manager.agentId,
+      taskId: task.id,
+      title: task.title
+    });
+    this.emitTaskCreated(task);
+
+    return task;
+  }
+
+  async listOutstandingTasksForManager(managerId: string): Promise<UserTask[]> {
+    const manager = this.assertManager(managerId, "manage tasks");
+    return this.taskStorage.listOutstanding(manager.agentId);
+  }
+
+  listAllTasks(): UserTask[] {
+    return this.taskStorage.listAll();
+  }
+
+  async addTaskComment(taskId: string, comment: string): Promise<UserTask> {
+    const normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.length === 0) {
+      throw new Error("add_task_comment taskId must be a non-empty string");
+    }
+
+    const updatedTask = await this.taskStorage.addComment(normalizedTaskId, comment);
+
+    this.logDebug("task:comment", {
+      taskId: updatedTask.id,
+      managerId: updatedTask.managerId
+    });
+    this.emitTaskUpdated(updatedTask);
+
+    return updatedTask;
+  }
+
+  async updateTask(
+    taskId: string,
+    input: {
+      title?: string;
+      description?: string;
+    }
+  ): Promise<UserTask> {
+    const normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.length === 0) {
+      throw new Error("update_task taskId must be a non-empty string");
+    }
+    if (input.title === undefined && input.description === undefined) {
+      throw new Error("update_task requires title or description");
+    }
+
+    const updatedTask = await this.taskStorage.update(normalizedTaskId, input);
+
+    this.logDebug("task:update", {
+      taskId: updatedTask.id,
+      managerId: updatedTask.managerId,
+      updatedTitle: input.title !== undefined,
+      updatedDescription: input.description !== undefined
+    });
+    this.emitTaskUpdated(updatedTask);
+
+    return updatedTask;
+  }
+
+  async updateTaskForManager(
+    managerId: string,
+    taskId: string,
+    input: {
+      title?: string;
+      description?: string;
+    }
+  ): Promise<UserTask> {
+    const manager = this.assertManager(managerId, "manage tasks");
+    const existingTask = this.taskStorage.get(taskId.trim());
+    if (!existingTask) {
+      throw new Error(`Unknown task: ${taskId.trim()}`);
+    }
+
+    if (existingTask.managerId !== manager.agentId) {
+      throw new Error(`Task ${existingTask.id} does not belong to manager ${manager.agentId}`);
+    }
+
+    return this.updateTask(existingTask.id, input);
+  }
+
+  async completeTask(
+    taskId: string,
+    options?: {
+      comment?: string;
+      sourceContext?: MessageSourceContext;
+    }
+  ): Promise<UserTask> {
+    const normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.length === 0) {
+      throw new Error("complete_task taskId must be a non-empty string");
+    }
+
+    const existingTask = this.taskStorage.get(normalizedTaskId);
+    if (!existingTask) {
+      throw new Error(`Unknown task: ${normalizedTaskId}`);
+    }
+
+    if (existingTask.status === "completed") {
+      return existingTask;
+    }
+
+    const normalizedComment = normalizeOptionalMetadataValue(options?.comment);
+    if (normalizedComment) {
+      await this.taskStorage.addComment(normalizedTaskId, normalizedComment);
+    }
+
+    const sourceContext = normalizeMessageSourceContext(options?.sourceContext ?? { channel: "web" });
+    await this.handleUserMessage(
+      formatTaskCompletionMessage(existingTask.title),
+      {
+        targetAgentId: existingTask.managerId,
+        sourceContext
+      }
+    );
+
+    const completedTask = await this.taskStorage.complete(normalizedTaskId, {
+      completionEntryBody: "User completed this task."
+    });
+
+    this.logDebug("task:complete", {
+      managerId: completedTask.managerId,
+      taskId: completedTask.id,
+      hasComment: Boolean(normalizedComment)
+    });
+    this.emitTaskUpdated(completedTask);
+
+    return completedTask;
+  }
+
+  async closeTaskForManager(
+    managerId: string,
+    taskId: string,
+    options?: {
+      comment?: string;
+    }
+  ): Promise<UserTask> {
+    const manager = this.assertManager(managerId, "manage tasks");
+    const normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.length === 0) {
+      throw new Error("task id must be a non-empty string");
+    }
+
+    const existingTask = this.taskStorage.get(normalizedTaskId);
+    if (!existingTask) {
+      throw new Error(`Unknown task: ${normalizedTaskId}`);
+    }
+
+    if (existingTask.managerId !== manager.agentId) {
+      throw new Error(`Task ${existingTask.id} does not belong to manager ${manager.agentId}`);
+    }
+
+    if (existingTask.status === "completed") {
+      return existingTask;
+    }
+
+    const normalizedComment = normalizeOptionalMetadataValue(options?.comment);
+    const completedTask = await this.taskStorage.complete(normalizedTaskId, {
+      comment: normalizedComment,
+      completionEntryBody: normalizedComment ?? "Task closed by manager."
+    });
+
+    this.logDebug("task:close", {
+      managerId: completedTask.managerId,
+      taskId: completedTask.id,
+      hasComment: Boolean(normalizedComment)
+    });
+    this.emitTaskUpdated(completedTask);
+
+    return completedTask;
   }
 
   getAgent(agentId: string): AgentDescriptor | undefined {
@@ -2074,6 +2279,27 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.emit("agents_snapshot", payload satisfies ServerEvent);
   }
 
+  private emitTaskCreated(task: UserTask): void {
+    this.emit("task_created", {
+      type: "task_created",
+      task
+    } satisfies ServerEvent);
+  }
+
+  private emitTaskUpdated(task: UserTask): void {
+    this.emit("task_updated", {
+      type: "task_updated",
+      task
+    } satisfies ServerEvent);
+  }
+
+  private emitTasksDeleted(taskIds: string[]): void {
+    this.emit("tasks_deleted", {
+      type: "tasks_deleted",
+      taskIds
+    } satisfies ServerEvent);
+  }
+
   private async handleRuntimeAgentEnd(_agentId: string): Promise<void> {
     // No-op: managers now receive all inbound messages with sourceContext metadata
     // and decide whether to respond without pending-reply bookkeeping.
@@ -2518,6 +2744,11 @@ function formatInboundUserMessageForManager(text: string, sourceContext: Message
   }
 
   return `${sourceMetadataLine}\n\n${trimmed}`;
+}
+
+function formatTaskCompletionMessage(title: string): string {
+  const normalizedTitle = title.trim();
+  return `User completed task: ${normalizedTitle}. Check task comments for details.`;
 }
 
 function parseCompactSlashCommand(text: string): { customInstructions?: string } | undefined {

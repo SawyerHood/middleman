@@ -1,11 +1,14 @@
+import { delimiter, resolve } from "node:path";
 import { getModel, type Model } from "@mariozechner/pi-ai";
 import {
   AuthStorage,
   DefaultResourceLoader,
+  createCodingTools,
   createAgentSession,
   ModelRegistry,
   SessionManager,
-  type AgentSession
+  type AgentSession,
+  type BashSpawnContext
 } from "@mariozechner/pi-coding-agent";
 import { AgentRuntime } from "./agent-runtime.js";
 import { ClaudeCodeRuntime } from "./claude-code-runtime.js";
@@ -101,6 +104,18 @@ export class RuntimeFactory {
         swarmContextFiles
       })
     });
+    const runtimeEnv = this.buildAgentRuntimeEnv(descriptor, memoryResources.memoryContextFile.path);
+    const codingTools = createCodingTools(descriptor.cwd, {
+      bash: {
+        spawnHook: (context: BashSpawnContext): BashSpawnContext => ({
+          ...context,
+          env: {
+            ...context.env,
+            ...runtimeEnv
+          }
+        })
+      }
+    });
 
     const resourceLoader =
       descriptor.role === "manager"
@@ -137,6 +152,7 @@ export class RuntimeFactory {
       modelRegistry,
       model,
       thinkingLevel: thinkingLevel as any,
+      tools: codingTools,
       sessionManager: SessionManager.open(descriptor.sessionFile),
       resourceLoader,
       customTools: swarmTools
@@ -219,10 +235,7 @@ export class RuntimeFactory {
       now: this.deps.now,
       systemPrompt: codexSystemPrompt,
       tools: swarmTools,
-      runtimeEnv: {
-        SWARM_DATA_DIR: this.deps.config.paths.dataDir,
-        SWARM_MEMORY_FILE: memoryResources.memoryContextFile.path
-      }
+      runtimeEnv: this.buildAgentRuntimeEnv(descriptor, memoryResources.memoryContextFile.path)
     });
 
     this.deps.logDebug("runtime:create:ready", {
@@ -276,10 +289,7 @@ export class RuntimeFactory {
       now: this.deps.now,
       systemPrompt: claudeCodeSystemPrompt,
       tools: swarmTools,
-      runtimeEnv: {
-        SWARM_DATA_DIR: this.deps.config.paths.dataDir,
-        SWARM_MEMORY_FILE: memoryResources.memoryContextFile.path
-      }
+      runtimeEnv: this.buildAgentRuntimeEnv(descriptor, memoryResources.memoryContextFile.path)
     });
 
     this.deps.logDebug("runtime:create:ready", {
@@ -345,6 +355,25 @@ export class RuntimeFactory {
     if (fromCatalog) return fromCatalog;
 
     return modelRegistry.getAll()[0];
+  }
+
+  private buildAgentRuntimeEnv(
+    descriptor: AgentDescriptor,
+    memoryFilePath: string
+  ): Record<string, string | undefined> {
+    const cliBinDir = resolve(this.deps.config.paths.rootDir, "apps", "cli", "bin");
+    const workspaceBinDir = resolve(this.deps.config.paths.rootDir, "node_modules", ".bin");
+    const prefixedPath = [cliBinDir, workspaceBinDir, process.env.PATH ?? ""]
+      .filter((entry) => entry.length > 0)
+      .join(delimiter);
+
+    return {
+      SWARM_DATA_DIR: this.deps.config.paths.dataDir,
+      SWARM_MEMORY_FILE: memoryFilePath,
+      MIDDLEMAN_AGENT_ID: descriptor.agentId,
+      MIDDLEMAN_API_BASE_URL: `http://${this.deps.config.host}:${this.deps.config.port}`,
+      PATH: prefixedPath
+    };
   }
 }
 

@@ -41,6 +41,27 @@ export interface AgentsStoreFile {
   agents: AgentDescriptor[];
 }
 
+export type UserTaskStatus = "pending" | "completed";
+
+export interface UserTaskComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  type: "comment" | "completion";
+}
+
+export interface UserTask {
+  id: string;
+  managerId: string;
+  title: string;
+  description?: string;
+  status: UserTaskStatus;
+  createdAt: string;
+  completedAt?: string;
+  completionComment?: string;
+  comments?: UserTaskComment[];
+}
+
 export type RequestedDeliveryMode = "auto" | "followUp" | "steer";
 
 export type AcceptedDeliveryMode = "prompt" | "followUp" | "steer";

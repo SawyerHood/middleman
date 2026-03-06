@@ -30,6 +30,27 @@ export interface AgentDescriptor {
   contextUsage?: AgentContextUsage
 }
 
+export type UserTaskStatus = 'pending' | 'completed'
+
+export interface UserTaskComment {
+  id: string
+  body: string
+  createdAt: string
+  type: 'comment' | 'completion'
+}
+
+export interface UserTask {
+  id: string
+  managerId: string
+  title: string
+  description?: string
+  status: UserTaskStatus
+  createdAt: string
+  completedAt?: string
+  completionComment?: string
+  comments?: UserTaskComment[]
+}
+
 export type DeliveryMode = 'auto' | 'followUp' | 'steer'
 export type AcceptedDeliveryMode = 'prompt' | 'followUp' | 'steer'
 

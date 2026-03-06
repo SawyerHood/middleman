@@ -257,6 +257,13 @@ describe('buildSwarmTools', () => {
     ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app|claude-code')
   })
 
+  it('does not inject task management tools for managers', () => {
+    const tools = buildSwarmTools(makeHost(async () => makeWorkerDescriptor('worker')), makeManagerDescriptor())
+
+    expect(tools.some((tool) => tool.name === 'assign_task')).toBe(false)
+    expect(tools.some((tool) => tool.name === 'get_outstanding_tasks')).toBe(false)
+  })
+
   it('forwards speak_to_user target metadata and returns resolved target context', async () => {
     let receivedTarget: { channel: 'web' | 'slack' | 'telegram'; channelId?: string; userId?: string; threadTs?: string } | undefined
 

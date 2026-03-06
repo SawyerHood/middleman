@@ -11,6 +11,7 @@ import type { HttpRoute } from "./routes/http-route.js";
 import { createIntegrationRoutes } from "./routes/integration-routes.js";
 import { createSchedulerRoutes } from "./routes/scheduler-routes.js";
 import { createSettingsRoutes, type SettingsRouteBundle } from "./routes/settings-routes.js";
+import { createTaskHttpRoutes } from "./routes/task-routes.js";
 import { createTranscriptionRoutes } from "./routes/transcription-routes.js";
 import { WsHandler } from "./ws-handler.js";
 
@@ -72,6 +73,21 @@ export class SwarmWebSocketServer {
     this.wsHandler.broadcastToSubscribed(event);
   };
 
+  private readonly onTaskCreated = (event: ServerEvent): void => {
+    if (event.type !== "task_created") return;
+    this.wsHandler.broadcastToSubscribed(event);
+  };
+
+  private readonly onTaskUpdated = (event: ServerEvent): void => {
+    if (event.type !== "task_updated") return;
+    this.wsHandler.broadcastToSubscribed(event);
+  };
+
+  private readonly onTasksDeleted = (event: ServerEvent): void => {
+    if (event.type !== "tasks_deleted") return;
+    this.wsHandler.broadcastToSubscribed(event);
+  };
+
   constructor(options: {
     swarmManager: SwarmManager;
     host: string;
@@ -99,6 +115,7 @@ export class SwarmWebSocketServer {
       ...createTranscriptionRoutes({ swarmManager: this.swarmManager }),
       ...createSchedulerRoutes({ swarmManager: this.swarmManager }),
       ...createAgentHttpRoutes({ swarmManager: this.swarmManager }),
+      ...createTaskHttpRoutes({ swarmManager: this.swarmManager }),
       ...this.settingsRoutes.routes,
       ...createIntegrationRoutes({
         swarmManager: this.swarmManager,
@@ -152,6 +169,9 @@ export class SwarmWebSocketServer {
     this.swarmManager.on("conversation_reset", this.onConversationReset);
     this.swarmManager.on("agent_status", this.onAgentStatus);
     this.swarmManager.on("agents_snapshot", this.onAgentsSnapshot);
+    this.swarmManager.on("task_created", this.onTaskCreated);
+    this.swarmManager.on("task_updated", this.onTaskUpdated);
+    this.swarmManager.on("tasks_deleted", this.onTasksDeleted);
     this.integrationRegistry?.on("slack_status", this.onSlackStatus);
     this.integrationRegistry?.on("telegram_status", this.onTelegramStatus);
   }
@@ -164,6 +184,9 @@ export class SwarmWebSocketServer {
     this.swarmManager.off("conversation_reset", this.onConversationReset);
     this.swarmManager.off("agent_status", this.onAgentStatus);
     this.swarmManager.off("agents_snapshot", this.onAgentsSnapshot);
+    this.swarmManager.off("task_created", this.onTaskCreated);
+    this.swarmManager.off("task_updated", this.onTaskUpdated);
+    this.swarmManager.off("tasks_deleted", this.onTasksDeleted);
     this.integrationRegistry?.off("slack_status", this.onSlackStatus);
     this.integrationRegistry?.off("telegram_status", this.onTelegramStatus);
 

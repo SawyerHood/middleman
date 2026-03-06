@@ -2175,6 +2175,266 @@ describe('SwarmWebSocketServer', () => {
     await server.stop()
   })
 
+  it('lists, comments on, and completes user tasks over websocket, broadcasting task updates and manager notifications', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port, true)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    const client = new WebSocket(`ws://${config.host}:${config.port}`)
+    const events: ServerEvent[] = []
+
+    client.on('message', (raw) => {
+      events.push(JSON.parse(raw.toString()) as ServerEvent)
+    })
+
+    await once(client, 'open')
+    client.send(JSON.stringify({ type: 'subscribe', agentId: 'manager' }))
+    await waitForEvent(events, (event) => event.type === 'ready' && event.subscribedAgentId === 'manager')
+
+    const assignedTask = await manager.createTaskForManager('manager', {
+      title: 'Verify release smoke tests',
+      description: 'Run the quick post-deploy checks and report back.',
+    })
+
+    const createdEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_created' && event.task.id === assignedTask.id,
+    )
+    expect(createdEvent.type).toBe('task_created')
+
+    client.send(JSON.stringify({ type: 'get_all_tasks', requestId: 'tasks-1' }))
+
+    const snapshotEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'tasks_snapshot' && event.requestId === 'tasks-1',
+    )
+    expect(snapshotEvent.type).toBe('tasks_snapshot')
+    if (snapshotEvent.type === 'tasks_snapshot') {
+      expect(snapshotEvent.tasks).toHaveLength(1)
+      expect(snapshotEvent.tasks[0]?.title).toBe('Verify release smoke tests')
+    }
+
+    client.send(
+      JSON.stringify({
+        type: 'update_task',
+        taskId: assignedTask.id,
+        title: 'Verify release smoke test pass',
+        description: 'Run the quick post-deploy checks, capture notes, and report back.',
+        requestId: 'update-1',
+      }),
+    )
+
+    const updateBroadcastEvent = await waitForEvent(
+      events,
+      (event) =>
+        event.type === 'task_updated' &&
+        event.task.id === assignedTask.id &&
+        event.task.title === 'Verify release smoke test pass',
+    )
+    expect(updateBroadcastEvent.type).toBe('task_updated')
+    if (updateBroadcastEvent.type === 'task_updated') {
+      expect(updateBroadcastEvent.task.description).toBe(
+        'Run the quick post-deploy checks, capture notes, and report back.',
+      )
+      expect(updateBroadcastEvent.task.status).toBe('pending')
+    }
+
+    const updateResultEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_update_result' && event.requestId === 'update-1',
+    )
+    expect(updateResultEvent.type).toBe('task_update_result')
+    if (updateResultEvent.type === 'task_update_result') {
+      expect(updateResultEvent.task.title).toBe('Verify release smoke test pass')
+    }
+
+    client.send(
+      JSON.stringify({
+        type: 'add_task_comment',
+        taskId: assignedTask.id,
+        comment: 'Captured the smoke-test notes in the deployment thread.',
+        requestId: 'comment-1',
+      }),
+    )
+
+    const commentResultEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_comment_result' && event.requestId === 'comment-1',
+    )
+    expect(commentResultEvent.type).toBe('task_comment_result')
+    if (commentResultEvent.type === 'task_comment_result') {
+      expect(commentResultEvent.task.comments).toMatchObject([
+        {
+          body: 'Captured the smoke-test notes in the deployment thread.',
+          type: 'comment',
+        },
+      ])
+    }
+
+    client.send(
+      JSON.stringify({
+        type: 'complete_task',
+        taskId: assignedTask.id,
+        requestId: 'complete-1',
+      }),
+    )
+
+    const updatedEvent = await waitForEvent(
+      events,
+      (event) =>
+        event.type === 'task_updated' &&
+        event.task.id === assignedTask.id &&
+        event.task.status === 'completed',
+    )
+    expect(updatedEvent.type).toBe('task_updated')
+    if (updatedEvent.type === 'task_updated') {
+      expect(updatedEvent.task.status).toBe('completed')
+      expect(updatedEvent.task.comments).toMatchObject([
+        {
+          body: 'Captured the smoke-test notes in the deployment thread.',
+          type: 'comment',
+        },
+        {
+          body: 'User completed this task.',
+          type: 'completion',
+        },
+      ])
+    }
+
+    const resultEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_completion_result' && event.requestId === 'complete-1',
+    )
+    expect(resultEvent.type).toBe('task_completion_result')
+    if (resultEvent.type === 'task_completion_result') {
+      expect(resultEvent.task.status).toBe('completed')
+    }
+
+    const managerMessageEvent = await waitForEvent(
+      events,
+      (event) =>
+        event.type === 'conversation_message' &&
+        event.agentId === 'manager' &&
+        event.source === 'user_input' &&
+        event.text.includes('User completed task: Verify release smoke test pass'),
+    )
+    expect(managerMessageEvent.type).toBe('conversation_message')
+    if (managerMessageEvent.type === 'conversation_message') {
+      expect(managerMessageEvent.text).toContain('Check task comments for details.')
+    }
+
+    client.close()
+    await once(client, 'close')
+    await server.stop()
+  })
+
+  it('creates, lists, updates, and closes manager tasks over HTTP', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port, true)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    try {
+      const createResponse = await fetch(`http://${config.host}:${config.port}/api/tasks`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          managerId: 'manager',
+          title: 'Prepare the launch checklist',
+          description: 'Confirm rollout docs and rollback links.',
+        }),
+      })
+
+      expect(createResponse.status).toBe(201)
+      const createdPayload = (await createResponse.json()) as {
+        task: { id: string; title: string; description?: string }
+      }
+      expect(createdPayload.task.title).toBe('Prepare the launch checklist')
+
+      const listResponse = await fetch(
+        `http://${config.host}:${config.port}/api/tasks?managerId=${encodeURIComponent('manager')}`,
+      )
+      expect(listResponse.status).toBe(200)
+      const listPayload = (await listResponse.json()) as {
+        tasks: Array<{ id: string; title: string }>
+      }
+      expect(listPayload.tasks).toHaveLength(1)
+      expect(listPayload.tasks[0]?.id).toBe(createdPayload.task.id)
+
+      const updateResponse = await fetch(
+        `http://${config.host}:${config.port}/api/tasks/${encodeURIComponent(createdPayload.task.id)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            managerId: 'manager',
+            title: 'Prepare the final launch checklist',
+            description: 'Confirm rollout docs, rollback links, and support notes.',
+          }),
+        },
+      )
+      expect(updateResponse.status).toBe(200)
+      const updatePayload = (await updateResponse.json()) as {
+        task: { title: string; description?: string; status: string }
+      }
+      expect(updatePayload.task).toMatchObject({
+        title: 'Prepare the final launch checklist',
+        description: 'Confirm rollout docs, rollback links, and support notes.',
+        status: 'pending',
+      })
+
+      const closeResponse = await fetch(
+        `http://${config.host}:${config.port}/api/tasks/${encodeURIComponent(createdPayload.task.id)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            managerId: 'manager',
+            status: 'completed',
+            comment: 'Closed after the user confirmed the checklist was complete.',
+          }),
+        },
+      )
+      expect(closeResponse.status).toBe(200)
+      const closePayload = (await closeResponse.json()) as {
+        task: { status: string; completionComment?: string }
+      }
+      expect(closePayload.task).toMatchObject({
+        status: 'completed',
+        completionComment: 'Closed after the user confirmed the checklist was complete.',
+      })
+    } finally {
+      await server.stop()
+    }
+  })
+
   it('rejects non-manager subscription with explicit error', async () => {
     const port = await getAvailablePort()
     const config = await makeTempConfig(port)

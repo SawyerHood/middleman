@@ -83,8 +83,11 @@ function renderSidebar({
   onSelectAgent = vi.fn(),
   onDeleteAgent = vi.fn(),
   onDeleteManager = vi.fn(),
+  onOpenTasks = vi.fn(),
   onOpenSettings = vi.fn(),
   isSettingsActive = false,
+  isTasksActive = false,
+  tasks = [],
   statuses = {},
 }: {
   agents: AgentDescriptor[]
@@ -92,8 +95,17 @@ function renderSidebar({
   onSelectAgent?: (agentId: string) => void
   onDeleteAgent?: (agentId: string) => void
   onDeleteManager?: (managerId: string) => void
+  onOpenTasks?: () => void
   onOpenSettings?: () => void
   isSettingsActive?: boolean
+  isTasksActive?: boolean
+  tasks?: Array<{
+    id: string
+    managerId: string
+    title: string
+    status: 'pending' | 'completed'
+    createdAt: string
+  }>
   statuses?: Record<string, { status: AgentStatus; pendingCount: number }>
 }) {
   root = createRoot(container)
@@ -109,8 +121,11 @@ function renderSidebar({
         onSelectAgent,
         onDeleteAgent,
         onDeleteManager,
+        onOpenTasks,
         onOpenSettings,
         isSettingsActive,
+        isTasksActive,
+        tasks,
       }),
     )
   })
@@ -211,6 +226,29 @@ describe('AgentSidebar', () => {
 
     click(within(sidebar).getByRole('button', { name: 'Settings' }))
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows pending task count and calls onOpenTasks when the tasks button is clicked', () => {
+    const onOpenTasks = vi.fn()
+
+    renderSidebar({
+      agents: [manager('manager-alpha')],
+      onOpenTasks,
+      tasks: [
+        {
+          id: 'task-1',
+          managerId: 'manager-alpha',
+          title: 'Review docs',
+          status: 'pending',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    })
+    const sidebar = getPrimarySidebar()
+
+    expect(within(sidebar).getByText('1')).toBeTruthy()
+    click(within(sidebar).getByRole('button', { name: /^Tasks/ }))
+    expect(onOpenTasks).toHaveBeenCalledTimes(1)
   })
 
 })

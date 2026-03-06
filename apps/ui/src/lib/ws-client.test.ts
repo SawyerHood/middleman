@@ -86,9 +86,12 @@ describe('ManagerWsClient', () => {
       subscribedAgentId: 'manager',
     })
 
+    const getAllTasksPayload = JSON.parse(socket.sentPayloads[1])
+    expect(getAllTasksPayload.type).toBe('get_all_tasks')
+
     client.sendUserMessage('hello manager')
 
-    expect(JSON.parse(socket.sentPayloads[1])).toEqual({
+    expect(JSON.parse(socket.sentPayloads[2])).toEqual({
       type: 'user_message',
       text: 'hello manager',
       agentId: 'manager',
@@ -997,6 +1000,245 @@ describe('ManagerWsClient', () => {
     })
 
     await expect(pickPromise).resolves.toBe('/tmp/picked')
+
+    client.destroy()
+  })
+
+  it('requests task snapshots after ready and keeps task state in sync with task events', async () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    const snapshotRequest = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+    expect(snapshotRequest).toMatchObject({
+      type: 'get_all_tasks',
+    })
+
+    emitServerEvent(socket, {
+      type: 'tasks_snapshot',
+      requestId: snapshotRequest.requestId,
+      tasks: [
+        {
+          id: 'task-1',
+          managerId: 'manager',
+          title: 'Review deployment',
+          status: 'pending',
+          createdAt: '2026-01-02T00:00:00.000Z',
+        },
+      ],
+    })
+
+    expect(client.getState().tasks).toHaveLength(1)
+    expect(client.getState().tasks[0]?.title).toBe('Review deployment')
+
+    emitServerEvent(socket, {
+      type: 'task_updated',
+      task: {
+        id: 'task-1',
+        managerId: 'manager',
+        title: 'Review deployment',
+        status: 'completed',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        completedAt: '2026-01-02T01:00:00.000Z',
+        completionComment: 'Done',
+      },
+    })
+
+    expect(client.getState().tasks[0]?.status).toBe('completed')
+    expect(client.getState().tasks[0]?.completionComment).toBe('Done')
+
+    emitServerEvent(socket, {
+      type: 'tasks_deleted',
+      taskIds: ['task-1'],
+    })
+
+    expect(client.getState().tasks).toEqual([])
+
+    client.destroy()
+  })
+
+  it('sends complete_task commands and resolves from task_completion_result', async () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    const initialTaskRequest = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+    emitServerEvent(socket, {
+      type: 'tasks_snapshot',
+      requestId: initialTaskRequest.requestId,
+      tasks: [],
+    })
+
+    const completionPromise = client.completeTask('task-9', 'Wrapped up')
+    const completionPayload = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+
+    expect(completionPayload).toMatchObject({
+      type: 'complete_task',
+      taskId: 'task-9',
+      comment: 'Wrapped up',
+    })
+
+    emitServerEvent(socket, {
+      type: 'task_completion_result',
+      requestId: completionPayload.requestId,
+      task: {
+        id: 'task-9',
+        managerId: 'manager',
+        title: 'Finalize docs',
+        status: 'completed',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        completedAt: '2026-01-03T00:15:00.000Z',
+        completionComment: 'Wrapped up',
+      },
+    })
+
+    await expect(completionPromise).resolves.toMatchObject({
+      id: 'task-9',
+      status: 'completed',
+      completionComment: 'Wrapped up',
+    })
+
+    client.destroy()
+  })
+
+  it('sends add_task_comment commands and resolves from task_comment_result', async () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    const initialTaskRequest = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+    emitServerEvent(socket, {
+      type: 'tasks_snapshot',
+      requestId: initialTaskRequest.requestId,
+      tasks: [],
+    })
+
+    const commentPromise = client.addTaskComment('task-2', 'Captured the latest rollout notes.')
+    const commentPayload = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+
+    expect(commentPayload).toMatchObject({
+      type: 'add_task_comment',
+      taskId: 'task-2',
+      comment: 'Captured the latest rollout notes.',
+    })
+
+    emitServerEvent(socket, {
+      type: 'task_comment_result',
+      requestId: commentPayload.requestId,
+      task: {
+        id: 'task-2',
+        managerId: 'manager',
+        title: 'Track rollout status',
+        status: 'pending',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        comments: [
+          {
+            id: 'comment-1',
+            body: 'Captured the latest rollout notes.',
+            createdAt: '2026-01-03T00:10:00.000Z',
+            type: 'comment',
+          },
+        ],
+      },
+    })
+
+    await expect(commentPromise).resolves.toMatchObject({
+      id: 'task-2',
+      comments: [
+        expect.objectContaining({
+          body: 'Captured the latest rollout notes.',
+          type: 'comment',
+        }),
+      ],
+    })
+
+    client.destroy()
+  })
+
+  it('sends update_task commands and resolves from task_update_result', async () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    const initialTaskRequest = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+    emitServerEvent(socket, {
+      type: 'tasks_snapshot',
+      requestId: initialTaskRequest.requestId,
+      tasks: [],
+    })
+
+    const updatePromise = client.updateTask({
+      taskId: 'task-4',
+      title: 'Refine release notes',
+      description: 'Call out the migration prerequisites.',
+    })
+    const updatePayload = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+
+    expect(updatePayload).toMatchObject({
+      type: 'update_task',
+      taskId: 'task-4',
+      title: 'Refine release notes',
+      description: 'Call out the migration prerequisites.',
+    })
+
+    emitServerEvent(socket, {
+      type: 'task_update_result',
+      requestId: updatePayload.requestId,
+      task: {
+        id: 'task-4',
+        managerId: 'manager',
+        title: 'Refine release notes',
+        description: 'Call out the migration prerequisites.',
+        status: 'pending',
+        createdAt: '2026-01-03T00:00:00.000Z',
+      },
+    })
+
+    await expect(updatePromise).resolves.toMatchObject({
+      id: 'task-4',
+      title: 'Refine release notes',
+      description: 'Call out the migration prerequisites.',
+    })
 
     client.destroy()
   })
