@@ -2175,6 +2175,99 @@ describe('SwarmWebSocketServer', () => {
     await server.stop()
   })
 
+  it('lists and completes user tasks over websocket, broadcasting task updates and manager notifications', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port, true)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    const client = new WebSocket(`ws://${config.host}:${config.port}`)
+    const events: ServerEvent[] = []
+
+    client.on('message', (raw) => {
+      events.push(JSON.parse(raw.toString()) as ServerEvent)
+    })
+
+    await once(client, 'open')
+    client.send(JSON.stringify({ type: 'subscribe', agentId: 'manager' }))
+    await waitForEvent(events, (event) => event.type === 'ready' && event.subscribedAgentId === 'manager')
+
+    const assignedTask = await manager.assignTask('manager', {
+      title: 'Verify release smoke tests',
+      description: 'Run the quick post-deploy checks and report back.',
+    })
+
+    const createdEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_created' && event.task.id === assignedTask.id,
+    )
+    expect(createdEvent.type).toBe('task_created')
+
+    client.send(JSON.stringify({ type: 'get_all_tasks', requestId: 'tasks-1' }))
+
+    const snapshotEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'tasks_snapshot' && event.requestId === 'tasks-1',
+    )
+    expect(snapshotEvent.type).toBe('tasks_snapshot')
+    if (snapshotEvent.type === 'tasks_snapshot') {
+      expect(snapshotEvent.tasks).toHaveLength(1)
+      expect(snapshotEvent.tasks[0]?.title).toBe('Verify release smoke tests')
+    }
+
+    client.send(
+      JSON.stringify({
+        type: 'complete_task',
+        taskId: assignedTask.id,
+        comment: 'Ran the checks and everything looks stable.',
+        requestId: 'complete-1',
+      }),
+    )
+
+    const updatedEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_updated' && event.task.id === assignedTask.id,
+    )
+    expect(updatedEvent.type).toBe('task_updated')
+    if (updatedEvent.type === 'task_updated') {
+      expect(updatedEvent.task.status).toBe('completed')
+      expect(updatedEvent.task.completionComment).toBe('Ran the checks and everything looks stable.')
+    }
+
+    const resultEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_completion_result' && event.requestId === 'complete-1',
+    )
+    expect(resultEvent.type).toBe('task_completion_result')
+    if (resultEvent.type === 'task_completion_result') {
+      expect(resultEvent.task.status).toBe('completed')
+    }
+
+    const managerMessageEvent = await waitForEvent(
+      events,
+      (event) =>
+        event.type === 'conversation_message' &&
+        event.agentId === 'manager' &&
+        event.source === 'user_input' &&
+        event.text.includes('Task completed: Verify release smoke tests'),
+    )
+    expect(managerMessageEvent.type).toBe('conversation_message')
+
+    client.close()
+    await once(client, 'close')
+    await server.stop()
+  })
+
   it('rejects non-manager subscription with explicit error', async () => {
     const port = await getAvailablePort()
     const config = await makeTempConfig(port)

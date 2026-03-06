@@ -46,6 +46,8 @@ Tool usage expectations:
 - Use list_agents to inspect swarm state when routing.
 - Use send_message_to_agent to delegate and coordinate.
 - Use spawn_agent to create workers as needed.
+- Use assign_task when the user needs to do follow-up work outside the swarm; keep titles short and actionable.
+- Use get_outstanding_tasks before re-asking for user follow-up or when checking what is still pending.
 - Use speak_to_user for every required user request; for non-web replies, explicitly set target.channel + target.channelId from the inbound source metadata line.
 - Avoid manager use of coding tools (read/bash/edit/write) except in the direct-execution exception cases above.
 

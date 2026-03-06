@@ -7,6 +7,7 @@ import type {
   DeliveryMode,
   DirectoryItem,
   MessageSourceContext,
+  UserTask,
 } from './shared-types.js'
 
 export interface ConversationMessageEvent {
@@ -155,6 +156,33 @@ export interface TelegramStatusEvent {
   botUsername?: string
 }
 
+export interface TasksSnapshotEvent {
+  type: 'tasks_snapshot'
+  tasks: UserTask[]
+  requestId?: string
+}
+
+export interface TaskCreatedEvent {
+  type: 'task_created'
+  task: UserTask
+}
+
+export interface TaskUpdatedEvent {
+  type: 'task_updated'
+  task: UserTask
+}
+
+export interface TasksDeletedEvent {
+  type: 'tasks_deleted'
+  taskIds: string[]
+}
+
+export interface TaskCompletionResultEvent {
+  type: 'task_completion_result'
+  task: UserTask
+  requestId?: string
+}
+
 export type ConversationEntry =
   | ConversationMessageEvent
   | ConversationLogEvent
@@ -195,4 +223,9 @@ export type ServerEvent =
   | DirectoryPickedEvent
   | SlackStatusEvent
   | TelegramStatusEvent
+  | TasksSnapshotEvent
+  | TaskCreatedEvent
+  | TaskUpdatedEvent
+  | TasksDeletedEvent
+  | TaskCompletionResultEvent
   | { type: 'error'; code: string; message: string; requestId?: string }

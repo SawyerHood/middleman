@@ -62,6 +62,48 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
     };
   }
 
+  if (maybe.type === "get_all_tasks") {
+    const requestId = (maybe as { requestId?: unknown }).requestId;
+
+    if (requestId !== undefined && typeof requestId !== "string") {
+      return { ok: false, error: "get_all_tasks.requestId must be a string when provided" };
+    }
+
+    return {
+      ok: true,
+      command: {
+        type: "get_all_tasks",
+        requestId
+      }
+    };
+  }
+
+  if (maybe.type === "complete_task") {
+    const taskId = (maybe as { taskId?: unknown }).taskId;
+    const comment = (maybe as { comment?: unknown }).comment;
+    const requestId = (maybe as { requestId?: unknown }).requestId;
+
+    if (typeof taskId !== "string" || taskId.trim().length === 0) {
+      return { ok: false, error: "complete_task.taskId must be a non-empty string" };
+    }
+    if (comment !== undefined && typeof comment !== "string") {
+      return { ok: false, error: "complete_task.comment must be a string when provided" };
+    }
+    if (requestId !== undefined && typeof requestId !== "string") {
+      return { ok: false, error: "complete_task.requestId must be a string when provided" };
+    }
+
+    return {
+      ok: true,
+      command: {
+        type: "complete_task",
+        taskId: taskId.trim(),
+        comment: comment?.trim() ? comment.trim() : undefined,
+        requestId
+      }
+    };
+  }
+
   if (maybe.type === "kill_agent") {
     if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
       return { ok: false, error: "kill_agent.agentId must be a non-empty string" };
@@ -272,6 +314,8 @@ export function extractRequestId(command: ClientCommand): string | undefined {
     case "list_directories":
     case "validate_directory":
     case "pick_directory":
+    case "get_all_tasks":
+    case "complete_task":
       return command.requestId;
 
     case "subscribe":

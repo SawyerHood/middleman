@@ -5,6 +5,8 @@ export type ClientCommand =
   | { type: 'subscribe'; agentId?: string }
   | { type: 'subscribe_agent_detail'; agentId: string }
   | { type: 'unsubscribe_agent_detail'; agentId: string }
+  | { type: 'get_all_tasks'; requestId?: string }
+  | { type: 'complete_task'; taskId: string; comment?: string; requestId?: string }
   | {
       type: 'user_message'
       text: string

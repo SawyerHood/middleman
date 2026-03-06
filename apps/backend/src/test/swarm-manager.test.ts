@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { SessionManager } from '@mariozechner/pi-coding-agent'
 import { getScheduleFilePath } from '../scheduler/schedule-storage.js'
 import { SwarmManager } from '../swarm/swarm-manager.js'
+import { getTasksFilePath } from '../tasks/task-storage.js'
 import type {
   AgentContextUsage,
   AgentDescriptor,
@@ -2130,6 +2131,54 @@ describe('SwarmManager', () => {
 
     const workerRuntime = manager.runtimeByAgentId.get(worker.agentId)
     expect(workerRuntime?.sendCalls.at(-1)?.message).toBe('hello owned worker')
+  })
+
+  it('assigns user tasks, persists them, and delivers completion messages back to the manager', async () => {
+    const config = await makeTempConfig()
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const assignedTask = await manager.assignTask('manager', {
+      title: 'Review the deployment checklist',
+      description: 'Confirm the release notes and monitoring links are correct.',
+    })
+
+    expect(manager.listAllTasks()).toEqual([
+      {
+        ...assignedTask,
+        description: 'Confirm the release notes and monitoring links are correct.',
+      },
+    ])
+    await expect(readFile(getTasksFilePath(config.paths.dataDir), 'utf8')).resolves.toContain(
+      'Review the deployment checklist',
+    )
+
+    const managerRuntime = manager.runtimeByAgentId.get('manager')
+    expect(managerRuntime).toBeDefined()
+
+    const completedTask = await manager.completeTask(assignedTask.id, {
+      comment: 'Finished and verified the dashboard links.',
+      sourceContext: { channel: 'web' },
+    })
+
+    expect(completedTask.status).toBe('completed')
+    expect(completedTask.completionComment).toBe('Finished and verified the dashboard links.')
+    await expect(readFile(getTasksFilePath(config.paths.dataDir), 'utf8')).resolves.toContain('"status": "completed"')
+    await expect(manager.getOutstandingTasks('manager')).resolves.toEqual([])
+
+    const completionMessage = managerRuntime?.sendCalls.at(-1)?.message
+    expect(typeof completionMessage).toBe('string')
+    expect(completionMessage).toContain('Task completed: Review the deployment checklist')
+    expect(completionMessage).toContain('Comment: Finished and verified the dashboard links.')
+
+    const managerHistory = manager.getConversationHistory('manager')
+    const userCompletionEvent = [...managerHistory].reverse().find(
+      (event) =>
+        event.type === 'conversation_message' &&
+        event.source === 'user_input' &&
+        event.text.includes('Task completed: Review the deployment checklist'),
+    )
+    expect(userCompletionEvent).toBeDefined()
   })
 
   it('accepts any existing directory for manager and worker creation', async () => {

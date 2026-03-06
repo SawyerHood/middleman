@@ -216,6 +216,14 @@ describe('buildClaudeCodeMcpServer', () => {
           channel: 'web' as const,
         },
       }),
+      assignTask: vi.fn(async () => ({
+        id: 'task-1',
+        managerId: 'manager',
+        title: 'Review deployment',
+        status: 'pending' as const,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      })),
+      getOutstandingTasks: vi.fn(async () => []),
     }
 
     const server = buildClaudeCodeMcpServer(buildSwarmTools(host, descriptor))

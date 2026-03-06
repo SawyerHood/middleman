@@ -29,6 +29,7 @@ const TOOL_DETAIL_KEYS: Record<string, string[]> = {
   read: ['path'],
   write: ['path'],
   edit: ['path'],
+  assign_task: ['title'],
   send_message_to_agent: ['targetAgentId'],
   request_user_input: ['description'],
   web_search: ['query'],

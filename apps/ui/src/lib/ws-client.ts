@@ -16,6 +16,7 @@ import {
   type DeliveryMode,
   type ManagerModelPreset,
   type ServerEvent,
+  type UserTask,
 } from '@middleman/protocol'
 
 export type { ManagerWsState } from './ws-state'
@@ -46,6 +47,8 @@ type WsRequestResultMap = {
   list_directories: DirectoriesListedResult
   validate_directory: DirectoryValidationResult
   pick_directory: string | null
+  get_all_tasks: UserTask[]
+  complete_task: UserTask
 }
 
 type WsRequestType = Extract<keyof WsRequestResultMap, string>
@@ -56,6 +59,8 @@ const WS_REQUEST_TYPES: WsRequestType[] = [
   'list_directories',
   'validate_directory',
   'pick_directory',
+  'get_all_tasks',
+  'complete_task',
 ]
 
 const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: string }> = [
@@ -65,6 +70,8 @@ const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: 
   { requestType: 'list_directories', codeFragment: 'list_directories' },
   { requestType: 'validate_directory', codeFragment: 'validate_directory' },
   { requestType: 'pick_directory', codeFragment: 'pick_directory' },
+  { requestType: 'get_all_tasks', codeFragment: 'get_all_tasks' },
+  { requestType: 'complete_task', codeFragment: 'complete_task' },
 ]
 
 export class ManagerWsClient {
@@ -383,6 +390,37 @@ export class ManagerWsClient {
       }))
   }
 
+  async getAllTasks(): Promise<UserTask[]> {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket is disconnected. Reconnecting...')
+    }
+
+    return this.enqueueRequest('get_all_tasks', (requestId) => ({
+      type: 'get_all_tasks',
+      requestId,
+    }))
+  }
+
+  async completeTask(taskId: string, comment?: string): Promise<UserTask> {
+    const trimmedTaskId = taskId.trim()
+    if (!trimmedTaskId) {
+      throw new Error('Task id is required.')
+    }
+
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket is disconnected. Reconnecting...')
+    }
+
+    const trimmedComment = comment?.trim()
+
+    return this.enqueueRequest('complete_task', (requestId) => ({
+      type: 'complete_task',
+      taskId: trimmedTaskId,
+      comment: trimmedComment && trimmedComment.length > 0 ? trimmedComment : undefined,
+      requestId,
+    }))
+  }
+
   private connect(): void {
     if (this.destroyed) return
 
@@ -472,6 +510,7 @@ export class ManagerWsClient {
           subscribedAgentId: event.subscribedAgentId,
           lastError: null,
         })
+        void this.getAllTasks().catch(() => undefined)
         break
 
       case 'conversation_message':
@@ -584,6 +623,33 @@ export class ManagerWsClient {
 
       case 'directory_picked': {
         this.requestTracker.resolve('pick_directory', event.requestId, event.path ?? null)
+        break
+      }
+
+      case 'tasks_snapshot': {
+        this.updateState({ tasks: sortTasks(event.tasks) })
+        this.requestTracker.resolve('get_all_tasks', event.requestId, sortTasks(event.tasks))
+        break
+      }
+
+      case 'task_created':
+      case 'task_updated': {
+        this.updateState({
+          tasks: upsertTask(this.state.tasks, event.task),
+        })
+        break
+      }
+
+      case 'tasks_deleted': {
+        const deletedTaskIds = new Set(event.taskIds)
+        this.updateState({
+          tasks: this.state.tasks.filter((task) => !deletedTaskIds.has(task.id)),
+        })
+        break
+      }
+
+      case 'task_completion_result': {
+        this.requestTracker.resolve('complete_task', event.requestId, event.task)
         break
       }
 
@@ -825,6 +891,25 @@ function normalizeConversationAttachments(
   }
 
   return normalized
+}
+
+function upsertTask(tasks: UserTask[], nextTask: UserTask): UserTask[] {
+  const nextTasks = [...tasks.filter((task) => task.id !== nextTask.id), nextTask]
+  return sortTasks(nextTasks)
+}
+
+function sortTasks(tasks: UserTask[]): UserTask[] {
+  return [...tasks].sort((left, right) => {
+    if (left.status !== right.status) {
+      return left.status === 'pending' ? -1 : 1
+    }
+
+    if (left.createdAt !== right.createdAt) {
+      return right.createdAt.localeCompare(left.createdAt)
+    }
+
+    return right.id.localeCompare(left.id)
+  })
 }
 
 function splitConversationHistory(

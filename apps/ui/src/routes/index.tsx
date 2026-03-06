@@ -19,6 +19,7 @@ import { DeleteManagerDialog } from '@/components/chat/DeleteManagerDialog'
 import { MessageInput, type MessageInputHandle } from '@/components/chat/MessageInput'
 import { MessageList } from '@/components/chat/MessageList'
 import { SettingsPanel } from '@/components/chat/SettingsDialog'
+import { TaskView } from '@/components/chat/TaskView'
 import { chooseFallbackAgentId } from '@/lib/agent-hierarchy'
 import type { ArtifactReference } from '@/lib/artifacts'
 import { collectArtifactsFromMessages } from '@/lib/collect-artifacts'
@@ -338,6 +339,19 @@ export function IndexPage() {
     navigateToRoute({ view: 'settings' })
   }
 
+  const handleOpenTasksPanel = () => {
+    navigateToRoute({ view: 'tasks' })
+  }
+
+  const handleCompleteTask = async (taskId: string, comment?: string) => {
+    const client = clientRef.current
+    if (!client) {
+      throw new Error('WebSocket client is not available.')
+    }
+
+    await client.completeTask(taskId, comment)
+  }
+
   const handleSuggestionClick = (prompt: string) => {
     messageInputRef.current?.setInput(prompt)
   }
@@ -363,12 +377,15 @@ export function IndexPage() {
           statuses={state.statuses}
           selectedAgentId={activeAgentId}
           isSettingsActive={activeView === 'settings'}
+          isTasksActive={activeView === 'tasks'}
+          tasks={state.tasks}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
           onAddManager={handleOpenCreateManagerDialog}
           onSelectAgent={handleSelectAgent}
           onDeleteAgent={handleDeleteAgent}
           onDeleteManager={handleRequestDeleteManager}
+          onOpenTasks={handleOpenTasksPanel}
           onOpenSettings={handleOpenSettingsPanel}
         />
 
@@ -384,6 +401,12 @@ export function IndexPage() {
           ) : null}
 
           <div className="flex min-w-0 flex-1 flex-col">
+            {state.lastError ? (
+              <div className="border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {state.lastError}
+              </div>
+            ) : null}
+
             {activeView === 'settings' ? (
               <SettingsPanel
                 wsUrl={wsUrl}
@@ -396,6 +419,19 @@ export function IndexPage() {
                     agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
                   })
                 }
+              />
+            ) : activeView === 'tasks' ? (
+              <TaskView
+                tasks={state.tasks}
+                managers={state.agents.filter((agent) => agent.role === 'manager')}
+                onBack={() =>
+                  navigateToRoute({
+                    view: 'chat',
+                    agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
+                  })
+                }
+                onCompleteTask={handleCompleteTask}
+                onToggleMobileSidebar={() => setIsMobileSidebarOpen((previous) => !previous)}
               />
             ) : (
               <>
@@ -421,12 +457,6 @@ export function IndexPage() {
                     setIsMobileSidebarOpen((previous) => !previous)
                   }
                 />
-
-                {state.lastError ? (
-                  <div className="border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                    {state.lastError}
-                  </div>
-                ) : null}
 
                 <MessageList
                   messages={visibleMessages}

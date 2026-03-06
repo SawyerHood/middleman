@@ -2,9 +2,10 @@ import { useCallback, useMemo } from 'react'
 
 export const DEFAULT_MANAGER_AGENT_ID = 'opus-manager'
 
-export type ActiveView = 'chat' | 'settings'
+export type ActiveView = 'chat' | 'tasks' | 'settings'
 export type AppRouteState =
   | { view: 'chat'; agentId: string }
+  | { view: 'tasks' }
   | { view: 'settings' }
 
 type AppRouteSearch = {
@@ -36,6 +37,13 @@ function parseRouteStateFromPathname(pathname: string): ParsedRouteState {
   if (normalizedPath === '/settings') {
     return {
       routeState: { view: 'settings' },
+      hasExplicitAgentSelection: false,
+    }
+  }
+
+  if (normalizedPath === '/tasks') {
+    return {
+      routeState: { view: 'tasks' },
       hasExplicitAgentSelection: false,
     }
   }
@@ -72,6 +80,13 @@ function parseRouteStateFromLocation(pathname: string, search: unknown): ParsedR
     }
   }
 
+  if (view === 'tasks') {
+    return {
+      routeState: { view: 'tasks' },
+      hasExplicitAgentSelection: false,
+    }
+  }
+
   if (view === 'chat' || agentId !== undefined) {
     return {
       routeState: {
@@ -90,6 +105,10 @@ function normalizeRouteState(routeState: AppRouteState): AppRouteState {
     return { view: 'settings' }
   }
 
+  if (routeState.view === 'tasks') {
+    return { view: 'tasks' }
+  }
+
   return {
     view: 'chat',
     agentId: normalizeAgentId(routeState.agentId),
@@ -99,6 +118,10 @@ function normalizeRouteState(routeState: AppRouteState): AppRouteState {
 function toRouteSearch(routeState: AppRouteState): AppRouteSearch {
   if (routeState.view === 'settings') {
     return { view: 'settings' }
+  }
+
+  if (routeState.view === 'tasks') {
+    return { view: 'tasks' }
   }
 
   const agentId = normalizeAgentId(routeState.agentId)
@@ -111,6 +134,10 @@ function toRouteSearch(routeState: AppRouteState): AppRouteSearch {
 
 function routeStatesEqual(left: AppRouteState, right: AppRouteState): boolean {
   if (left.view === 'settings' && right.view === 'settings') {
+    return true
+  }
+
+  if (left.view === 'tasks' && right.view === 'tasks') {
     return true
   }
 
