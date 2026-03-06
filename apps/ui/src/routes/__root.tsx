@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { ReactGrabBootstrap } from '@/components/dev/ReactGrabBootstrap'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { THEME_INIT_SCRIPT, initializeThemePreference } from '@/lib/theme'
 import { IndexPage } from './index'
@@ -52,6 +53,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body className="overflow-x-hidden">
         <TooltipProvider>
           {children}
+          <ReactGrabBootstrap />
           <TanStackDevtools
             config={{
               position: 'bottom-right',
