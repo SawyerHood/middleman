@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, CalendarDays, ListTodo, PanelLeft, UserRound, X } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { ArrowLeft, CalendarDays, ListTodo, MessageSquare, PanelLeft, UserRound, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -230,8 +229,9 @@ export function TaskView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <div className="flex h-[62px] shrink-0 items-center justify-between border-b border-border px-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-2">
+      {/* ── Header ── */}
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border/50 px-4 sm:px-5">
+        <div className="flex min-w-0 items-center gap-3">
           <Button
             type="button"
             variant="ghost"
@@ -242,55 +242,40 @@ export function TaskView({
           >
             <PanelLeft className="size-4" />
           </Button>
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-muted/40">
-              <ListTodo className="size-4 text-foreground/80" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-semibold text-foreground">Your Tasks</h1>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {pendingCount > 0 ? `${pendingCount} open` : `${sortedTasks.length} total`}
+              </span>
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="truncate text-sm font-semibold sm:text-base">Tasks</h1>
-                <Badge variant="outline">{sortedTasks.length}</Badge>
-              </div>
-              <p className="truncate text-xs text-muted-foreground">Assigned work across managers</p>
-            </div>
+            <p className="text-[11px] leading-tight text-muted-foreground/70">Assigned to you by agents</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Badge
-            variant="outline"
-            className="hidden border-emerald-500/30 bg-emerald-500/8 text-emerald-700 sm:inline-flex dark:text-emerald-300"
-          >
-            {pendingCount} pending
-          </Badge>
-          <Button type="button" variant="outline" size="sm" onClick={onBack}>
-            <ArrowLeft className="size-3.5" />
-            Back to Chat
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-3" />
+          Back
+        </Button>
       </div>
 
+      {/* ── Content ── */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {/* ── Task list ── */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Assigned tasks</p>
-              <p className="text-xs text-muted-foreground">
-                Open a task for details or use the checkbox to complete it immediately.
-              </p>
-            </div>
-            <Badge variant="outline">{pendingCount} open</Badge>
-          </div>
-
           <ScrollArea className="min-h-0 flex-1">
             {sortedTasks.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl border border-border/70 bg-muted/30">
-                  <ListTodo className="size-5 text-muted-foreground" />
-                </div>
-                <h2 className="text-base font-semibold">No tasks assigned yet</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Tasks assigned by managers will show up here in real time.
+              <div className="px-6 py-16 text-center">
+                <ListTodo className="mx-auto mb-3 size-5 text-muted-foreground/40" />
+                <p className="text-sm font-medium text-foreground/70">No tasks yet</p>
+                <p className="mt-1 text-xs text-muted-foreground/60">
+                  When agents assign you tasks, they'll appear here.
                 </p>
               </div>
             ) : (
@@ -304,8 +289,10 @@ export function TaskView({
                     <div
                       key={task.id}
                       className={cn(
-                        'flex items-center gap-3 border-b border-border/70 px-4 py-3 transition-colors last:border-b-0',
-                        isSelected ? 'bg-muted/35' : 'hover:bg-muted/20',
+                        'group flex items-center gap-3 border-b border-border/30 px-4 py-2.5 transition-colors duration-100',
+                        isSelected
+                          ? 'bg-muted/50'
+                          : 'hover:bg-muted/25',
                       )}
                     >
                       <div
@@ -323,6 +310,7 @@ export function TaskView({
                               void handleQuickComplete(task.id)
                             }
                           }}
+                          className="size-4 rounded-full"
                         />
                       </div>
 
@@ -336,13 +324,23 @@ export function TaskView({
                         }}
                         className="min-w-0 flex-1 text-left"
                       >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-medium text-foreground">{task.title}</span>
-                          <TaskStatusBadge status={task.status} />
+                        <div className="flex items-center gap-2">
+                          <StatusDot status={task.status} />
+                          <span
+                            className={cn(
+                              'truncate text-[13px] font-medium',
+                              task.status === 'completed'
+                                ? 'text-muted-foreground line-through decoration-muted-foreground/40'
+                                : 'text-foreground',
+                            )}
+                          >
+                            {task.title}
+                          </span>
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          <span>{managerName}</span>
-                          <span>{formatDate(task.createdAt)}</span>
+                        <div className="mt-0.5 flex items-center gap-2 pl-4 text-[11px] text-muted-foreground/70">
+                          <span className="truncate">{managerName}</span>
+                          <span className="shrink-0">&middot;</span>
+                          <span className="shrink-0">{formatDate(task.createdAt)}</span>
                         </div>
                       </button>
                     </div>
@@ -353,28 +351,35 @@ export function TaskView({
           </ScrollArea>
         </div>
 
+        {/* ── Mobile overlay ── */}
         {selectedTask ? (
           <button
             type="button"
-            className="fixed inset-0 z-20 bg-black/20 md:hidden"
+            className="fixed inset-0 z-20 bg-black/20 backdrop-blur-[1px] md:hidden"
             aria-label="Close task details"
             onClick={() => setSelectedTaskId(null)}
           />
         ) : null}
 
+        {/* ── Detail panel (Linear-style side peek) ── */}
         <aside
           className={cn(
-            'fixed inset-y-0 right-0 z-30 w-full max-w-[34rem] border-l border-border/80 bg-background shadow-[-24px_0_48px_-36px_rgba(15,23,42,0.45)] transition-transform duration-200 md:static md:z-0 md:max-w-none md:overflow-hidden md:transition-[width,transform]',
-            selectedTask ? 'translate-x-0 md:w-[30rem]' : 'translate-x-full md:w-0',
+            'fixed inset-y-0 right-0 z-30 w-full max-w-[34rem] border-l border-border/40 bg-background transition-transform duration-150 ease-out md:static md:z-0 md:max-w-none md:overflow-hidden md:transition-[width,transform]',
+            selectedTask ? 'translate-x-0 md:w-[28rem]' : 'translate-x-full md:w-0',
           )}
         >
           {selectedTask ? (
             <div className="flex h-full min-h-0 flex-col">
-              <div className="flex items-start justify-between gap-4 border-b border-border/70 px-4 py-4">
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <TaskStatusBadge status={selectedTask.status} />
-                    <Badge variant="outline">{managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}</Badge>
+              {/* ── Detail header ── */}
+              <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <StatusDot status={selectedTask.status} size="md" />
+                    <StatusLabel status={selectedTask.status} />
+                    <span className="text-[11px] text-muted-foreground/50">&middot;</span>
+                    <span className="truncate text-[11px] text-muted-foreground/70">
+                      {managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}
+                    </span>
                   </div>
 
                   {editingField === 'title' ? (
@@ -404,19 +409,19 @@ export function TaskView({
                       }}
                       disabled={updatingField === 'title'}
                       autoFocus
-                      className="h-11 border-transparent bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:border-input focus-visible:bg-background"
+                      className="mt-2 h-auto border-none bg-transparent px-0 py-0 text-lg font-semibold tracking-tight shadow-none outline-none focus-visible:ring-0"
                     />
                   ) : (
                     <button
                       type="button"
-                      className="w-full text-left"
+                      className="mt-2 w-full text-left"
                       onClick={() => {
                         setTitleDraft(selectedTask.title)
                         setEditingField('title')
                         setUpdateError(null)
                       }}
                     >
-                      <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                      <h2 className="text-lg font-semibold tracking-tight text-foreground">
                         {selectedTask.title}
                       </h2>
                     </button>
@@ -429,174 +434,184 @@ export function TaskView({
                   size="icon-sm"
                   onClick={() => setSelectedTaskId(null)}
                   aria-label="Close task details"
+                  className="mt-0.5 shrink-0 text-muted-foreground/60 hover:text-foreground"
                 >
                   <X className="size-4" />
                 </Button>
               </div>
 
-              <div className="border-b border-border/70 px-4 py-3">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <UserRound className="size-3.5" />
-                    {managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <CalendarDays className="size-3.5" />
-                    Created {formatDateTime(selectedTask.createdAt)}
-                  </span>
-                </div>
+              {/* ── Meta row ── */}
+              <div className="flex items-center gap-4 border-t border-border/30 px-5 py-3 text-[12px] text-muted-foreground/70">
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarDays className="size-3" />
+                  {formatDateTime(selectedTask.createdAt)}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <UserRound className="size-3" />
+                  {managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}
+                </span>
+              </div>
 
-                <div className="mt-3 flex justify-end">
-                  <Button
-                    type="button"
-                    variant={selectedTask.status === 'completed' ? 'secondary' : 'default'}
-                    onClick={() => {
-                      void handleDetailComplete()
-                    }}
-                    disabled={selectedTask.status === 'completed' || completingTaskId === selectedTask.id}
-                  >
-                    {selectedTask.status === 'completed'
-                      ? 'Completed'
-                      : completingTaskId === selectedTask.id
-                        ? 'Completing...'
-                        : 'Mark complete'}
-                  </Button>
-                </div>
-
-                {completionError ? <p className="mt-2 text-xs text-destructive">{completionError}</p> : null}
+              {/* ── Complete action ── */}
+              <div className="flex items-center justify-between border-t border-border/30 px-5 py-3">
+                <Button
+                  type="button"
+                  variant={selectedTask.status === 'completed' ? 'ghost' : 'default'}
+                  size="sm"
+                  className={cn(
+                    'h-7 text-xs',
+                    selectedTask.status === 'completed' && 'pointer-events-none text-muted-foreground',
+                  )}
+                  onClick={() => {
+                    void handleDetailComplete()
+                  }}
+                  disabled={selectedTask.status === 'completed' || completingTaskId === selectedTask.id}
+                >
+                  {selectedTask.status === 'completed'
+                    ? 'Completed'
+                    : completingTaskId === selectedTask.id
+                      ? 'Completing...'
+                      : 'Mark complete'}
+                </Button>
+                {completionError ? <p className="text-[11px] text-destructive">{completionError}</p> : null}
               </div>
 
               <ScrollArea className="min-h-0 flex-1">
-                <div className="border-b border-border/70 px-4 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {/* ── Description ── */}
+                <div className="border-t border-border/30 px-5 py-4">
+                  <p className="mb-2 text-[11px] font-medium uppercase tracking-widest text-muted-foreground/50">
                     Description
                   </p>
 
-                  <div className="mt-3">
-                    {editingField === 'description' ? (
-                      <Textarea
-                        value={descriptionDraft}
-                        onChange={(event) => setDescriptionDraft(event.target.value)}
-                        onBlur={() => {
-                          if (shouldSkipBlurSave('description')) {
-                            return
-                          }
+                  {editingField === 'description' ? (
+                    <Textarea
+                      value={descriptionDraft}
+                      onChange={(event) => setDescriptionDraft(event.target.value)}
+                      onBlur={() => {
+                        if (shouldSkipBlurSave('description')) {
+                          return
+                        }
+                        void saveDescription()
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault()
+                          skipNextBlurSaveRef.current = 'description'
                           void saveDescription()
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' && !event.shiftKey) {
-                            event.preventDefault()
-                            skipNextBlurSaveRef.current = 'description'
-                            void saveDescription()
-                            event.currentTarget.blur()
-                          }
-                          if (event.key === 'Escape') {
-                            skipNextBlurSaveRef.current = 'description'
-                            setDescriptionDraft(selectedTask.description ?? '')
-                            setEditingField(null)
-                            setUpdateError(null)
-                            event.currentTarget.blur()
-                          }
-                        }}
-                        rows={6}
-                        disabled={updatingField === 'description'}
-                        autoFocus
-                        placeholder="Add task details"
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className={cn(
-                          'w-full rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-muted/20',
-                          !selectedTask.description ? 'text-muted-foreground' : 'text-foreground',
-                        )}
-                        onClick={() => {
+                          event.currentTarget.blur()
+                        }
+                        if (event.key === 'Escape') {
+                          skipNextBlurSaveRef.current = 'description'
                           setDescriptionDraft(selectedTask.description ?? '')
-                          setEditingField('description')
+                          setEditingField(null)
                           setUpdateError(null)
-                        }}
-                      >
-                        {selectedTask.description?.trim() ? selectedTask.description : 'Add a description'}
-                      </button>
-                    )}
-                  </div>
+                          event.currentTarget.blur()
+                        }
+                      }}
+                      rows={5}
+                      disabled={updatingField === 'description'}
+                      autoFocus
+                      placeholder="Add task details…"
+                      className="border-none bg-muted/30 text-sm shadow-none focus-visible:ring-1 focus-visible:ring-border"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className={cn(
+                        'w-full rounded px-2 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-muted/30',
+                        !selectedTask.description ? 'text-muted-foreground/50 italic' : 'text-foreground/85',
+                      )}
+                      onClick={() => {
+                        setDescriptionDraft(selectedTask.description ?? '')
+                        setEditingField('description')
+                        setUpdateError(null)
+                      }}
+                    >
+                      {selectedTask.description?.trim() ? selectedTask.description : 'Add a description…'}
+                    </button>
+                  )}
 
-                  {updateError ? <p className="mt-2 text-xs text-destructive">{updateError}</p> : null}
+                  {updateError ? <p className="mt-2 text-[11px] text-destructive">{updateError}</p> : null}
                 </div>
 
-                <div className="px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      Comments
+                {/* ── Comments ── */}
+                <div className="border-t border-border/30 px-5 py-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <MessageSquare className="size-3 text-muted-foreground/50" />
+                    <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/50">
+                      Activity
                     </p>
-                    <span className="text-xs text-muted-foreground">
-                      {selectedTaskComments.length} {selectedTaskComments.length === 1 ? 'entry' : 'entries'}
-                    </span>
+                    {selectedTaskComments.length > 0 ? (
+                      <span className="text-[11px] tabular-nums text-muted-foreground/40">
+                        {selectedTaskComments.length}
+                      </span>
+                    ) : null}
                   </div>
 
                   {selectedTaskComments.length > 0 ? (
-                    <div className="mt-4 space-y-4">
+                    <div className="space-y-3">
                       {selectedTaskComments.map((comment) => (
-                        <div key={comment.id} className="border-b border-border/60 pb-4 last:border-b-0 last:pb-0">
-                          <div className="flex items-center justify-between gap-3">
-                            <Badge variant="outline" className="capitalize">
+                        <div key={comment.id} className="group/comment">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                'text-[11px] font-medium',
+                                comment.type === 'completion'
+                                  ? 'text-primary/80'
+                                  : 'text-muted-foreground/60',
+                              )}
+                            >
                               {comment.type === 'completion' ? 'Completed' : 'Comment'}
-                            </Badge>
-                            <p className="text-xs text-muted-foreground">{formatDateTime(comment.createdAt)}</p>
+                            </span>
+                            <span className="text-[11px] text-muted-foreground/40">
+                              {formatDateTime(comment.createdAt)}
+                            </span>
                           </div>
-                          <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/90">
+                          <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-foreground/80">
                             {comment.body}
                           </p>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      Leave a comment before completing the task if you want the manager to review it.
+                    <p className="text-[12px] text-muted-foreground/50">
+                      No activity yet. Add a comment before completing.
                     </p>
                   )}
                 </div>
               </ScrollArea>
 
-              <div className="border-t border-border/70 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Add comment
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {selectedTask.status === 'completed'
-                    ? 'Manager has already been notified that this task is complete.'
-                    : 'When you complete this task, the manager will be told to check task comments for details.'}
-                </p>
-
-                <Textarea
-                  value={commentDraft}
-                  onChange={(event) => setCommentDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                      event.preventDefault()
-                      void handleAddComment()
-                    }
-                  }}
-                  placeholder="Leave a note for the manager."
-                  rows={4}
-                  className="mt-3"
-                  disabled={commentingTaskId === selectedTask.id}
-                />
-
-                {commentError ? <p className="mt-2 text-xs text-destructive">{commentError}</p> : null}
-
-                <div className="mt-3 flex justify-end">
+              {/* ── Add comment ── */}
+              <div className="border-t border-border/30 px-5 py-3">
+                <div className="flex gap-2">
+                  <Textarea
+                    value={commentDraft}
+                    onChange={(event) => setCommentDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                        event.preventDefault()
+                        void handleAddComment()
+                      }
+                    }}
+                    placeholder="Leave a comment…"
+                    rows={2}
+                    className="min-h-0 flex-1 resize-none border-none bg-muted/30 text-[13px] shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-border"
+                    disabled={commentingTaskId === selectedTask.id}
+                  />
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0 self-end text-xs text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       void handleAddComment()
                     }}
                     disabled={commentingTaskId === selectedTask.id || commentDraft.trim().length === 0}
                   >
-                    {commentingTaskId === selectedTask.id ? 'Sending...' : 'Send comment'}
+                    {commentingTaskId === selectedTask.id ? 'Sending…' : 'Send'}
                   </Button>
                 </div>
+                {commentError ? <p className="mt-1.5 text-[11px] text-destructive">{commentError}</p> : null}
               </div>
             </div>
           ) : null}
@@ -606,18 +621,34 @@ export function TaskView({
   )
 }
 
-function TaskStatusBadge({ status }: { status: UserTask['status'] }) {
+/** Small colored status dot — Linear-style */
+function StatusDot({ status, size = 'sm' }: { status: UserTask['status']; size?: 'sm' | 'md' }) {
+  const dims = size === 'md' ? 'size-2.5' : 'size-2'
   return (
-    <Badge
-      variant="outline"
+    <span
       className={cn(
+        'shrink-0 rounded-full',
+        dims,
         status === 'pending'
-          ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-          : 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+          ? 'border-[1.5px] border-amber-500/70'
+          : 'bg-emerald-500/80',
+      )}
+      aria-label={status}
+    />
+  )
+}
+
+/** Minimal text label for status */
+function StatusLabel({ status }: { status: UserTask['status'] }) {
+  return (
+    <span
+      className={cn(
+        'text-[11px] font-medium uppercase tracking-wide',
+        status === 'pending' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400',
       )}
     >
-      {status}
-    </Badge>
+      {status === 'pending' ? 'Open' : 'Done'}
+    </span>
   )
 }
 
