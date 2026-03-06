@@ -367,7 +367,11 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const voiceButtonDisabled = disabled || blockedByLoading || isRequestingMicrophone || isTranscribingVoice
 
   return (
-    <form onSubmit={handleSubmit} className="sticky bottom-0 shrink-0 bg-background p-2 md:p-3">
+    <form
+      data-react-grab-ignore
+      onSubmit={handleSubmit}
+      className="sticky bottom-0 shrink-0 bg-background p-2 md:p-3"
+    >
       <div className="overflow-hidden rounded-2xl border border-border">
         <AttachedFiles attachments={attachedFiles} onRemove={removeAttachment} />
 
