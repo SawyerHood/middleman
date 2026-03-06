@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ContextWindowIndicator } from '@/components/chat/ContextWindowIndicator'
+import { AgentStatusIndicator } from '@/components/chat/AgentStatusIndicator'
 import { cn } from '@/lib/utils'
 import type { AgentStatus } from '@middleman/protocol'
 
@@ -71,7 +72,6 @@ export function ChatHeader({
   onToggleArtifactsPanel,
   onToggleMobileSidebar,
 }: ChatHeaderProps) {
-  const isStreaming = connected && activeAgentStatus === 'streaming'
   const statusLabel = connected ? formatAgentStatus(activeAgentStatus) : 'Reconnecting'
   const archetypeLabel = activeAgentArchetypeId?.trim()
 
@@ -91,25 +91,12 @@ export function ChatHeader({
           </Button>
         ) : null}
 
-        <div
-          className="relative inline-flex size-5 shrink-0 items-center justify-center"
-          aria-label={`Agent status: ${statusLabel.toLowerCase()}`}
-        >
-          <span
-            className={cn(
-              'absolute inline-flex size-4 rounded-full',
-              isStreaming ? 'animate-ping bg-emerald-500/45' : 'bg-transparent',
-            )}
-            aria-hidden="true"
-          />
-          <span
-            className={cn(
-              'relative inline-flex size-2.5 rounded-full',
-              isStreaming ? 'bg-emerald-500' : 'bg-muted-foreground/45',
-            )}
-            aria-hidden="true"
-          />
-        </div>
+        <AgentStatusIndicator
+          status={connected ? activeAgentStatus : 'reconnecting'}
+          size="md"
+          pulsing={connected}
+          ariaLabel={`Agent status: ${statusLabel.toLowerCase()}`}
+        />
 
         <div className="flex min-w-0 items-center gap-1.5">
           <h1
