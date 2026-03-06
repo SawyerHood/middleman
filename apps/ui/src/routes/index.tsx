@@ -67,7 +67,12 @@ export function IndexPage() {
   const location = useOptionalLocation()
 
   const { clientRef, state, setState } = useWsConnection(wsUrl)
-  const { routeState, activeView, navigateToRoute } = useRouteState({
+  const {
+    routeState,
+    activeView,
+    hasExplicitAgentSelection,
+    navigateToRoute,
+  } = useRouteState({
     pathname: location.pathname,
     search: location.search,
     navigate,
@@ -217,16 +222,30 @@ export function IndexPage() {
     }
 
     const currentAgentId = state.targetAgentId ?? state.subscribedAgentId
-    if (currentAgentId === routeState.agentId) {
+    const currentAgentExists =
+      currentAgentId !== null &&
+      state.agents.some((agent) => agent.agentId === currentAgentId)
+    const routeAgentExists = state.agents.some((agent) => agent.agentId === routeState.agentId)
+
+    if (hasExplicitAgentSelection) {
+      if (currentAgentId === routeState.agentId) {
+        return
+      }
+
+      if (routeAgentExists) {
+        clientRef.current?.subscribeToAgent(routeState.agentId)
+        return
+      }
+
+      if (!state.hasReceivedAgentsSnapshot) {
+        return
+      }
+
+      navigateToRoute({ view: 'chat', agentId: DEFAULT_MANAGER_AGENT_ID }, true)
       return
     }
 
-    if (state.agents.some((agent) => agent.agentId === routeState.agentId)) {
-      clientRef.current?.subscribeToAgent(routeState.agentId)
-      return
-    }
-
-    if (state.agents.length === 0) {
+    if (currentAgentExists) {
       return
     }
 
@@ -236,12 +255,13 @@ export function IndexPage() {
     }
 
     clientRef.current?.subscribeToAgent(fallbackAgentId)
-    navigateToRoute({ view: 'chat', agentId: fallbackAgentId }, true)
   }, [
     clientRef,
+    hasExplicitAgentSelection,
     navigateToRoute,
     routeState,
     state.agents,
+    state.hasReceivedAgentsSnapshot,
     state.subscribedAgentId,
     state.targetAgentId,
   ])
@@ -304,15 +324,6 @@ export function IndexPage() {
     const agent = state.agents.find((entry) => entry.agentId === agentId)
     if (!agent || agent.role !== 'worker') {
       return
-    }
-
-    if (activeAgentId === agentId) {
-      const remainingAgents = state.agents.filter((entry) => entry.agentId !== agentId)
-      const fallbackAgentId = chooseFallbackAgentId(remainingAgents)
-      if (fallbackAgentId) {
-        navigateToRoute({ view: 'chat', agentId: fallbackAgentId })
-        clientRef.current?.subscribeToAgent(fallbackAgentId)
-      }
     }
 
     clientRef.current?.deleteAgent(agentId)
@@ -533,31 +544,23 @@ type NavigateFn = (options: {
 }) => void | Promise<void>
 
 function useOptionalNavigate(): NavigateFn {
+  let navigate: NavigateFn | null = null
+
   try {
-    return useNavigate() as unknown as NavigateFn
+    navigate = useNavigate() as unknown as NavigateFn
   } catch {
-    return ({ to, search, replace }) => {
-      if (typeof window === 'undefined') {
-        return
-      }
+  }
 
-      const params = new URLSearchParams()
-      if (search?.view) {
-        params.set('view', search.view)
-      }
-      if (search?.agent) {
-        params.set('agent', search.agent)
-      }
-
-      const query = params.toString()
-      const nextUrl = query ? `${to}?${query}` : to
-
-      if (replace) {
-        window.history.replaceState(null, '', nextUrl)
-      } else {
-        window.history.pushState(null, '', nextUrl)
+  return (options) => {
+    if (navigate) {
+      try {
+        return navigate(options)
+      } catch {
+        // Fall through to the window.history fallback when no router context is mounted.
       }
     }
+
+    applyWindowNavigation(options)
   }
 }
 
@@ -573,5 +576,36 @@ function parseWindowRouteSearch(search: string): { view?: string; agent?: string
   return {
     view: view ?? undefined,
     agent: agent ?? undefined,
+  }
+}
+
+function applyWindowNavigation({
+  to,
+  search,
+  replace,
+}: {
+  to: string
+  search?: { view?: string; agent?: string }
+  replace?: boolean
+}): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const params = new URLSearchParams()
+  if (search?.view) {
+    params.set('view', search.view)
+  }
+  if (search?.agent) {
+    params.set('agent', search.agent)
+  }
+
+  const query = params.toString()
+  const nextUrl = query ? `${to}?${query}` : to
+
+  if (replace) {
+    window.history.replaceState(null, '', nextUrl)
+  } else {
+    window.history.pushState(null, '', nextUrl)
   }
 }

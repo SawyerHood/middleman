@@ -18,6 +18,7 @@ export type AgentActivityEntry = Extract<
 
 export interface ManagerWsState {
   connected: boolean
+  hasReceivedAgentsSnapshot: boolean
   targetAgentId: string | null
   subscribedAgentId: string | null
   messages: ConversationHistoryEntry[]
@@ -32,6 +33,7 @@ export interface ManagerWsState {
 export function createInitialManagerWsState(targetAgentId: string | null): ManagerWsState {
   return {
     connected: false,
+    hasReceivedAgentsSnapshot: false,
     targetAgentId,
     subscribedAgentId: null,
     messages: [],

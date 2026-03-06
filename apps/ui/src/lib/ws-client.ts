@@ -637,6 +637,7 @@ export class ManagerWsClient {
     const patch: Partial<ManagerWsState> = {
       agents,
       statuses,
+      hasReceivedAgentsSnapshot: true,
     }
 
     if (targetChanged) {

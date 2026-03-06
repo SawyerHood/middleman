@@ -119,6 +119,7 @@ beforeEach(() => {
   FakeWebSocket.instances = []
   vi.useFakeTimers()
   ;(globalThis as any).WebSocket = FakeWebSocket
+  window.history.replaceState(null, '', '/')
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     writable: true,
@@ -351,5 +352,59 @@ describe('IndexPage create manager model selection', () => {
     expect(queryByText(container, 'foreign worker reply')).toBeNull()
     expect(queryByText(container, 'foreign worker chatter')).toBeNull()
     expect(queryByText(container, /foreign-call/)).toBeNull()
+  })
+
+  it('keeps the root URL free of query params when the active agent is implicit', async () => {
+    const socket = await renderPage()
+
+    emitServerEvent(socket, {
+      type: 'agents_snapshot',
+      agents: [buildManager('manager', '/tmp/manager')],
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(window.location.pathname).toBe('/')
+    expect(window.location.search).toBe('')
+  })
+
+  it('clears the query param when the explicitly selected agent disappears from the snapshot', async () => {
+    window.history.replaceState(null, '', '/?agent=worker-1')
+
+    const socket = await renderPage()
+
+    emitServerEvent(socket, {
+      type: 'agents_snapshot',
+      agents: [
+        buildManager('manager', '/tmp/manager'),
+        buildWorker('worker-1', 'manager', '/tmp/manager'),
+      ],
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    const payloadsAfterSelection = socket.sentPayloads.map((payload) => JSON.parse(payload))
+    expect(
+      payloadsAfterSelection.some(
+        (payload) => payload.type === 'subscribe' && payload.agentId === 'worker-1',
+      ),
+    ).toBe(true)
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'worker-1',
+    })
+
+    emitServerEvent(socket, {
+      type: 'agents_snapshot',
+      agents: [buildManager('manager', '/tmp/manager')],
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(window.location.pathname).toBe('/')
+    expect(window.location.search).toBe('')
   })
 })

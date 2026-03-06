@@ -12,6 +12,11 @@ type AppRouteSearch = {
   agent?: string
 }
 
+interface ParsedRouteState {
+  routeState: AppRouteState
+  hasExplicitAgentSelection: boolean
+}
+
 function normalizeAgentId(agentId?: string): string {
   const trimmedAgentId = agentId?.trim()
   return trimmedAgentId && trimmedAgentId.length > 0 ? trimmedAgentId : DEFAULT_MANAGER_AGENT_ID
@@ -25,40 +30,55 @@ function decodePathSegment(segment: string): string {
   }
 }
 
-function parseRouteStateFromPathname(pathname: string): AppRouteState {
+function parseRouteStateFromPathname(pathname: string): ParsedRouteState {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
 
   if (normalizedPath === '/settings') {
-    return { view: 'settings' }
+    return {
+      routeState: { view: 'settings' },
+      hasExplicitAgentSelection: false,
+    }
   }
 
   const agentMatch = normalizedPath.match(/^\/agent\/([^/]+)$/)
   if (agentMatch) {
     return {
-      view: 'chat',
-      agentId: normalizeAgentId(decodePathSegment(agentMatch[1])),
+      routeState: {
+        view: 'chat',
+        agentId: normalizeAgentId(decodePathSegment(agentMatch[1])),
+      },
+      hasExplicitAgentSelection: true,
     }
   }
 
   return {
-    view: 'chat',
-    agentId: DEFAULT_MANAGER_AGENT_ID,
+    routeState: {
+      view: 'chat',
+      agentId: DEFAULT_MANAGER_AGENT_ID,
+    },
+    hasExplicitAgentSelection: false,
   }
 }
 
-function parseRouteStateFromLocation(pathname: string, search: unknown): AppRouteState {
+function parseRouteStateFromLocation(pathname: string, search: unknown): ParsedRouteState {
   const routeSearch = search && typeof search === 'object' ? (search as AppRouteSearch) : {}
   const view = typeof routeSearch.view === 'string' ? routeSearch.view : undefined
   const agentId = typeof routeSearch.agent === 'string' ? routeSearch.agent : undefined
 
   if (view === 'settings') {
-    return { view: 'settings' }
+    return {
+      routeState: { view: 'settings' },
+      hasExplicitAgentSelection: false,
+    }
   }
 
   if (view === 'chat' || agentId !== undefined) {
     return {
-      view: 'chat',
-      agentId: normalizeAgentId(agentId),
+      routeState: {
+        view: 'chat',
+        agentId: normalizeAgentId(agentId),
+      },
+      hasExplicitAgentSelection: agentId !== undefined,
     }
   }
 
@@ -119,9 +139,10 @@ export function useRouteState({
 }: UseRouteStateOptions): {
   routeState: AppRouteState
   activeView: ActiveView
+  hasExplicitAgentSelection: boolean
   navigateToRoute: (nextRouteState: AppRouteState, replace?: boolean) => void
 } {
-  const routeState = useMemo(
+  const { routeState, hasExplicitAgentSelection } = useMemo(
     () => parseRouteStateFromLocation(pathname, search),
     [pathname, search],
   )
@@ -148,6 +169,7 @@ export function useRouteState({
   return {
     routeState,
     activeView,
+    hasExplicitAgentSelection,
     navigateToRoute,
   }
 }

@@ -6,7 +6,6 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react'
-import { chooseFallbackAgentId } from '@/lib/agent-hierarchy'
 import { resolveApiEndpoint } from '@/lib/api-endpoint'
 import { ManagerWsClient } from '@/lib/ws-client'
 import type { ManagerWsState } from '@/lib/ws-state'
@@ -283,19 +282,6 @@ export function useManagerActions({
     try {
       await client.deleteManager(manager.agentId)
 
-      if (activeAgentId === manager.agentId) {
-        const remainingAgents = agents.filter(
-          (agent) =>
-            agent.agentId !== manager.agentId &&
-            agent.managerId !== manager.agentId,
-        )
-        const fallbackAgentId = chooseFallbackAgentId(remainingAgents)
-        if (fallbackAgentId) {
-          navigateToRoute({ view: 'chat', agentId: fallbackAgentId })
-          client.subscribeToAgent(fallbackAgentId)
-        }
-      }
-
       setManagerToDelete(null)
       setDeleteManagerError(null)
     } catch (error) {
@@ -303,7 +289,7 @@ export function useManagerActions({
     } finally {
       setIsDeletingManager(false)
     }
-  }, [activeAgentId, agents, clientRef, managerToDelete, navigateToRoute])
+  }, [clientRef, managerToDelete])
 
   const handleCloseDeleteManagerDialog = useCallback(() => {
     if (isDeletingManager) {
