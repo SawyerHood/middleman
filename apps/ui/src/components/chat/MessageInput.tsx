@@ -11,6 +11,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react'
+import { useAtom } from 'jotai'
 import { ArrowUp, Loader2, Mic, Paperclip, Square } from 'lucide-react'
 import { AttachedFiles } from '@/components/chat/AttachedFiles'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import {
   fileToPendingAttachment,
   type PendingAttachment,
 } from '@/lib/file-attachments'
+import { messageDraftsAtom } from '@/lib/message-drafts'
 import { resolveApiEndpoint } from '@/lib/api-endpoint'
 import { transcribeVoice } from '@/lib/voice-transcription-client'
 import { cn } from '@/lib/utils'
@@ -29,6 +31,7 @@ const ACTIVE_WAVEFORM_BAR_COUNT = 16
 const OPENAI_KEY_REQUIRED_MESSAGE = 'OpenAI API key required \u2014 add it in Settings.'
 
 interface MessageInputProps {
+  agentId: string | null
   onSend: (message: string, attachments?: ConversationAttachment[]) => void
   onSubmitted?: () => void
   isLoading: boolean
@@ -103,6 +106,7 @@ async function hasConfiguredOpenAiKey(endpoint: string): Promise<boolean> {
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
   {
+    agentId,
     onSend,
     onSubmitted,
     isLoading,
@@ -113,7 +117,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   },
   ref,
 ) {
-  const [input, setInput] = useState('')
+  const [drafts, setDrafts] = useAtom(messageDraftsAtom)
   const [attachedFiles, setAttachedFiles] = useState<PendingAttachment[]>([])
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
@@ -132,6 +136,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const transcribeEndpoint = useMemo(() => resolveApiEndpoint(wsUrl, '/api/transcribe'), [wsUrl])
   const settingsAuthEndpoint = useMemo(() => resolveApiEndpoint(wsUrl, '/api/settings/auth'), [wsUrl])
+  const input = agentId ? drafts[agentId] ?? '' : ''
 
   const resizeTextarea = useCallback(() => {
     const textarea = textareaRef.current
@@ -143,6 +148,39 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     textarea.style.height = `${nextHeight}px`
     textarea.style.overflowY = textarea.scrollHeight > TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden'
   }, [])
+
+  const updateDraft = useCallback(
+    (nextValue: string | ((previousValue: string) => string)) => {
+      if (!agentId) {
+        return
+      }
+
+      setDrafts((previousDrafts) => {
+        const previousValue = previousDrafts[agentId] ?? ''
+        const resolvedValue =
+          typeof nextValue === 'function' ? nextValue(previousValue) : nextValue
+
+        if (resolvedValue.length === 0) {
+          if (!(agentId in previousDrafts)) {
+            return previousDrafts
+          }
+
+          const { [agentId]: _removedDraft, ...remainingDrafts } = previousDrafts
+          return remainingDrafts
+        }
+
+        if (resolvedValue === previousValue) {
+          return previousDrafts
+        }
+
+        return {
+          ...previousDrafts,
+          [agentId]: resolvedValue,
+        }
+      })
+    },
+    [agentId, setDrafts],
+  )
 
   const blockedByLoading = isLoading && !allowWhileLoading
 
@@ -176,7 +214,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     ref,
     () => ({
       setInput: (value: string) => {
-        setInput(value)
+        updateDraft(value)
         requestAnimationFrame(() => textareaRef.current?.focus())
       },
       focus: () => {
@@ -184,7 +222,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       },
       addFiles,
     }),
-    [addFiles],
+    [addFiles, updateDraft],
   )
 
   const handleFileSelect = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -215,7 +253,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       return false
     }
 
-    setInput((previousInput) => {
+    updateDraft((previousInput) => {
       if (!previousInput.trim()) {
         return trimmedText
       }
@@ -226,7 +264,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
     requestAnimationFrame(() => textareaRef.current?.focus())
     return true
-  }, [])
+  }, [updateDraft])
 
   const stopAndTranscribeRecording = useCallback(async () => {
     const recording = await stopRecording()
@@ -334,7 +372,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         : undefined,
     )
 
-    setInput('')
+    updateDraft('')
     setAttachedFiles([])
     requestAnimationFrame(() => {
       onSubmitted?.()
@@ -348,6 +386,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     isTranscribingVoice,
     onSend,
     onSubmitted,
+    updateDraft,
   ])
 
   const handleSubmit = useCallback(
@@ -423,7 +462,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => updateDraft(event.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={placeholder}

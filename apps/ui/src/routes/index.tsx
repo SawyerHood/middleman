@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useSetAtom } from 'jotai'
 import {
   createFileRoute,
   useLocation,
@@ -23,6 +24,7 @@ import { SettingsPanel } from '@/components/chat/SettingsDialog'
 import { chooseFallbackAgentId } from '@/lib/agent-hierarchy'
 import type { ArtifactReference } from '@/lib/artifacts'
 import { collectArtifactsFromMessages } from '@/lib/collect-artifacts'
+import { pruneMessageDraftsAtom } from '@/lib/message-drafts'
 import {
   DEFAULT_MANAGER_AGENT_ID,
   useRouteState,
@@ -68,6 +70,7 @@ export function IndexPage() {
   const messageListRef = useRef<MessageListHandle | null>(null)
   const navigate = useOptionalNavigate()
   const location = useOptionalLocation()
+  const pruneMessageDrafts = useSetAtom(pruneMessageDraftsAtom)
 
   const { clientRef, state, setState } = useWsConnection(wsUrl)
   const {
@@ -223,6 +226,14 @@ export function IndexPage() {
     setIsArtifactsPanelOpen(false)
     setIsMobileSidebarOpen(false)
   }, [activeAgentId])
+
+  useEffect(() => {
+    if (!state.hasReceivedAgentsSnapshot) {
+      return
+    }
+
+    pruneMessageDrafts(state.agents.map((agent) => agent.agentId))
+  }, [pruneMessageDrafts, state.agents, state.hasReceivedAgentsSnapshot])
 
   useEffect(() => {
     if (routeState.view !== 'chat') {
@@ -480,6 +491,7 @@ export function IndexPage() {
 
                 <MessageInput
                   ref={messageInputRef}
+                  agentId={activeAgentId}
                   onSend={handleSend}
                   onSubmitted={handleMessageInputSubmitted}
                   isLoading={isLoading}

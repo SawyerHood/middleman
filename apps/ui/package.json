@@ -22,6 +22,7 @@
     "@tanstack/router-plugin": "^1.132.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "jotai": "^2.18.0",
     "lucide-react": "^0.577.0",
     "mermaid": "^11.12.3",
     "nitro": "npm:nitro-nightly@3.0.1-20260223-102354-c0b46421",

@@ -1,12 +1,14 @@
 /** @vitest-environment jsdom */
 
-import { fireEvent, getAllByRole, getByLabelText, getByRole, queryByText } from '@testing-library/dom'
+import { fireEvent, getAllByRole, getByLabelText, getByRole, queryByText, within } from '@testing-library/dom'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
+import { Provider as JotaiProvider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MANAGER_MODEL_PRESETS } from '@middleman/protocol'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { MESSAGE_DRAFTS_STORAGE_KEY } from '@/lib/message-drafts'
 import { IndexPage } from './index'
 
 const CREATE_MANAGER_MODEL_PRESETS = MANAGER_MODEL_PRESETS.filter(
@@ -73,7 +75,7 @@ function click(element: HTMLElement): void {
   })
 }
 
-function changeValue(element: HTMLInputElement, value: string): void {
+function changeValue(element: HTMLInputElement | HTMLTextAreaElement, value: string): void {
   flushSync(() => {
     fireEvent.change(element, {
       target: { value },
@@ -119,11 +121,38 @@ function buildWorker(agentId: string, managerId: string, cwd: string) {
   }
 }
 
-let container: HTMLDivElement
+function createLocalStorageMock(): Storage {
+  const store = new Map<string, string>()
+
+  return {
+    get length() {
+      return store.size
+    },
+    clear() {
+      store.clear()
+    },
+    getItem(key: string) {
+      return store.get(key) ?? null
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null
+    },
+    removeItem(key: string) {
+      store.delete(key)
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value)
+    },
+  }
+}
+
+let container!: HTMLDivElement
 let root: Root | null = null
 
 const originalWebSocket = globalThis.WebSocket
+const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
+const originalScrollTo = HTMLElement.prototype.scrollTo
 const originalCanvasGetContext = HTMLCanvasElement.prototype.getContext
 const originalCanvasToDataURL = HTMLCanvasElement.prototype.toDataURL
 
@@ -131,9 +160,24 @@ beforeEach(() => {
   FakeWebSocket.instances = []
   vi.useFakeTimers()
   ;(globalThis as any).WebSocket = FakeWebSocket
+  const localStorageMock = createLocalStorageMock()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: localStorageMock,
+  })
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: localStorageMock,
+  })
   window.history.replaceState(null, '', '/')
+  window.localStorage.clear()
   document.head.querySelectorAll('link[rel="icon"]').forEach((node) => node.remove())
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    writable: true,
+    value: vi.fn(),
+  })
+  Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
     configurable: true,
     writable: true,
     value: vi.fn(),
@@ -174,13 +218,23 @@ afterEach(() => {
 
   root = null
   container.remove()
+  window.localStorage.clear()
 
   vi.useRealTimers()
   ;(globalThis as any).WebSocket = originalWebSocket
+  if (originalLocalStorageDescriptor) {
+    Object.defineProperty(window, 'localStorage', originalLocalStorageDescriptor)
+    Object.defineProperty(globalThis, 'localStorage', originalLocalStorageDescriptor)
+  }
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     writable: true,
     value: originalScrollIntoView,
+  })
+  Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value: originalScrollTo,
   })
   Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
@@ -200,9 +254,13 @@ async function renderPage(): Promise<FakeWebSocket> {
   flushSync(() => {
     root?.render(
       createElement(
-        TooltipProvider,
+        JotaiProvider,
         null,
-        createElement(IndexPage),
+        createElement(
+          TooltipProvider,
+          null,
+          createElement(IndexPage),
+        ),
       ),
     )
   })
@@ -210,8 +268,11 @@ async function renderPage(): Promise<FakeWebSocket> {
   await Promise.resolve()
   vi.advanceTimersByTime(60)
 
-  const socket = FakeWebSocket.instances[0]
+  const socket = FakeWebSocket.instances.at(-1)
   expect(socket).toBeDefined()
+  if (!socket) {
+    throw new Error('Expected websocket to be created')
+  }
 
   socket.emit('open')
   expect(JSON.parse(socket.sentPayloads.at(0) ?? '{}')).toEqual({ type: 'subscribe' })
@@ -222,6 +283,20 @@ async function renderPage(): Promise<FakeWebSocket> {
   })
 
   return socket
+}
+
+function readDraftStorage(): Record<string, string> {
+  const stored = window.localStorage.getItem(MESSAGE_DRAFTS_STORAGE_KEY)
+  return stored ? (JSON.parse(stored) as Record<string, string>) : {}
+}
+
+function getSidebar(): HTMLElement {
+  const sidebar = container.querySelector('aside')
+  if (!sidebar) {
+    throw new Error('Expected sidebar to render')
+  }
+
+  return sidebar
 }
 
 function getFaviconHref(): string | null {
@@ -516,5 +591,99 @@ describe('IndexPage create manager model selection', () => {
 
     expect(window.location.pathname).toBe('/')
     expect(window.location.search).toBe('')
+  })
+
+  it('persists drafts per agent across selection changes and refresh, clears sent drafts, and prunes deleted agents', async () => {
+    const socket = await renderPage()
+
+    emitServerEvent(socket, {
+      type: 'agents_snapshot',
+      agents: [
+        buildManager('manager', '/tmp/manager'),
+        buildWorker('worker-1', 'manager', '/tmp/manager'),
+        buildWorker('worker-2', 'manager', '/tmp/manager'),
+      ],
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    const sidebar = getSidebar()
+
+    click(within(sidebar).getByRole('button', { name: 'Expand manager manager' }))
+    click(within(sidebar).getByRole('button', { name: 'worker-1' }))
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    changeValue(getByRole(container, 'textbox') as HTMLTextAreaElement, 'draft for worker 1')
+    expect(readDraftStorage()).toEqual({ 'worker-1': 'draft for worker 1' })
+
+    click(within(sidebar).getByRole('button', { name: 'worker-2' }))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect((getByRole(container, 'textbox') as HTMLTextAreaElement).value).toBe('')
+
+    changeValue(getByRole(container, 'textbox') as HTMLTextAreaElement, 'draft for worker 2')
+    expect(readDraftStorage()).toEqual({
+      'worker-1': 'draft for worker 1',
+      'worker-2': 'draft for worker 2',
+    })
+
+    flushSync(() => {
+      root?.unmount()
+    })
+    root = null
+
+    const refreshedSocket = await renderPage()
+
+    emitServerEvent(refreshedSocket, {
+      type: 'agents_snapshot',
+      agents: [
+        buildManager('manager', '/tmp/manager'),
+        buildWorker('worker-1', 'manager', '/tmp/manager'),
+        buildWorker('worker-2', 'manager', '/tmp/manager'),
+      ],
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(0)
+
+    const refreshedSidebar = getSidebar()
+
+    click(within(refreshedSidebar).getByRole('button', { name: 'Expand manager manager' }))
+
+    expect(window.location.search).toBe('?agent=worker-2')
+    expect((getByRole(container, 'textbox') as HTMLTextAreaElement).value).toBe('draft for worker 2')
+
+    click(within(refreshedSidebar).getByRole('button', { name: 'worker-1' }))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect((getByRole(container, 'textbox') as HTMLTextAreaElement).value).toBe('draft for worker 1')
+
+    click(getByRole(container, 'button', { name: 'Send message' }))
+
+    const sentMessages = refreshedSocket.sentPayloads
+      .map((payload) => JSON.parse(payload))
+      .filter((payload) => payload.type === 'user_message')
+
+    expect(sentMessages.at(-1)).toMatchObject({
+      type: 'user_message',
+      agentId: 'worker-1',
+      text: 'draft for worker 1',
+    })
+    expect((getByRole(container, 'textbox') as HTMLTextAreaElement).value).toBe('')
+    expect(readDraftStorage()).toEqual({ 'worker-2': 'draft for worker 2' })
+
+    emitServerEvent(refreshedSocket, {
+      type: 'agents_snapshot',
+      agents: [
+        buildManager('manager', '/tmp/manager'),
+        buildWorker('worker-1', 'manager', '/tmp/manager'),
+      ],
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(readDraftStorage()).toEqual({})
   })
 })

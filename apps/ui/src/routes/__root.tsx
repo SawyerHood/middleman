@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Provider as JotaiProvider } from 'jotai'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
@@ -52,21 +53,23 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="overflow-x-hidden">
-        <TooltipProvider>
-          {children}
-          <ReactGrabBootstrap />
-          <TanStackDevtools
-            config={{
-              position: 'bottom-right',
-            }}
-            plugins={[
-              {
-                name: 'Tanstack Router',
-                render: <TanStackRouterDevtoolsPanel />,
-              },
-            ]}
-          />
-        </TooltipProvider>
+        <JotaiProvider>
+          <TooltipProvider>
+            {children}
+            <ReactGrabBootstrap />
+            <TanStackDevtools
+              config={{
+                position: 'bottom-right',
+              }}
+              plugins={[
+                {
+                  name: 'Tanstack Router',
+                  render: <TanStackRouterDevtoolsPanel />,
+                },
+              ]}
+            />
+          </TooltipProvider>
+        </JotaiProvider>
         <Scripts />
       </body>
     </html>
