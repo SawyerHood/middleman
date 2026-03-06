@@ -1,6 +1,7 @@
 # Middleman - Agent Notes
 
 ## What This Project Is
+
 `middleman` is a local-first multi-agent orchestration platform. It runs:
 
 1. A Node.js backend for manager/worker orchestration and persistence.
@@ -8,22 +9,26 @@
 3. Realtime updates over WebSocket.
 
 ## Scope Expectations
+
 For dashboard/chat/settings work, preserve existing behavior and interaction patterns unless the task explicitly requests a redesign.
 
 ## Architecture (Current)
 
 ### Frontend
+
 - SPA with TanStack Start + Vite in `apps/ui`.
 - Real-time client state and transport in `apps/ui/src/lib/ws-client.ts`.
 - Core UI surfaces in `apps/ui/src/components/chat/*` and `apps/ui/src/components/settings/*`.
 
 ### Backend
+
 - HTTP + WebSocket server in `apps/backend/src/ws/server.ts`.
 - Agent orchestration and runtime logic in `apps/backend/src/swarm/*`.
 - Integrations in `apps/backend/src/integrations/*`.
 - Scheduler in `apps/backend/src/scheduler/*`.
 
 ### Contracts
+
 Canonical wire contracts are defined in:
 
 - `packages/protocol/`
@@ -31,22 +36,29 @@ Canonical wire contracts are defined in:
 ## Run and Test
 
 ### Development
+
 ```bash
 pnpm dev
 ```
+
 Starts backend + UI in one command (two local ports):
+
 - Backend HTTP + WS: `http://127.0.0.1:47187` / `ws://127.0.0.1:47187`
 - UI: `http://127.0.0.1:47188`
 
 ### Production
+
 ```bash
 pnpm prod
 ```
+
 Default production ports:
+
 - Backend HTTP + WS: `http://127.0.0.1:47287` / `ws://127.0.0.1:47287`
 - UI preview: `http://127.0.0.1:47289`
 
 ### Useful checks
+
 ```bash
 pnpm build
 pnpm test
@@ -65,6 +77,7 @@ pnpm dlx shadcn@latest add <component-name>
 ```
 
 For example:
+
 ```bash
 cd apps/ui
 pnpm dlx shadcn@latest add button label switch select tabs separator scroll-area checkbox tooltip textarea
@@ -85,3 +98,4 @@ Currently installed: badge, button, card, checkbox, context-menu, dialog, input,
 5. Before finishing any task, run a full TypeScript typecheck and fix reported errors:
    - `pnpm exec tsc --noEmit`
 6. Prefer shadcn/ui components over hand-rolled HTML for UI controls and surfaces.
+7. Keep panel and view headers consistent by using the shared `ViewHeader` in `apps/ui/src/components/ViewHeader.tsx` for chat/settings/notes-style views. Header shells should stay `h-[62px] mb-2`, place back buttons on the left, and put counts or actions in the trailing slot instead of hand-rolling new variants.

@@ -1,5 +1,5 @@
-import { ArrowLeft, Settings, KeyRound, Blocks, Wrench } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Settings, KeyRound, Blocks, Wrench } from 'lucide-react'
+import { ViewHeader } from '@/components/ViewHeader'
 import { cn } from '@/lib/utils'
 
 export type SettingsTab = 'general' | 'auth' | 'integrations' | 'skills'
@@ -27,23 +27,7 @@ interface SettingsLayoutProps {
 export function SettingsLayout({ activeTab, onTabChange, onBack, children }: SettingsLayoutProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="flex h-[62px] shrink-0 items-center border-b border-border/80 bg-card/80 px-2 backdrop-blur md:px-4">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {onBack ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
-              onClick={onBack}
-              aria-label="Back to chat"
-            >
-              <ArrowLeft className="size-4" />
-            </Button>
-          ) : null}
-          <h1 className="truncate text-sm font-semibold text-foreground">Settings</h1>
-        </div>
-      </header>
+      <ViewHeader title="Settings" onBack={onBack} backAriaLabel="Back to chat" />
 
       {/* Mobile: horizontal scrolling tab bar */}
       <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 bg-card/30 px-2 py-1.5 md:hidden">

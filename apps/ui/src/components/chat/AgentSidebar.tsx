@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, CircleDashed, ListTodo, Settings, SquarePen, UserStar, X } from 'lucide-react'
+import { ViewHeader } from '@/components/ViewHeader'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -324,39 +325,45 @@ export function AgentSidebar({
         'max-md:w-full md:w-[20rem] md:min-w-[20rem] md:shrink-0',
       )}
     >
-      <div className="mb-2 flex h-[62px] shrink-0 items-center gap-2 border-b border-sidebar-border px-2">
-        <button
-          type="button"
-          onClick={onAddManager}
-          className="flex min-h-[44px] flex-1 items-center gap-2 rounded-md p-2 text-sm transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60"
-          title="Create manager"
-          aria-label="Add manager"
-        >
-          <SquarePen aria-hidden="true" className="h-4 w-4" />
-          <span>New Manager</span>
-        </button>
-        <div className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground">
-          <span
-            className={cn(
-              'inline-block size-1.5 rounded-full',
-              connected ? 'bg-emerald-500' : 'bg-amber-500',
-            )}
-            title={connected ? 'Connected' : 'Reconnecting'}
-          />
-          <span className="hidden xl:inline">{connected ? 'Live' : 'Retrying'}</span>
-        </div>
-        {/* Mobile close button */}
-        {onMobileClose ? (
+      <ViewHeader
+        className="border-sidebar-border bg-sidebar px-2 md:px-2 backdrop-blur-none"
+        leading={
           <button
             type="button"
-            onClick={onMobileClose}
-            className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground md:hidden"
-            aria-label="Close sidebar"
+            onClick={onAddManager}
+            className="flex min-h-[44px] flex-1 items-center gap-2 rounded-md p-2 text-sm transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60"
+            title="Create manager"
+            aria-label="Add manager"
           >
-            <X className="size-4" />
+            <SquarePen aria-hidden="true" className="h-4 w-4" />
+            <span>New Manager</span>
           </button>
-        ) : null}
-      </div>
+        }
+        trailing={
+          <div className="flex items-center gap-1.5">
+            <div className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground">
+              <span
+                className={cn(
+                  'inline-block size-1.5 rounded-full',
+                  connected ? 'bg-emerald-500' : 'bg-amber-500',
+                )}
+                title={connected ? 'Connected' : 'Reconnecting'}
+              />
+              <span className="hidden xl:inline">{connected ? 'Live' : 'Retrying'}</span>
+            </div>
+            {onMobileClose ? (
+              <button
+                type="button"
+                onClick={onMobileClose}
+                className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground md:hidden"
+                aria-label="Close sidebar"
+              >
+                <X className="size-4" />
+              </button>
+            ) : null}
+          </div>
+        }
+      />
 
       <div className="px-3 pb-1">
         <h2 className="text-xs font-semibold text-muted-foreground">Agents</h2>
