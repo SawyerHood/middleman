@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, CalendarDays, Check, CircleDot, ListTodo, PanelLeft, UserRound, X } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
@@ -31,6 +30,7 @@ export function EscalationView({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [selectedOptionByEscalationId, setSelectedOptionByEscalationId] = useState<Record<string, string>>({})
   const [customResponseByEscalationId, setCustomResponseByEscalationId] = useState<Record<string, string>>({})
+  const detailPanelDismissedRef = useRef(false)
 
   const managerNameById = useMemo(
     () => new Map(managers.map((manager) => [manager.agentId, manager.displayName || manager.agentId])),
@@ -49,11 +49,26 @@ export function EscalationView({
 
   useEffect(() => {
     if (sortedEscalations.length === 0) {
+      detailPanelDismissedRef.current = false
       setSelectedEscalationId(null)
       return
     }
 
-    if (!selectedEscalationId || !sortedEscalations.some((escalation) => escalation.id === selectedEscalationId)) {
+    const hasSelectedEscalation = Boolean(
+      selectedEscalationId && sortedEscalations.some((escalation) => escalation.id === selectedEscalationId),
+    )
+
+    if (hasSelectedEscalation) {
+      return
+    }
+
+    if (selectedEscalationId) {
+      detailPanelDismissedRef.current = false
+      setSelectedEscalationId(sortedEscalations[0]?.id ?? null)
+      return
+    }
+
+    if (!detailPanelDismissedRef.current) {
       setSelectedEscalationId(sortedEscalations[0]?.id ?? null)
     }
   }, [selectedEscalationId, sortedEscalations])
@@ -91,6 +106,17 @@ export function EscalationView({
     } finally {
       setSubmittingEscalationId((current) => (current === selectedEscalation.id ? null : current))
     }
+  }
+
+  const handleSelectEscalation = (escalationId: string) => {
+    detailPanelDismissedRef.current = false
+    setSelectedEscalationId(escalationId)
+    setSubmitError(null)
+  }
+
+  const handleCloseDetails = () => {
+    detailPanelDismissedRef.current = true
+    setSelectedEscalationId(null)
   }
 
   return (
@@ -160,10 +186,7 @@ export function EscalationView({
                     <button
                       key={escalation.id}
                       type="button"
-                      onClick={() => {
-                        setSelectedEscalationId(escalation.id)
-                        setSubmitError(null)
-                      }}
+                      onClick={() => handleSelectEscalation(escalation.id)}
                       className={cn(
                         'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75',
                         isSelected
@@ -199,7 +222,7 @@ export function EscalationView({
             type="button"
             className="fixed inset-0 z-20 bg-black/20 backdrop-blur-[1px] md:hidden"
             aria-label="Close escalation details"
-            onClick={() => setSelectedEscalationId(null)}
+            onClick={handleCloseDetails}
           />
         ) : null}
 
@@ -231,7 +254,7 @@ export function EscalationView({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => setSelectedEscalationId(null)}
+                  onClick={handleCloseDetails}
                   aria-label="Close escalation details"
                   className="mt-0.5 shrink-0 text-muted-foreground/50 hover:text-foreground"
                 >
