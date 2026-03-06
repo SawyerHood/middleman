@@ -7,7 +7,15 @@ import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 
+const minifyFlag = process.env.MINIFY?.trim().toLowerCase()
+const buildMinifier =
+  minifyFlag === 'false' || minifyFlag === '0' ? false : 'esbuild'
+
 const config = defineConfig({
+  build: {
+    minify: buildMinifier,
+    cssMinify: buildMinifier,
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
