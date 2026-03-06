@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, CalendarDays, Check, CircleDot, ListTodo, PanelLeft, UserRound, X } from 'lucide-react'
+import { CalendarDays, Check, CircleDot, ListTodo, PanelLeft, UserRound, X } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -150,19 +150,8 @@ export function EscalationView({
             <PanelLeft className="size-4" />
           </Button>
         }
-        trailing={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-3" />
-            Back
-          </Button>
-        }
-        className="mb-0 h-[52px] border-border/40 bg-background px-4 backdrop-blur-none sm:px-5 md:px-5"
+        onBack={onBack}
+        backAriaLabel="Back to chat"
       />
 
       {/* Content */}
