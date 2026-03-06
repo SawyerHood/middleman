@@ -1,4 +1,4 @@
-import { Loader2, Menu, Minimize2, MoreHorizontal, PanelRight, Square, Trash2 } from 'lucide-react'
+import { CircleDashed, Loader2, Menu, Minimize2, MoreHorizontal, PanelRight, Square, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -91,25 +91,11 @@ export function ChatHeader({
           </Button>
         ) : null}
 
-        <div
-          className="relative inline-flex size-5 shrink-0 items-center justify-center"
-          aria-label={`Agent status: ${statusLabel.toLowerCase()}`}
-        >
-          <span
-            className={cn(
-              'absolute inline-flex size-4 rounded-full',
-              isStreaming ? 'animate-ping bg-emerald-500/45' : 'bg-transparent',
-            )}
-            aria-hidden="true"
-          />
-          <span
-            className={cn(
-              'relative inline-flex size-2.5 rounded-full',
-              isStreaming ? 'bg-emerald-500' : 'bg-muted-foreground/45',
-            )}
-            aria-hidden="true"
-          />
-        </div>
+        {isStreaming ? (
+          <CircleDashed className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Active" />
+        ) : (
+          <span className="inline-block size-3.5 shrink-0" aria-hidden="true" />
+        )}
 
         <div className="flex min-w-0 items-center gap-1.5">
           <h1
