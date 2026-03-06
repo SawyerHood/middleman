@@ -708,6 +708,34 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     return this.taskStorage.listAll();
   }
 
+  async updateTask(
+    taskId: string,
+    input: {
+      title?: string;
+      description?: string;
+    }
+  ): Promise<UserTask> {
+    const normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.length === 0) {
+      throw new Error("update_task taskId must be a non-empty string");
+    }
+    if (input.title === undefined && input.description === undefined) {
+      throw new Error("update_task requires title or description");
+    }
+
+    const updatedTask = await this.taskStorage.update(normalizedTaskId, input);
+
+    this.logDebug("task:update", {
+      taskId: updatedTask.id,
+      managerId: updatedTask.managerId,
+      updatedTitle: input.title !== undefined,
+      updatedDescription: input.description !== undefined
+    });
+    this.emitTaskUpdated(updatedTask);
+
+    return updatedTask;
+  }
+
   async completeTask(
     taskId: string,
     options?: {

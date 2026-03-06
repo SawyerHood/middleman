@@ -2181,6 +2181,34 @@ describe('SwarmManager', () => {
     expect(userCompletionEvent).toBeDefined()
   })
 
+  it('updates assigned task title and description with persistence', async () => {
+    const config = await makeTempConfig()
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const assignedTask = await manager.assignTask('manager', {
+      title: 'Review the deployment checklist',
+      description: 'Confirm the release notes and monitoring links are correct.',
+    })
+
+    const updatedTask = await manager.updateTask(assignedTask.id, {
+      title: 'Review the launch checklist',
+      description: 'Confirm release notes, dashboards, and rollback links.',
+    })
+
+    expect(updatedTask).toMatchObject({
+      id: assignedTask.id,
+      title: 'Review the launch checklist',
+      description: 'Confirm release notes, dashboards, and rollback links.',
+      status: 'pending',
+    })
+
+    await expect(readFile(getTasksFilePath(config.paths.dataDir), 'utf8')).resolves.toContain(
+      'Review the launch checklist',
+    )
+    await expect(manager.getOutstandingTasks('manager')).resolves.toEqual([updatedTask])
+  })
+
   it('accepts any existing directory for manager and worker creation', async () => {
     const config = await makeTempConfig()
     const manager = new TestSwarmManager(config)

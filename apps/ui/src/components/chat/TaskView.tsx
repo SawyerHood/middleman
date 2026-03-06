@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CheckCircle2, Clock3, ListTodo, PanelLeft } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, CalendarDays, ListTodo, PanelLeft, UserRound, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { AgentDescriptor, UserTask } from '@middleman/protocol'
@@ -16,13 +16,10 @@ interface TaskViewProps {
   onBack: () => void
   onCompleteTask: (taskId: string, comment?: string) => Promise<void>
   onToggleMobileSidebar: () => void
+  onUpdateTask: (input: { taskId: string; title?: string; description?: string }) => Promise<void>
 }
 
-type TaskGroup = {
-  managerId: string
-  managerName: string
-  tasks: UserTask[]
-}
+type EditableField = 'title' | 'description' | null
 
 export function TaskView({
   tasks,
@@ -30,75 +27,177 @@ export function TaskView({
   onBack,
   onCompleteTask,
   onToggleMobileSidebar,
+  onUpdateTask,
 }: TaskViewProps) {
-  const [draftTaskId, setDraftTaskId] = useState<string | null>(null)
-  const [draftComment, setDraftComment] = useState('')
-  const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
+  const [completionComment, setCompletionComment] = useState('')
   const [completionError, setCompletionError] = useState<string | null>(null)
+  const [editingField, setEditingField] = useState<EditableField>(null)
+  const [titleDraft, setTitleDraft] = useState('')
+  const [descriptionDraft, setDescriptionDraft] = useState('')
+  const [updatingField, setUpdatingField] = useState<EditableField>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+  const skipNextBlurSaveRef = useRef<EditableField>(null)
 
-  const managerNameById = useMemo(() => {
-    return new Map(managers.map((manager) => [manager.agentId, manager.displayName || manager.agentId]))
-  }, [managers])
+  const managerNameById = useMemo(
+    () => new Map(managers.map((manager) => [manager.agentId, manager.displayName || manager.agentId])),
+    [managers],
+  )
 
-  const groupedTasks = useMemo<TaskGroup[]>(() => {
-    const groups = new Map<string, UserTask[]>()
-
-    for (const task of tasks) {
-      const existingTasks = groups.get(task.managerId) ?? []
-      existingTasks.push(task)
-      groups.set(task.managerId, existingTasks)
+  const sortedTasks = useMemo(() => [...tasks].sort(compareTasks), [tasks])
+  const selectedTask = useMemo(
+    () => sortedTasks.find((task) => task.id === selectedTaskId) ?? null,
+    [selectedTaskId, sortedTasks],
+  )
+  const selectedTaskComments = useMemo(() => {
+    if (!selectedTask) {
+      return []
     }
 
-    return Array.from(groups.entries())
-      .map(([managerId, managerTasks]) => ({
-        managerId,
-        managerName: managerNameById.get(managerId) ?? managerId,
-        tasks: managerTasks.sort(compareTasks),
-      }))
-      .sort((left, right) => left.managerName.localeCompare(right.managerName))
-  }, [managerNameById, tasks])
+    if (selectedTask.comments && selectedTask.comments.length > 0) {
+      return [...selectedTask.comments].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    }
 
-  const pendingCount = tasks.filter((task) => task.status === 'pending').length
-  const completedCount = tasks.length - pendingCount
+    if (selectedTask.status === 'completed' && selectedTask.completedAt) {
+      return [
+        {
+          id: `${selectedTask.id}-completion`,
+          body: selectedTask.completionComment ?? 'Task completed.',
+          createdAt: selectedTask.completedAt,
+          type: 'completion' as const,
+        },
+      ]
+    }
+
+    return []
+  }, [selectedTask])
+
+  const pendingCount = sortedTasks.filter((task) => task.status === 'pending').length
 
   useEffect(() => {
-    if (!draftTaskId) {
+    if (selectedTaskId && !selectedTask) {
+      setSelectedTaskId(null)
+      setEditingField(null)
+      setCompletionComment('')
+      setCompletionError(null)
+      setUpdateError(null)
+    }
+  }, [selectedTask, selectedTaskId])
+
+  useEffect(() => {
+    if (!selectedTask) {
       return
     }
 
-    const draftTask = tasks.find((task) => task.id === draftTaskId)
-    if (!draftTask || draftTask.status !== 'pending') {
-      setDraftTaskId(null)
-      setDraftComment('')
-      setCompletionError(null)
+    if (editingField !== 'title') {
+      setTitleDraft(selectedTask.title)
     }
-  }, [draftTaskId, tasks])
-
-  const handleToggleDraft = (taskId: string, nextChecked: boolean) => {
-    if (!nextChecked) {
-      setDraftTaskId((currentTaskId) => (currentTaskId === taskId ? null : currentTaskId))
-      setDraftComment('')
-      setCompletionError(null)
-      return
+    if (editingField !== 'description') {
+      setDescriptionDraft(selectedTask.description ?? '')
     }
+  }, [editingField, selectedTask])
 
-    setDraftTaskId(taskId)
-    setDraftComment('')
-    setCompletionError(null)
-  }
-
-  const handleSubmit = async (taskId: string) => {
-    setSubmittingTaskId(taskId)
+  const handleQuickComplete = async (taskId: string) => {
+    setCompletingTaskId(taskId)
     setCompletionError(null)
 
     try {
-      await onCompleteTask(taskId, draftComment)
-      setDraftTaskId(null)
-      setDraftComment('')
+      await onCompleteTask(taskId)
     } catch (error) {
       setCompletionError(error instanceof Error ? error.message : 'Failed to complete task.')
     } finally {
-      setSubmittingTaskId((currentTaskId) => (currentTaskId === taskId ? null : currentTaskId))
+      setCompletingTaskId((currentTaskId) => (currentTaskId === taskId ? null : currentTaskId))
+    }
+  }
+
+  const handleDetailComplete = async () => {
+    if (!selectedTask) {
+      return
+    }
+
+    setCompletingTaskId(selectedTask.id)
+    setCompletionError(null)
+
+    try {
+      await onCompleteTask(selectedTask.id, completionComment)
+      setCompletionComment('')
+    } catch (error) {
+      setCompletionError(error instanceof Error ? error.message : 'Failed to complete task.')
+    } finally {
+      setCompletingTaskId((currentTaskId) => (currentTaskId === selectedTask.id ? null : currentTaskId))
+    }
+  }
+
+  const shouldSkipBlurSave = (field: Exclude<EditableField, null>): boolean => {
+    if (skipNextBlurSaveRef.current !== field) {
+      return false
+    }
+
+    skipNextBlurSaveRef.current = null
+    return true
+  }
+
+  const saveTitle = async () => {
+    if (!selectedTask) {
+      return
+    }
+
+    const nextTitle = titleDraft.trim()
+    if (!nextTitle) {
+      setTitleDraft(selectedTask.title)
+      setUpdateError('Title cannot be empty.')
+      return
+    }
+
+    if (nextTitle === selectedTask.title) {
+      setEditingField(null)
+      setUpdateError(null)
+      return
+    }
+
+    setUpdatingField('title')
+    setUpdateError(null)
+
+    try {
+      await onUpdateTask({
+        taskId: selectedTask.id,
+        title: nextTitle,
+      })
+      setEditingField(null)
+    } catch (error) {
+      setUpdateError(error instanceof Error ? error.message : 'Failed to update title.')
+    } finally {
+      setUpdatingField((currentField) => (currentField === 'title' ? null : currentField))
+    }
+  }
+
+  const saveDescription = async () => {
+    if (!selectedTask) {
+      return
+    }
+
+    const nextDescription = descriptionDraft.trim()
+    const currentDescription = selectedTask.description ?? ''
+    if (nextDescription === currentDescription) {
+      setEditingField(null)
+      setUpdateError(null)
+      return
+    }
+
+    setUpdatingField('description')
+    setUpdateError(null)
+
+    try {
+      await onUpdateTask({
+        taskId: selectedTask.id,
+        description: nextDescription,
+      })
+      setEditingField(null)
+    } catch (error) {
+      setUpdateError(error instanceof Error ? error.message : 'Failed to update description.')
+    } finally {
+      setUpdatingField((currentField) => (currentField === 'description' ? null : currentField))
     }
   }
 
@@ -122,11 +221,11 @@ export function TaskView({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-sm font-semibold sm:text-base">User Tasks</h1>
-                <Badge variant="outline">{tasks.length}</Badge>
+                <h1 className="truncate text-sm font-semibold sm:text-base">Tasks</h1>
+                <Badge variant="outline">{sortedTasks.length}</Badge>
               </div>
               <p className="truncate text-xs text-muted-foreground">
-                Pending work assigned across all managers
+                Compact list with an Asana-style detail drawer
               </p>
             </div>
           </div>
@@ -135,17 +234,9 @@ export function TaskView({
         <div className="flex items-center gap-2">
           <Badge
             variant="outline"
-            className="hidden gap-1 border-emerald-500/30 bg-emerald-500/8 text-emerald-700 sm:inline-flex dark:text-emerald-300"
+            className="hidden border-emerald-500/30 bg-emerald-500/8 text-emerald-700 sm:inline-flex dark:text-emerald-300"
           >
-            <Clock3 className="size-3" />
             {pendingCount} pending
-          </Badge>
-          <Badge
-            variant="outline"
-            className="hidden gap-1 border-sky-500/30 bg-sky-500/8 text-sky-700 sm:inline-flex dark:text-sky-300"
-          >
-            <CheckCircle2 className="size-3" />
-            {completedCount} completed
           </Badge>
           <Button type="button" variant="outline" size="sm" onClick={onBack}>
             <ArrowLeft className="size-3.5" />
@@ -154,164 +245,334 @@ export function TaskView({
         </div>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-5 sm:px-6">
-          {tasks.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-6 py-12 text-center">
-              <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl border border-border/70 bg-background shadow-sm">
-                <ListTodo className="size-5 text-muted-foreground" />
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <Card className="m-4 min-h-0 flex-1 overflow-hidden py-0 shadow-sm">
+            <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Assigned tasks</p>
+                <p className="text-xs text-muted-foreground">
+                  Click a row to open details or use the checkbox to complete immediately.
+                </p>
               </div>
-              <h2 className="text-base font-semibold">No assigned tasks</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Tasks created by managers will appear here in real time.
-              </p>
+              <Badge variant="outline">{pendingCount} open</Badge>
             </div>
-          ) : (
-            groupedTasks.map((group, index) => (
-              <section key={group.managerId} className="space-y-3">
-                {index > 0 ? <Separator className="mb-2" /> : null}
 
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-sm font-semibold text-foreground">{group.managerName}</h2>
-                    <p className="text-xs text-muted-foreground">{group.managerId}</p>
+            <ScrollArea className="min-h-0 flex-1">
+              {sortedTasks.length === 0 ? (
+                <div className="px-6 py-12 text-center">
+                  <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl border border-border/70 bg-muted/30">
+                    <ListTodo className="size-5 text-muted-foreground" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{group.tasks.length} total</Badge>
-                    <Badge
-                      variant="outline"
-                      className="border-emerald-500/30 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300"
-                    >
-                      {group.tasks.filter((task) => task.status === 'pending').length} pending
-                    </Badge>
-                  </div>
+                  <h2 className="text-base font-semibold">No tasks assigned yet</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Tasks assigned by managers will show up here in real time.
+                  </p>
                 </div>
-
-                <div className="space-y-3">
-                  {group.tasks.map((task) => {
-                    const isPending = task.status === 'pending'
-                    const isDraftOpen = draftTaskId === task.id
-                    const isSubmitting = submittingTaskId === task.id
+              ) : (
+                <div>
+                  {sortedTasks.map((task) => {
+                    const managerName = managerNameById.get(task.managerId) ?? task.managerId
+                    const isSelected = selectedTaskId === task.id
+                    const isCompleting = completingTaskId === task.id
 
                     return (
-                      <article
+                      <div
                         key={task.id}
                         className={cn(
-                          'rounded-2xl border px-4 py-4 shadow-sm transition-colors sm:px-5',
-                          isPending
-                            ? 'border-border/70 bg-background'
-                            : 'border-border/60 bg-muted/20',
+                          'flex items-center gap-3 border-b border-border/70 px-4 py-3 transition-colors last:border-b-0',
+                          isSelected ? 'bg-muted/45' : 'hover:bg-muted/25',
                         )}
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-sm font-semibold text-foreground">{task.title}</h3>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  task.status === 'pending'
-                                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                                    : 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-                                )}
-                              >
-                                {task.status}
-                              </Badge>
-                            </div>
-                            {task.description ? (
-                              <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-                                {task.description}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <div className="shrink-0 text-right text-xs text-muted-foreground">
-                            <p>Created {formatTimestamp(task.createdAt)}</p>
-                            {task.completedAt ? <p className="mt-1">Completed {formatTimestamp(task.completedAt)}</p> : null}
-                          </div>
+                        <div
+                          className="shrink-0"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                          }}
+                        >
+                          <Checkbox
+                            checked={task.status === 'completed'}
+                            disabled={task.status === 'completed' || isCompleting}
+                            aria-label={`Complete task ${task.title}`}
+                            onCheckedChange={(checked) => {
+                              if (checked === true && task.status === 'pending') {
+                                void handleQuickComplete(task.id)
+                              }
+                            }}
+                          />
                         </div>
 
-                        {task.status === 'completed' && task.completionComment ? (
-                          <div className="mt-4 rounded-xl border border-border/60 bg-background/80 px-3 py-2.5">
-                            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                              Completion note
-                            </p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/90">
-                              {task.completionComment}
-                            </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTaskId(task.id)
+                            setCompletionComment('')
+                            setCompletionError(null)
+                            setUpdateError(null)
+                          }}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-medium text-foreground">{task.title}</span>
+                            <TaskStatusBadge status={task.status} />
                           </div>
-                        ) : null}
-
-                        {isPending ? (
-                          <div className="mt-4 rounded-xl border border-border/60 bg-muted/20 px-3 py-3">
-                            <div className="flex items-start gap-3">
-                              <Checkbox
-                                checked={isDraftOpen}
-                                onCheckedChange={(checked) => handleToggleDraft(task.id, checked === true)}
-                                disabled={isSubmitting}
-                                aria-label={`Mark task ${task.title} complete`}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium text-foreground">Mark complete</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Send a completion update back to {group.managerName}. A comment is optional.
-                                </p>
-                              </div>
-                            </div>
-
-                            {isDraftOpen ? (
-                              <div className="mt-3 space-y-3">
-                                <div className="space-y-2">
-                                  <Label htmlFor={`task-comment-${task.id}`}>Optional comment</Label>
-                                  <Textarea
-                                    id={`task-comment-${task.id}`}
-                                    value={draftComment}
-                                    onChange={(event) => setDraftComment(event.target.value)}
-                                    placeholder="Add context, blockers, or what you finished."
-                                    rows={3}
-                                    disabled={isSubmitting}
-                                  />
-                                </div>
-
-                                {completionError ? (
-                                  <p className="text-xs text-destructive">{completionError}</p>
-                                ) : null}
-
-                                <div className="flex flex-wrap justify-end gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleToggleDraft(task.id, false)}
-                                    disabled={isSubmitting}
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    onClick={() => {
-                                      void handleSubmit(task.id)
-                                    }}
-                                    disabled={isSubmitting}
-                                  >
-                                    {isSubmitting ? 'Completing...' : 'Complete task'}
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : null}
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span>{managerName}</span>
+                            <span>{formatDate(task.createdAt)}</span>
                           </div>
-                        ) : null}
-                      </article>
+                        </button>
+                      </div>
                     )
                   })}
                 </div>
-              </section>
-            ))
-          )}
+              )}
+            </ScrollArea>
+          </Card>
         </div>
-      </ScrollArea>
+
+        {selectedTask ? (
+          <button
+            type="button"
+            className="fixed inset-0 z-20 bg-black/20 md:hidden"
+            aria-label="Close task details"
+            onClick={() => setSelectedTaskId(null)}
+          />
+        ) : null}
+
+        <aside
+          className={cn(
+            'fixed inset-y-0 right-0 z-30 w-full max-w-[34rem] border-l border-border/80 bg-background shadow-[-24px_0_48px_-36px_rgba(15,23,42,0.45)] transition-transform duration-200 md:static md:z-0 md:max-w-none md:overflow-hidden md:transition-[width,transform]',
+            selectedTask ? 'translate-x-0 md:w-[30rem]' : 'translate-x-full md:w-0',
+          )}
+        >
+          {selectedTask ? (
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <TaskStatusBadge status={selectedTask.status} />
+                  <Badge variant="outline">{managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}</Badge>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setSelectedTaskId(null)}
+                  aria-label="Close task details"
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="space-y-4 p-4">
+                  <Card className="py-0">
+                    <CardHeader className="border-b border-border/70 py-4">
+                      <div className="space-y-3">
+                        {editingField === 'title' ? (
+                          <Input
+                            value={titleDraft}
+                            onChange={(event) => setTitleDraft(event.target.value)}
+                            onBlur={() => {
+                              if (shouldSkipBlurSave('title')) {
+                                return
+                              }
+                              void saveTitle()
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                skipNextBlurSaveRef.current = 'title'
+                                void saveTitle()
+                                event.currentTarget.blur()
+                              }
+                              if (event.key === 'Escape') {
+                                skipNextBlurSaveRef.current = 'title'
+                                setTitleDraft(selectedTask.title)
+                                setEditingField(null)
+                                setUpdateError(null)
+                                event.currentTarget.blur()
+                              }
+                            }}
+                            disabled={updatingField === 'title'}
+                            autoFocus
+                            className="h-11 text-lg font-semibold"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="w-full text-left"
+                            onClick={() => {
+                              setTitleDraft(selectedTask.title)
+                              setEditingField('title')
+                              setUpdateError(null)
+                            }}
+                          >
+                            <CardTitle className="text-xl">{selectedTask.title}</CardTitle>
+                          </button>
+                        )}
+
+                        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            <UserRound className="size-3.5" />
+                            {managerNameById.get(selectedTask.managerId) ?? selectedTask.managerId}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarDays className="size-3.5" />
+                            Created {formatDateTime(selectedTask.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                          Description
+                        </p>
+                        {editingField === 'description' ? (
+                          <Textarea
+                            value={descriptionDraft}
+                            onChange={(event) => setDescriptionDraft(event.target.value)}
+                            onBlur={() => {
+                              if (shouldSkipBlurSave('description')) {
+                                return
+                              }
+                              void saveDescription()
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' && !event.shiftKey) {
+                                event.preventDefault()
+                                skipNextBlurSaveRef.current = 'description'
+                                void saveDescription()
+                                event.currentTarget.blur()
+                              }
+                              if (event.key === 'Escape') {
+                                skipNextBlurSaveRef.current = 'description'
+                                setDescriptionDraft(selectedTask.description ?? '')
+                                setEditingField(null)
+                                setUpdateError(null)
+                                event.currentTarget.blur()
+                              }
+                            }}
+                            rows={6}
+                            disabled={updatingField === 'description'}
+                            autoFocus
+                            placeholder="Add task details"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className={cn(
+                              'w-full rounded-lg border border-dashed border-border/70 px-3 py-3 text-left text-sm transition-colors hover:border-border hover:bg-muted/20',
+                              !selectedTask.description ? 'text-muted-foreground' : 'text-foreground',
+                            )}
+                            onClick={() => {
+                              setDescriptionDraft(selectedTask.description ?? '')
+                              setEditingField('description')
+                              setUpdateError(null)
+                            }}
+                          >
+                            {selectedTask.description?.trim() ? selectedTask.description : 'Add a description'}
+                          </button>
+                        )}
+                      </div>
+
+                      {updateError ? (
+                        <p className="text-xs text-destructive">{updateError}</p>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="py-0">
+                    <CardHeader className="border-b border-border/70 py-4">
+                      <CardTitle className="text-base">Complete task</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 py-4">
+                      <Textarea
+                        value={completionComment}
+                        onChange={(event) => setCompletionComment(event.target.value)}
+                        placeholder="Add an optional completion note back to the manager."
+                        rows={4}
+                        disabled={selectedTask.status === 'completed' || completingTaskId === selectedTask.id}
+                      />
+
+                      {completionError ? (
+                        <p className="text-xs text-destructive">{completionError}</p>
+                      ) : null}
+
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            void handleDetailComplete()
+                          }}
+                          disabled={selectedTask.status === 'completed' || completingTaskId === selectedTask.id}
+                        >
+                          {selectedTask.status === 'completed'
+                            ? 'Completed'
+                            : completingTaskId === selectedTask.id
+                              ? 'Completing...'
+                              : 'Mark complete'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="py-0">
+                    <CardHeader className="border-b border-border/70 py-4">
+                      <CardTitle className="text-base">Comments</CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-4">
+                      {selectedTaskComments.length > 0 ? (
+                        <div className="space-y-3">
+                          {selectedTaskComments.map((comment) => (
+                            <div
+                              key={comment.id}
+                              className="rounded-xl border border-border/70 bg-muted/20 px-3 py-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                                  Completion update
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatDateTime(comment.createdAt)}
+                                </p>
+                              </div>
+                              <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/90">
+                                {comment.body}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Completion notes will appear here after the task is marked complete.
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </ScrollArea>
+            </div>
+          ) : null}
+        </aside>
+      </div>
     </div>
+  )
+}
+
+function TaskStatusBadge({ status }: { status: UserTask['status'] }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        status === 'pending'
+          ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+          : 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+      )}
+    >
+      {status}
+    </Badge>
   )
 }
 
@@ -327,7 +588,7 @@ function compareTasks(left: UserTask, right: UserTask): number {
   return right.id.localeCompare(left.id)
 }
 
-function formatTimestamp(value: string): string {
+function formatDate(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
     return value
@@ -336,6 +597,19 @@ function formatTimestamp(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
+  }).format(date)
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   }).format(date)

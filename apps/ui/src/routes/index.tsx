@@ -352,6 +352,19 @@ export function IndexPage() {
     await client.completeTask(taskId, comment)
   }
 
+  const handleUpdateTask = async (input: {
+    taskId: string
+    title?: string
+    description?: string
+  }) => {
+    const client = clientRef.current
+    if (!client) {
+      throw new Error('WebSocket client is not available.')
+    }
+
+    await client.updateTask(input)
+  }
+
   const handleSuggestionClick = (prompt: string) => {
     messageInputRef.current?.setInput(prompt)
   }
@@ -431,6 +444,7 @@ export function IndexPage() {
                   })
                 }
                 onCompleteTask={handleCompleteTask}
+                onUpdateTask={handleUpdateTask}
                 onToggleMobileSidebar={() => setIsMobileSidebarOpen((previous) => !previous)}
               />
             ) : (

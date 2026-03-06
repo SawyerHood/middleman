@@ -49,6 +49,7 @@ type WsRequestResultMap = {
   pick_directory: string | null
   get_all_tasks: UserTask[]
   complete_task: UserTask
+  update_task: UserTask
 }
 
 type WsRequestType = Extract<keyof WsRequestResultMap, string>
@@ -61,6 +62,7 @@ const WS_REQUEST_TYPES: WsRequestType[] = [
   'pick_directory',
   'get_all_tasks',
   'complete_task',
+  'update_task',
 ]
 
 const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: string }> = [
@@ -72,6 +74,7 @@ const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: 
   { requestType: 'pick_directory', codeFragment: 'pick_directory' },
   { requestType: 'get_all_tasks', codeFragment: 'get_all_tasks' },
   { requestType: 'complete_task', codeFragment: 'complete_task' },
+  { requestType: 'update_task', codeFragment: 'update_task' },
 ]
 
 export class ManagerWsClient {
@@ -421,6 +424,34 @@ export class ManagerWsClient {
     }))
   }
 
+  async updateTask(input: { taskId: string; title?: string; description?: string }): Promise<UserTask> {
+    const trimmedTaskId = input.taskId.trim()
+    if (!trimmedTaskId) {
+      throw new Error('Task id is required.')
+    }
+
+    if (input.title === undefined && input.description === undefined) {
+      throw new Error('Task updates must include a title or description.')
+    }
+
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket is disconnected. Reconnecting...')
+    }
+
+    const trimmedTitle = input.title?.trim()
+    if (input.title !== undefined && !trimmedTitle) {
+      throw new Error('Task title must be a non-empty string.')
+    }
+
+    return this.enqueueRequest('update_task', (requestId) => ({
+      type: 'update_task',
+      taskId: trimmedTaskId,
+      title: trimmedTitle,
+      description: input.description !== undefined ? input.description.trim() : undefined,
+      requestId,
+    }))
+  }
+
   private connect(): void {
     if (this.destroyed) return
 
@@ -650,6 +681,11 @@ export class ManagerWsClient {
 
       case 'task_completion_result': {
         this.requestTracker.resolve('complete_task', event.requestId, event.task)
+        break
+      }
+
+      case 'task_update_result': {
+        this.requestTracker.resolve('update_task', event.requestId, event.task)
         break
       }
 

@@ -43,6 +43,13 @@ export interface AgentsStoreFile {
 
 export type UserTaskStatus = "pending" | "completed";
 
+export interface UserTaskComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  type: "completion";
+}
+
 export interface UserTask {
   id: string;
   managerId: string;
@@ -52,6 +59,7 @@ export interface UserTask {
   createdAt: string;
   completedAt?: string;
   completionComment?: string;
+  comments?: UserTaskComment[];
 }
 
 export type RequestedDeliveryMode = "auto" | "followUp" | "steer";

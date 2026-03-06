@@ -2227,6 +2227,40 @@ describe('SwarmWebSocketServer', () => {
 
     client.send(
       JSON.stringify({
+        type: 'update_task',
+        taskId: assignedTask.id,
+        title: 'Verify release smoke test pass',
+        description: 'Run the quick post-deploy checks, capture notes, and report back.',
+        requestId: 'update-1',
+      }),
+    )
+
+    const updateBroadcastEvent = await waitForEvent(
+      events,
+      (event) =>
+        event.type === 'task_updated' &&
+        event.task.id === assignedTask.id &&
+        event.task.title === 'Verify release smoke test pass',
+    )
+    expect(updateBroadcastEvent.type).toBe('task_updated')
+    if (updateBroadcastEvent.type === 'task_updated') {
+      expect(updateBroadcastEvent.task.description).toBe(
+        'Run the quick post-deploy checks, capture notes, and report back.',
+      )
+      expect(updateBroadcastEvent.task.status).toBe('pending')
+    }
+
+    const updateResultEvent = await waitForEvent(
+      events,
+      (event) => event.type === 'task_update_result' && event.requestId === 'update-1',
+    )
+    expect(updateResultEvent.type).toBe('task_update_result')
+    if (updateResultEvent.type === 'task_update_result') {
+      expect(updateResultEvent.task.title).toBe('Verify release smoke test pass')
+    }
+
+    client.send(
+      JSON.stringify({
         type: 'complete_task',
         taskId: assignedTask.id,
         comment: 'Ran the checks and everything looks stable.',
@@ -2236,7 +2270,10 @@ describe('SwarmWebSocketServer', () => {
 
     const updatedEvent = await waitForEvent(
       events,
-      (event) => event.type === 'task_updated' && event.task.id === assignedTask.id,
+      (event) =>
+        event.type === 'task_updated' &&
+        event.task.id === assignedTask.id &&
+        event.task.status === 'completed',
     )
     expect(updatedEvent.type).toBe('task_updated')
     if (updatedEvent.type === 'task_updated') {
@@ -2259,7 +2296,7 @@ describe('SwarmWebSocketServer', () => {
         event.type === 'conversation_message' &&
         event.agentId === 'manager' &&
         event.source === 'user_input' &&
-        event.text.includes('Task completed: Verify release smoke tests'),
+        event.text.includes('Task completed: Verify release smoke test pass'),
     )
     expect(managerMessageEvent.type).toBe('conversation_message')
 

@@ -55,5 +55,29 @@ export async function handleTaskCommand(context: TaskCommandRouteContext): Promi
     return true;
   }
 
+  if (command.type === "update_task") {
+    try {
+      const task = await swarmManager.updateTask(command.taskId, {
+        title: command.title,
+        description: command.description
+      });
+
+      send(socket, {
+        type: "task_update_result",
+        task,
+        requestId: command.requestId
+      });
+    } catch (error) {
+      send(socket, {
+        type: "error",
+        code: "UPDATE_TASK_FAILED",
+        message: error instanceof Error ? error.message : String(error),
+        requestId: command.requestId
+      });
+    }
+
+    return true;
+  }
+
   return false;
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import type { UserTask } from "../swarm/types.js";
+import type { UserTask, UserTaskComment } from "../swarm/types.js";
 
 const TASKS_FILE_NAME = "tasks.json";
 
@@ -11,7 +11,10 @@ interface TasksFile {
 
 function cloneTask(task: UserTask): UserTask {
   return {
-    ...task
+    ...task,
+    comments: task.comments?.map((comment) => ({
+      ...comment
+    }))
   };
 }
 
@@ -26,6 +29,32 @@ function compareTasks(left: UserTask, right: UserTask): number {
   }
 
   return right.id.localeCompare(left.id);
+}
+
+function validateComment(candidate: unknown): UserTaskComment | undefined {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return undefined;
+  }
+
+  const comment = candidate as Partial<UserTaskComment>;
+  if (
+    typeof comment.id !== "string" ||
+    comment.id.trim().length === 0 ||
+    typeof comment.body !== "string" ||
+    comment.body.trim().length === 0 ||
+    typeof comment.createdAt !== "string" ||
+    comment.createdAt.trim().length === 0 ||
+    comment.type !== "completion"
+  ) {
+    return undefined;
+  }
+
+  return {
+    id: comment.id.trim(),
+    body: comment.body.trim(),
+    createdAt: comment.createdAt.trim(),
+    type: "completion"
+  };
 }
 
 function validateTask(candidate: unknown): UserTask | undefined {
@@ -46,10 +75,15 @@ function validateTask(candidate: unknown): UserTask | undefined {
     typeof task.createdAt !== "string" ||
     task.createdAt.trim().length === 0 ||
     (task.completedAt !== undefined && typeof task.completedAt !== "string") ||
-    (task.completionComment !== undefined && typeof task.completionComment !== "string")
+    (task.completionComment !== undefined && typeof task.completionComment !== "string") ||
+    (task.comments !== undefined && !Array.isArray(task.comments))
   ) {
     return undefined;
   }
+
+  const comments = Array.isArray(task.comments)
+    ? task.comments.map((comment) => validateComment(comment)).filter((comment): comment is UserTaskComment => Boolean(comment))
+    : undefined;
 
   return {
     id: task.id.trim(),
@@ -59,7 +93,8 @@ function validateTask(candidate: unknown): UserTask | undefined {
     status: task.status,
     createdAt: task.createdAt,
     completedAt: normalizeOptionalText(task.completedAt),
-    completionComment: normalizeOptionalText(task.completionComment)
+    completionComment: normalizeOptionalText(task.completionComment),
+    comments: comments && comments.length > 0 ? comments : undefined
   };
 }
 
@@ -140,16 +175,66 @@ export class TaskStorage {
       return cloneTask(existing);
     }
 
+    const completedAt = this.options.now();
+    const completionComment = normalizeOptionalText(options?.comment);
     const completedTask: UserTask = {
       ...existing,
       status: "completed",
-      completedAt: this.options.now(),
-      completionComment: normalizeOptionalText(options?.comment)
+      completedAt,
+      completionComment,
+      comments: [
+        ...(existing.comments ?? []),
+        {
+          id: this.options.generateId?.() ?? randomUUID(),
+          body: completionComment ?? "Task completed.",
+          createdAt: completedAt,
+          type: "completion"
+        }
+      ]
     };
 
     this.tasks.set(taskId, completedTask);
     await this.save();
     return cloneTask(completedTask);
+  }
+
+  async update(
+    taskId: string,
+    input: {
+      title?: string;
+      description?: string;
+    }
+  ): Promise<UserTask> {
+    const existing = this.tasks.get(taskId);
+    if (!existing) {
+      throw new Error(`Unknown task: ${taskId}`);
+    }
+
+    const nextTitle =
+      input.title !== undefined
+        ? (() => {
+            const trimmed = input.title.trim();
+            if (trimmed.length === 0) {
+              throw new Error("update_task title must be a non-empty string");
+            }
+            return trimmed;
+          })()
+        : existing.title;
+
+    const nextDescription =
+      input.description !== undefined
+        ? normalizeOptionalText(input.description)
+        : existing.description;
+
+    const updatedTask: UserTask = {
+      ...existing,
+      title: nextTitle,
+      description: nextDescription
+    };
+
+    this.tasks.set(taskId, updatedTask);
+    await this.save();
+    return cloneTask(updatedTask);
   }
 
   async deleteForManager(managerId: string): Promise<string[]> {

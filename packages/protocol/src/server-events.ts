@@ -183,6 +183,12 @@ export interface TaskCompletionResultEvent {
   requestId?: string
 }
 
+export interface TaskUpdateResultEvent {
+  type: 'task_update_result'
+  task: UserTask
+  requestId?: string
+}
+
 export type ConversationEntry =
   | ConversationMessageEvent
   | ConversationLogEvent
@@ -228,4 +234,5 @@ export type ServerEvent =
   | TaskUpdatedEvent
   | TasksDeletedEvent
   | TaskCompletionResultEvent
+  | TaskUpdateResultEvent
   | { type: 'error'; code: string; message: string; requestId?: string }

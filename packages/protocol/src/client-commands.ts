@@ -7,6 +7,7 @@ export type ClientCommand =
   | { type: 'unsubscribe_agent_detail'; agentId: string }
   | { type: 'get_all_tasks'; requestId?: string }
   | { type: 'complete_task'; taskId: string; comment?: string; requestId?: string }
+  | { type: 'update_task'; taskId: string; title?: string; description?: string; requestId?: string }
   | {
       type: 'user_message'
       text: string

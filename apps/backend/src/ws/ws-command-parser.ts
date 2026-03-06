@@ -104,6 +104,45 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
     };
   }
 
+  if (maybe.type === "update_task") {
+    const taskId = (maybe as { taskId?: unknown }).taskId;
+    const title = (maybe as { title?: unknown }).title;
+    const description = (maybe as { description?: unknown }).description;
+    const requestId = (maybe as { requestId?: unknown }).requestId;
+
+    if (typeof taskId !== "string" || taskId.trim().length === 0) {
+      return { ok: false, error: "update_task.taskId must be a non-empty string" };
+    }
+    if (title !== undefined && typeof title !== "string") {
+      return { ok: false, error: "update_task.title must be a string when provided" };
+    }
+    if (description !== undefined && typeof description !== "string") {
+      return { ok: false, error: "update_task.description must be a string when provided" };
+    }
+    if (requestId !== undefined && typeof requestId !== "string") {
+      return { ok: false, error: "update_task.requestId must be a string when provided" };
+    }
+    if (title === undefined && description === undefined) {
+      return { ok: false, error: "update_task must include title or description" };
+    }
+
+    const trimmedTitle = typeof title === "string" ? title.trim() : undefined;
+    if (title !== undefined && !trimmedTitle) {
+      return { ok: false, error: "update_task.title must be a non-empty string when provided" };
+    }
+
+    return {
+      ok: true,
+      command: {
+        type: "update_task",
+        taskId: taskId.trim(),
+        title: trimmedTitle,
+        description: description !== undefined ? description.trim() : undefined,
+        requestId
+      }
+    };
+  }
+
   if (maybe.type === "kill_agent") {
     if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
       return { ok: false, error: "kill_agent.agentId must be a non-empty string" };
@@ -316,6 +355,7 @@ export function extractRequestId(command: ClientCommand): string | undefined {
     case "pick_directory":
     case "get_all_tasks":
     case "complete_task":
+    case "update_task":
       return command.requestId;
 
     case "subscribe":

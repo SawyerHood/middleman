@@ -1121,6 +1121,64 @@ describe('ManagerWsClient', () => {
     client.destroy()
   })
 
+  it('sends update_task commands and resolves from task_update_result', async () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    const initialTaskRequest = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+    emitServerEvent(socket, {
+      type: 'tasks_snapshot',
+      requestId: initialTaskRequest.requestId,
+      tasks: [],
+    })
+
+    const updatePromise = client.updateTask({
+      taskId: 'task-4',
+      title: 'Refine release notes',
+      description: 'Call out the migration prerequisites.',
+    })
+    const updatePayload = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+
+    expect(updatePayload).toMatchObject({
+      type: 'update_task',
+      taskId: 'task-4',
+      title: 'Refine release notes',
+      description: 'Call out the migration prerequisites.',
+    })
+
+    emitServerEvent(socket, {
+      type: 'task_update_result',
+      requestId: updatePayload.requestId,
+      task: {
+        id: 'task-4',
+        managerId: 'manager',
+        title: 'Refine release notes',
+        description: 'Call out the migration prerequisites.',
+        status: 'pending',
+        createdAt: '2026-01-03T00:00:00.000Z',
+      },
+    })
+
+    await expect(updatePromise).resolves.toMatchObject({
+      id: 'task-4',
+      title: 'Refine release notes',
+      description: 'Call out the migration prerequisites.',
+    })
+
+    client.destroy()
+  })
+
   it('rejects delete_manager when backend returns an error', async () => {
     const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
 
