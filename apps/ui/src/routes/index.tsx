@@ -388,6 +388,12 @@ export function IndexPage() {
     setActiveArtifact(null)
   }, [])
 
+  const statusBanner = state.lastError ? (
+    <div className="border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+      {state.lastError}
+    </div>
+  ) : null
+
   return (
     <main className="h-screen bg-background text-foreground">
       <div className="flex h-screen w-full min-w-0 overflow-hidden bg-background">
@@ -421,18 +427,13 @@ export function IndexPage() {
           ) : null}
 
           <div className="flex min-w-0 flex-1 flex-col">
-            {state.lastError ? (
-              <div className="border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                {state.lastError}
-              </div>
-            ) : null}
-
             {activeView === 'settings' ? (
               <SettingsPanel
                 wsUrl={wsUrl}
                 managers={state.agents.filter((agent) => agent.role === 'manager')}
                 slackStatus={state.slackStatus}
                 telegramStatus={state.telegramStatus}
+                statusBanner={statusBanner}
                 onBack={() =>
                   navigateToRoute({
                     view: 'chat',
@@ -444,6 +445,7 @@ export function IndexPage() {
               <EscalationView
                 escalations={state.escalations}
                 managers={state.agents.filter((agent) => agent.role === 'manager')}
+                statusBanner={statusBanner}
                 onBack={() =>
                   navigateToRoute({
                     view: 'chat',
@@ -477,6 +479,7 @@ export function IndexPage() {
                     setIsMobileSidebarOpen((previous) => !previous)
                   }
                 />
+                {statusBanner}
 
                 <MessageList
                   ref={messageListRef}

@@ -12,6 +12,7 @@ interface SettingsPanelProps {
   slackStatus?: SlackStatusEvent | null
   telegramStatus?: TelegramStatusEvent | null
   onBack?: () => void
+  statusBanner?: React.ReactNode
 }
 
 export function SettingsPanel({
@@ -20,11 +21,17 @@ export function SettingsPanel({
   slackStatus,
   telegramStatus,
   onBack,
+  statusBanner,
 }: SettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
 
   return (
-    <SettingsLayout activeTab={activeTab} onTabChange={setActiveTab} onBack={onBack}>
+    <SettingsLayout
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      onBack={onBack}
+      statusBanner={statusBanner}
+    >
       {activeTab === 'general' && <SettingsGeneral wsUrl={wsUrl} />}
       {activeTab === 'auth' && <SettingsAuth wsUrl={wsUrl} />}
       {activeTab === 'integrations' && (

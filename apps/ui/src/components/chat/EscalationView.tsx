@@ -11,6 +11,7 @@ interface EscalationViewProps {
   escalations: UserEscalation[]
   managers: AgentDescriptor[]
   onBack: () => void
+  statusBanner?: React.ReactNode
   onResolveEscalation: (input: {
     escalationId: string
     choice: string
@@ -23,6 +24,7 @@ export function EscalationView({
   escalations,
   managers,
   onBack,
+  statusBanner,
   onResolveEscalation,
   onToggleMobileSidebar,
 }: EscalationViewProps) {
@@ -153,6 +155,7 @@ export function EscalationView({
         onBack={onBack}
         backAriaLabel="Back to chat"
       />
+      {statusBanner}
 
       {/* Content */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">

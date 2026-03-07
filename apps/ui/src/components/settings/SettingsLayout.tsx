@@ -21,13 +21,21 @@ interface SettingsLayoutProps {
   activeTab: SettingsTab
   onTabChange: (tab: SettingsTab) => void
   onBack?: () => void
+  statusBanner?: React.ReactNode
   children: React.ReactNode
 }
 
-export function SettingsLayout({ activeTab, onTabChange, onBack, children }: SettingsLayoutProps) {
+export function SettingsLayout({
+  activeTab,
+  onTabChange,
+  onBack,
+  statusBanner,
+  children,
+}: SettingsLayoutProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <ViewHeader title="Settings" onBack={onBack} backAriaLabel="Back to chat" />
+      {statusBanner}
 
       {/* Mobile: horizontal scrolling tab bar */}
       <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 bg-card/30 px-2 py-1.5 md:hidden">
