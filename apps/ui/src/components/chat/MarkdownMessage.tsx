@@ -1,5 +1,19 @@
-import { isValidElement, memo, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
-import { AlertCircle, ChevronRight, FileCode2, FileText, ZoomIn } from 'lucide-react'
+import {
+  isValidElement,
+  memo,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+import {
+  AlertCircle,
+  ChevronRight,
+  FileCode2,
+  FileText,
+  ZoomIn,
+} from 'lucide-react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
@@ -28,6 +42,7 @@ interface MarkdownMessageProps {
   variant?: 'message' | 'document'
   onArtifactClick?: (artifact: ArtifactReference) => void
   enableMermaid?: boolean
+  className?: string
 }
 
 type ZoomTarget =
@@ -46,15 +61,25 @@ export const MarkdownMessage = memo(function MarkdownMessage({
   variant = 'message',
   onArtifactClick,
   enableMermaid = false,
+  className,
 }: MarkdownMessageProps) {
   const isDocument = variant === 'document'
   const canExpandContent = isDocument && enableMermaid
-  const normalizedContent = useMemo(() => normalizeArtifactShortcodes(content), [content])
+  const normalizedContent = useMemo(
+    () => normalizeArtifactShortcodes(content),
+    [content],
+  )
   const [zoomTarget, setZoomTarget] = useState<ZoomTarget | null>(null)
 
   return (
     <>
-      <div className={cn('min-w-0 overflow-hidden', isDocument ? 'text-[15px] leading-[1.8]' : 'text-sm leading-relaxed')}>
+      <div
+        className={cn(
+          'min-w-0 overflow-hidden',
+          isDocument ? 'text-[15px] leading-[1.8]' : 'text-sm leading-relaxed',
+          className,
+        )}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           urlTransform={urlTransform}
@@ -152,7 +177,11 @@ export const MarkdownMessage = memo(function MarkdownMessage({
               )
             },
             li({ children }) {
-              return <li className="break-words [&>p]:mb-1.5 [&>p]:last:mb-0 [&>input[type=checkbox]]:pointer-events-none [&>input[type=checkbox]]:mr-1.5 [&>input[type=checkbox]]:accent-primary [&>input[type=checkbox]]:opacity-80">{children}</li>
+              return (
+                <li className="break-words [&>p]:mb-1.5 [&>p]:last:mb-0 [&>input[type=checkbox]]:pointer-events-none [&>input[type=checkbox]]:mr-1.5 [&>input[type=checkbox]]:accent-primary [&>input[type=checkbox]]:opacity-80">
+                  {children}
+                </li>
+              )
             },
             input(props) {
               if (props.type === 'checkbox') {
@@ -178,7 +207,9 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                 <blockquote
                   className={cn(
                     'my-4 border-l-2 pl-4 italic text-muted-foreground',
-                    isDocument ? 'border-primary/30 text-[15px]' : 'border-border text-sm',
+                    isDocument
+                      ? 'border-primary/30 text-[15px]'
+                      : 'border-border text-sm',
                   )}
                 >
                   {children}
@@ -186,12 +217,23 @@ export const MarkdownMessage = memo(function MarkdownMessage({
               )
             },
             hr() {
-              return <hr className={cn('my-6 border-border/50', isDocument && 'my-8')} />
+              return (
+                <hr
+                  className={cn('my-6 border-border/50', isDocument && 'my-8')}
+                />
+              )
             },
             a({ children, href }) {
-              const artifact = parseArtifactReference(href, { title: extractLinkText(children) })
+              const artifact = parseArtifactReference(href, {
+                title: extractLinkText(children),
+              })
               if (artifact && onArtifactClick) {
-                return <ArtifactReferenceCard artifact={artifact} onClick={onArtifactClick} />
+                return (
+                  <ArtifactReferenceCard
+                    artifact={artifact}
+                    onClick={onArtifactClick}
+                  />
+                )
               }
 
               return (
@@ -236,7 +278,13 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setZoomTarget({ type: 'image', src: imageSrc, alt: imageAlt })}
+                  onClick={() =>
+                    setZoomTarget({
+                      type: 'image',
+                      src: imageSrc,
+                      alt: imageAlt,
+                    })
+                  }
                   className={cn(
                     'group/zoom relative my-5 inline-block h-auto w-full cursor-zoom-in overflow-hidden rounded-lg border border-border/55 p-0 text-left',
                     'bg-muted/15 text-left transition-all duration-150',
@@ -280,7 +328,9 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                     <MermaidDiagram
                       code={normalizedCode}
                       expandable={canExpandContent}
-                      onExpand={(svg) => setZoomTarget({ type: 'mermaid', svg })}
+                      onExpand={(svg) =>
+                        setZoomTarget({ type: 'mermaid', svg })
+                      }
                     />
                   )
                 }
@@ -289,7 +339,9 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                   <div className={cn(isDocument ? 'my-5' : 'my-2')}>
                     {language ? (
                       <div className="flex items-center rounded-t-lg border border-b-0 border-border/50 bg-muted/40 px-3 py-1.5">
-                        <span className="font-mono text-[11px] font-medium text-muted-foreground">{language}</span>
+                        <span className="font-mono text-[11px] font-medium text-muted-foreground">
+                          {language}
+                        </span>
                       </div>
                     ) : null}
                     <div
@@ -299,7 +351,14 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                       )}
                     >
                       <pre className="overflow-x-auto p-4">
-                        <code className={cn('font-mono text-foreground/90', isDocument ? 'text-[13px] leading-6' : 'text-xs leading-5')}>
+                        <code
+                          className={cn(
+                            'font-mono text-foreground/90',
+                            isDocument
+                              ? 'text-[13px] leading-6'
+                              : 'text-xs leading-5',
+                          )}
+                        >
                           {normalizedCode}
                         </code>
                       </pre>
@@ -326,7 +385,12 @@ export const MarkdownMessage = memo(function MarkdownMessage({
             },
             table({ children }) {
               return (
-                <div className={cn('my-4 w-full overflow-x-auto', isDocument && 'my-5')}>
+                <div
+                  className={cn(
+                    'my-4 w-full overflow-x-auto',
+                    isDocument && 'my-5',
+                  )}
+                >
                   <table className="w-full border-collapse text-sm">
                     {children}
                   </table>
@@ -348,7 +412,11 @@ export const MarkdownMessage = memo(function MarkdownMessage({
               )
             },
             strong({ children }) {
-              return <strong className="font-semibold text-foreground">{children}</strong>
+              return (
+                <strong className="font-semibold text-foreground">
+                  {children}
+                </strong>
+              )
             },
             em({ children }) {
               return <em className="italic">{children}</em>
@@ -366,7 +434,11 @@ export const MarkdownMessage = memo(function MarkdownMessage({
             setZoomTarget(null)
           }
         }}
-        title={zoomTarget?.type === 'mermaid' ? 'Expanded Mermaid diagram' : 'Expanded image preview'}
+        title={
+          zoomTarget?.type === 'mermaid'
+            ? 'Expanded Mermaid diagram'
+            : 'Expanded image preview'
+        }
       >
         {zoomTarget?.type === 'image' ? (
           <img
@@ -420,7 +492,9 @@ function ArtifactReferenceCard({
         <span className="block truncate text-[13px] font-semibold text-foreground">
           {artifact.title ?? artifact.fileName}
         </span>
-        <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">{artifact.path}</span>
+        <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
+          {artifact.path}
+        </span>
       </span>
 
       <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-all group-hover/card:text-primary">
@@ -498,7 +572,11 @@ function MermaidDiagram({
           return
         }
 
-        setError(renderError instanceof Error ? renderError.message : 'Unable to render Mermaid diagram.')
+        setError(
+          renderError instanceof Error
+            ? renderError.message
+            : 'Unable to render Mermaid diagram.',
+        )
       }
     })()
 
@@ -507,12 +585,15 @@ function MermaidDiagram({
     }
   }, [code, diagramId])
 
-  const canExpand = expandable && !!svg && !error && typeof onExpand === 'function'
+  const canExpand =
+    expandable && !!svg && !error && typeof onExpand === 'function'
 
   return (
     <div className="my-5 overflow-hidden rounded-lg border border-border/50 bg-background">
       <div className="flex items-center justify-between border-b border-border/40 bg-muted/30 px-3 py-1.5">
-        <span className="font-mono text-[11px] font-medium text-muted-foreground">mermaid</span>
+        <span className="font-mono text-[11px] font-medium text-muted-foreground">
+          mermaid
+        </span>
         {canExpand ? (
           <span className="hidden items-center gap-1 text-[11px] text-muted-foreground sm:inline-flex">
             <ZoomIn className="size-3" aria-hidden="true" />
@@ -567,7 +648,9 @@ function MermaidDiagram({
           </ScrollArea>
         )
       ) : (
-        <p className="py-4 text-center text-xs text-muted-foreground">Rendering diagram…</p>
+        <p className="py-4 text-center text-xs text-muted-foreground">
+          Rendering diagram…
+        </p>
       )}
     </div>
   )

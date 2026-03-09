@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, Check, CircleDot, ListTodo, PanelLeft, UserRound, X } from 'lucide-react'
+import {
+  CalendarDays,
+  Check,
+  CircleDot,
+  ListTodo,
+  PanelLeft,
+  UserRound,
+  X,
+} from 'lucide-react'
+import { MarkdownMessage } from '@/components/chat/MarkdownMessage'
 import { ViewHeader } from '@/components/ViewHeader'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -28,15 +37,27 @@ export function EscalationView({
   onResolveEscalation,
   onToggleMobileSidebar,
 }: EscalationViewProps) {
-  const [selectedEscalationId, setSelectedEscalationId] = useState<string | null>(null)
-  const [submittingEscalationId, setSubmittingEscalationId] = useState<string | null>(null)
+  const [selectedEscalationId, setSelectedEscalationId] = useState<
+    string | null
+  >(null)
+  const [submittingEscalationId, setSubmittingEscalationId] = useState<
+    string | null
+  >(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [selectedOptionByEscalationId, setSelectedOptionByEscalationId] = useState<Record<string, string>>({})
-  const [customResponseByEscalationId, setCustomResponseByEscalationId] = useState<Record<string, string>>({})
+  const [selectedOptionByEscalationId, setSelectedOptionByEscalationId] =
+    useState<Record<string, string>>({})
+  const [customResponseByEscalationId, setCustomResponseByEscalationId] =
+    useState<Record<string, string>>({})
   const detailPanelDismissedRef = useRef(false)
 
   const managerNameById = useMemo(
-    () => new Map(managers.map((manager) => [manager.agentId, manager.displayName || manager.agentId])),
+    () =>
+      new Map(
+        managers.map((manager) => [
+          manager.agentId,
+          manager.displayName || manager.agentId,
+        ]),
+      ),
     [managers],
   )
 
@@ -45,10 +66,15 @@ export function EscalationView({
     [escalations],
   )
   const selectedEscalation = useMemo(
-    () => sortedEscalations.find((escalation) => escalation.id === selectedEscalationId) ?? null,
+    () =>
+      sortedEscalations.find(
+        (escalation) => escalation.id === selectedEscalationId,
+      ) ?? null,
     [selectedEscalationId, sortedEscalations],
   )
-  const openEscalationCount = sortedEscalations.filter((escalation) => escalation.status === 'open').length
+  const openEscalationCount = sortedEscalations.filter(
+    (escalation) => escalation.status === 'open',
+  ).length
 
   useEffect(() => {
     if (sortedEscalations.length === 0) {
@@ -58,7 +84,10 @@ export function EscalationView({
     }
 
     const hasSelectedEscalation = Boolean(
-      selectedEscalationId && sortedEscalations.some((escalation) => escalation.id === selectedEscalationId),
+      selectedEscalationId &&
+      sortedEscalations.some(
+        (escalation) => escalation.id === selectedEscalationId,
+      ),
     )
 
     if (hasSelectedEscalation) {
@@ -80,12 +109,23 @@ export function EscalationView({
     setSubmitError(null)
   }, [selectedEscalationId])
 
-  const selectedOption = selectedEscalation ? selectedOptionByEscalationId[selectedEscalation.id] ?? '' : ''
-  const customResponse = selectedEscalation ? customResponseByEscalationId[selectedEscalation.id] ?? '' : ''
+  const selectedOption = selectedEscalation
+    ? (selectedOptionByEscalationId[selectedEscalation.id] ?? '')
+    : ''
+  const customResponse = selectedEscalation
+    ? (customResponseByEscalationId[selectedEscalation.id] ?? '')
+    : ''
   const trimmedCustomResponse = customResponse.trim()
   const isResolved = selectedEscalation?.status === 'resolved'
-  const isSubmitting = selectedEscalation ? submittingEscalationId === selectedEscalation.id : false
-  const canSubmit = Boolean(selectedEscalation && !isResolved && !isSubmitting && (trimmedCustomResponse || selectedOption))
+  const isSubmitting = selectedEscalation
+    ? submittingEscalationId === selectedEscalation.id
+    : false
+  const canSubmit = Boolean(
+    selectedEscalation &&
+    !isResolved &&
+    !isSubmitting &&
+    (trimmedCustomResponse || selectedOption),
+  )
 
   const handleSubmit = async () => {
     if (!selectedEscalation || !canSubmit) {
@@ -105,9 +145,15 @@ export function EscalationView({
         isCustom,
       })
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to send task response.')
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to send task response.',
+      )
     } finally {
-      setSubmittingEscalationId((current) => (current === selectedEscalation.id ? null : current))
+      setSubmittingEscalationId((current) =>
+        current === selectedEscalation.id ? null : current,
+      )
     }
   }
 
@@ -127,8 +173,12 @@ export function EscalationView({
       <ViewHeader
         title={
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold text-foreground">Your Tasks</h1>
-            <p className="truncate text-xs text-muted-foreground">Assigned to you by agents</p>
+            <h1 className="truncate text-sm font-semibold text-foreground">
+              Your Tasks
+            </h1>
+            <p className="truncate text-xs text-muted-foreground">
+              Assigned to you by agents
+            </p>
           </div>
         }
         trailing={
@@ -170,15 +220,20 @@ export function EscalationView({
                 <div className="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-muted/50">
                   <ListTodo className="size-5 text-muted-foreground/50" />
                 </div>
-                <p className="text-sm font-medium text-foreground/70">No tasks yet</p>
+                <p className="text-sm font-medium text-foreground/70">
+                  No tasks yet
+                </p>
                 <p className="mx-auto mt-1.5 max-w-[240px] text-xs leading-relaxed text-muted-foreground/50">
-                  When agents need a decision, approval, or reply, it will appear here.
+                  When agents need a decision, approval, or reply, it will
+                  appear here.
                 </p>
               </div>
             ) : (
               <div className="py-1">
                 {sortedEscalations.map((escalation) => {
-                  const managerName = managerNameById.get(escalation.managerId) ?? escalation.managerId
+                  const managerName =
+                    managerNameById.get(escalation.managerId) ??
+                    escalation.managerId
                   const isSelected = selectedEscalationId === escalation.id
 
                   return (
@@ -188,18 +243,22 @@ export function EscalationView({
                       onClick={() => handleSelectEscalation(escalation.id)}
                       className={cn(
                         'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75',
-                        isSelected
-                          ? 'bg-muted/60'
-                          : 'hover:bg-muted/30',
+                        isSelected ? 'bg-muted/60' : 'hover:bg-muted/30',
                       )}
                     >
                       <StatusDot status={escalation.status} />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[13px] font-medium text-foreground/90">{escalation.title}</div>
+                        <div className="truncate text-[13px] font-medium text-foreground/90">
+                          {escalation.title}
+                        </div>
                         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
                           <span className="truncate">{managerName}</span>
-                          <span className="shrink-0 text-muted-foreground/30">&middot;</span>
-                          <span className="shrink-0">{formatRelativeTime(escalation.createdAt)}</span>
+                          <span className="shrink-0 text-muted-foreground/30">
+                            &middot;
+                          </span>
+                          <span className="shrink-0">
+                            {formatRelativeTime(escalation.createdAt)}
+                          </span>
                         </div>
                       </div>
                       {escalation.status === 'open' ? (
@@ -229,7 +288,9 @@ export function EscalationView({
         <aside
           className={cn(
             'fixed inset-y-0 right-0 z-30 w-full max-w-[34rem] border-l border-border/30 bg-background transition-transform duration-150 ease-out md:static md:z-0 md:max-w-none md:overflow-hidden md:transition-[width,transform]',
-            selectedEscalation ? 'translate-x-0 md:w-[28rem]' : 'translate-x-full md:w-0',
+            selectedEscalation
+              ? 'translate-x-0 md:w-[28rem]'
+              : 'translate-x-full md:w-0',
           )}
         >
           {selectedEscalation ? (
@@ -239,9 +300,12 @@ export function EscalationView({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <StatusBadge status={selectedEscalation.status} />
-                    <span className="text-[11px] text-muted-foreground/50">&middot;</span>
+                    <span className="text-[11px] text-muted-foreground/50">
+                      &middot;
+                    </span>
                     <span className="truncate text-[11px] text-muted-foreground/60">
-                      {managerNameById.get(selectedEscalation.managerId) ?? selectedEscalation.managerId}
+                      {managerNameById.get(selectedEscalation.managerId) ??
+                        selectedEscalation.managerId}
                     </span>
                   </div>
                   <h2 className="mt-2.5 text-[15px] font-semibold leading-snug text-foreground">
@@ -269,7 +333,8 @@ export function EscalationView({
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <UserRound className="size-3 opacity-60" />
-                  {managerNameById.get(selectedEscalation.managerId) ?? selectedEscalation.managerId}
+                  {managerNameById.get(selectedEscalation.managerId) ??
+                    selectedEscalation.managerId}
                 </span>
               </div>
 
@@ -279,9 +344,10 @@ export function EscalationView({
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
                     Description
                   </p>
-                  <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground/80">
-                    {selectedEscalation.description}
-                  </p>
+                  <MarkdownMessage
+                    content={selectedEscalation.description}
+                    className="text-[13px] leading-relaxed text-foreground/80"
+                  />
                 </section>
 
                 {/* Response */}
@@ -291,14 +357,13 @@ export function EscalationView({
                   </p>
 
                   {isResolved ? (
-                    <ResolvedEscalationResponse escalation={selectedEscalation} />
+                    <ResolvedEscalationResponse
+                      escalation={selectedEscalation}
+                    />
                   ) : (
                     <div className="space-y-4">
                       {selectedEscalation.options.length > 0 ? (
                         <div className="space-y-1.5">
-                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
-                            Suggested responses
-                          </p>
                           {selectedEscalation.options.map((option) => {
                             const isOptionSelected = selectedOption === option
 
@@ -311,13 +376,16 @@ export function EscalationView({
                                   isOptionSelected
                                     ? 'bg-primary/10 text-foreground ring-1 ring-primary/30'
                                     : 'text-foreground/80 hover:bg-muted/50 ring-1 ring-border/40 hover:ring-border/60',
-                                  isSubmitting && 'opacity-50 pointer-events-none',
+                                  isSubmitting &&
+                                    'opacity-50 pointer-events-none',
                                 )}
                                 onClick={() =>
-                                  setSelectedOptionByEscalationId((current) => ({
-                                    ...current,
-                                    [selectedEscalation.id]: option,
-                                  }))
+                                  setSelectedOptionByEscalationId(
+                                    (current) => ({
+                                      ...current,
+                                      [selectedEscalation.id]: option,
+                                    }),
+                                  )
                                 }
                                 disabled={isSubmitting}
                               >
@@ -329,7 +397,12 @@ export function EscalationView({
                                       : 'border-muted-foreground/30',
                                   )}
                                 >
-                                  {isOptionSelected ? <Check className="size-2.5" strokeWidth={3} /> : null}
+                                  {isOptionSelected ? (
+                                    <Check
+                                      className="size-2.5"
+                                      strokeWidth={3}
+                                    />
+                                  ) : null}
                                 </span>
                                 <span className="flex-1">{option}</span>
                               </button>
@@ -342,7 +415,9 @@ export function EscalationView({
                       {selectedEscalation.options.length > 0 ? (
                         <div className="flex items-center gap-3 px-1">
                           <div className="h-px flex-1 bg-border/30" />
-                          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/35">or</span>
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/35">
+                            or
+                          </span>
                           <div className="h-px flex-1 bg-border/30" />
                         </div>
                       ) : null}
@@ -370,8 +445,8 @@ export function EscalationView({
                           {trimmedCustomResponse
                             ? 'Your custom response will be sent.'
                             : selectedOption
-                              ? 'Suggested response will be sent.'
-                              : 'Choose a suggested response or write your own.'}
+                              ? 'Your selected response will be sent.'
+                              : 'Choose a response or write your own.'}
                         </p>
                         <Button
                           type="button"
@@ -387,7 +462,9 @@ export function EscalationView({
                       </div>
 
                       {submitError ? (
-                        <p className="rounded-md bg-destructive/5 px-3 py-2 text-[11px] text-destructive">{submitError}</p>
+                        <p className="rounded-md bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+                          {submitError}
+                        </p>
                       ) : null}
                     </div>
                   )}
@@ -401,15 +478,24 @@ export function EscalationView({
   )
 }
 
-function ResolvedEscalationResponse({ escalation }: { escalation: UserEscalation }) {
+function ResolvedEscalationResponse({
+  escalation,
+}: {
+  escalation: UserEscalation
+}) {
   const responseText = escalation.response?.choice ?? 'Resolved by agent'
-  const responseBadgeLabel = escalation.response?.isCustom ? 'Custom response' : 'Suggested response'
+  const responseBadgeLabel = escalation.response?.isCustom
+    ? 'Custom response'
+    : 'Response'
 
   return (
     <div className="rounded-lg bg-emerald-500/5 p-4">
       <div className="mb-2.5 flex items-center gap-2">
         <span className="flex size-5 items-center justify-center rounded-full bg-emerald-500/15">
-          <Check className="size-3 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} />
+          <Check
+            className="size-3 text-emerald-600 dark:text-emerald-400"
+            strokeWidth={2.5}
+          />
         </span>
         {escalation.response ? (
           <span className="text-[10px] font-medium uppercase tracking-wide text-emerald-600/70 dark:text-emerald-400/70">
@@ -417,7 +503,9 @@ function ResolvedEscalationResponse({ escalation }: { escalation: UserEscalation
           </span>
         ) : null}
       </div>
-      <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground/80">{responseText}</p>
+      <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground/80">
+        {responseText}
+      </p>
       {escalation.resolvedAt ? (
         <p className="mt-3 text-[11px] text-muted-foreground/50">
           Resolved {formatDateTime(escalation.resolvedAt)}
@@ -471,7 +559,10 @@ function StatusBadge({ status }: { status: UserEscalation['status'] }) {
   )
 }
 
-function compareEscalations(left: UserEscalation, right: UserEscalation): number {
+function compareEscalations(
+  left: UserEscalation,
+  right: UserEscalation,
+): number {
   if (left.status !== right.status) {
     return left.status === 'open' ? -1 : 1
   }
