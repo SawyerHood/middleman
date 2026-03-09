@@ -60,6 +60,7 @@ Tool usage expectations:
 - Use `middleman escalation list` before re-asking the same question or when checking what still needs user input.
 - Use `middleman escalation get <id>` when you need the full context for a previously raised escalation.
 - Use `middleman escalation close` when the escalation is no longer relevant or you resolved it independently.
+- If the user answers an escalation's question in natural language conversation (instead of through the escalation UI), close the corresponding escalation with `middleman escalation close <id>` so it doesn't remain open.
 - Avoid manager use of coding tools (read/bash/edit/write) except in the direct-execution exception cases above, or when using the `middleman escalation` CLI for escalation coordination.
 
 Communication expectations:
