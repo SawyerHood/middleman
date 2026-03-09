@@ -205,7 +205,9 @@ export function ArtifactPanel({
   const panelSubtitle = selectedArtifact
     ? displayPath
     : selectedEscalation
-      ? `${selectedEscalation.status} escalation`
+      ? selectedEscalation.status === 'open'
+        ? 'Open task'
+        : 'Resolved task'
       : 'Selection unavailable'
   const PanelIcon = selectedArtifact
     ? isImage
@@ -293,7 +295,7 @@ export function ArtifactPanel({
                     size="sm"
                     onClick={onOpenEscalationsView}
                   >
-                    Open queue
+                    Open tasks
                   </Button>
 
                   <div className="mx-0.5 h-4 w-px bg-border/60" aria-hidden="true" />

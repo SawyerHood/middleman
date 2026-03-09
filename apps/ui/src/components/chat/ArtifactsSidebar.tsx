@@ -407,7 +407,7 @@ export function ArtifactsSidebar({
               value="escalations"
               className="h-6 rounded-sm px-2.5 text-[11px] font-medium data-active:bg-background data-active:text-foreground data-active:shadow-sm"
             >
-              Escalations
+              Tasks
             </TabsTrigger>
             <TabsTrigger
               value="schedules"
@@ -474,10 +474,10 @@ export function ArtifactsSidebar({
               <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
                 <ListTodo className="mb-2 size-8 text-muted-foreground/40" aria-hidden="true" />
                 <p className="text-xs text-muted-foreground">
-                  No escalations yet
+                  No tasks yet
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground/70">
-                  Open questions and approvals for this manager will appear here.
+                  Requests and approvals from this manager will appear here.
                 </p>
               </div>
             ) : (

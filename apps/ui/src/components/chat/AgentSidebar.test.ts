@@ -251,7 +251,7 @@ describe('AgentSidebar', () => {
     const sidebar = getPrimarySidebar()
 
     expect(within(sidebar).getByText('1')).toBeTruthy()
-    click(within(sidebar).getByRole('button', { name: /^Escalations/ }))
+    click(within(sidebar).getByRole('button', { name: /^Your Tasks/ }))
     expect(onOpenEscalations).toHaveBeenCalledTimes(1)
   })
 

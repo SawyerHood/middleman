@@ -105,7 +105,7 @@ export function EscalationView({
         isCustom,
       })
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to resolve escalation.')
+      setSubmitError(error instanceof Error ? error.message : 'Failed to send task response.')
     } finally {
       setSubmittingEscalationId((current) => (current === selectedEscalation.id ? null : current))
     }
@@ -126,19 +126,22 @@ export function EscalationView({
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <ViewHeader
         title={
-          <div className="flex min-w-0 items-center gap-2.5">
-            <h1 className="text-sm font-semibold text-foreground">Escalations</h1>
-            {openEscalationCount > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium tabular-nums text-amber-600 dark:text-amber-400">
-                <span className="size-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
-                {openEscalationCount} open
-              </span>
-            ) : (
-              <span className="text-xs tabular-nums text-muted-foreground/60">
-                {sortedEscalations.length} total
-              </span>
-            )}
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-semibold text-foreground">Your Tasks</h1>
+            <p className="truncate text-xs text-muted-foreground">Assigned to you by agents</p>
           </div>
+        }
+        trailing={
+          openEscalationCount > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium tabular-nums text-amber-600 dark:text-amber-400">
+              <span className="size-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
+              {openEscalationCount} open
+            </span>
+          ) : (
+            <span className="text-xs tabular-nums text-muted-foreground/60">
+              {sortedEscalations.length} total
+            </span>
+          )
         }
         leading={
           <Button
@@ -167,9 +170,9 @@ export function EscalationView({
                 <div className="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-muted/50">
                   <ListTodo className="size-5 text-muted-foreground/50" />
                 </div>
-                <p className="text-sm font-medium text-foreground/70">No escalations yet</p>
+                <p className="text-sm font-medium text-foreground/70">No tasks yet</p>
                 <p className="mx-auto mt-1.5 max-w-[240px] text-xs leading-relaxed text-muted-foreground/50">
-                  When agents need a decision or hit a blocker, it will appear here.
+                  When agents need a decision, approval, or reply, it will appear here.
                 </p>
               </div>
             ) : (
@@ -217,7 +220,7 @@ export function EscalationView({
           <button
             type="button"
             className="fixed inset-0 z-20 bg-black/20 backdrop-blur-[1px] md:hidden"
-            aria-label="Close escalation details"
+            aria-label="Close task details"
             onClick={handleCloseDetails}
           />
         ) : null}
@@ -251,7 +254,7 @@ export function EscalationView({
                   variant="ghost"
                   size="icon-sm"
                   onClick={handleCloseDetails}
-                  aria-label="Close escalation details"
+                  aria-label="Close task details"
                   className="mt-0.5 shrink-0 text-muted-foreground/50 hover:text-foreground"
                 >
                   <X className="size-4" />
@@ -291,9 +294,11 @@ export function EscalationView({
                     <ResolvedEscalationResponse escalation={selectedEscalation} />
                   ) : (
                     <div className="space-y-4">
-                      {/* Option buttons */}
                       {selectedEscalation.options.length > 0 ? (
                         <div className="space-y-1.5">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
+                            Suggested responses
+                          </p>
                           {selectedEscalation.options.map((option) => {
                             const isOptionSelected = selectedOption === option
 
@@ -363,10 +368,10 @@ export function EscalationView({
                       <div className="flex items-center justify-between gap-3 pt-1">
                         <p className="text-[11px] text-muted-foreground/50">
                           {trimmedCustomResponse
-                            ? 'Custom response will be sent.'
+                            ? 'Your custom response will be sent.'
                             : selectedOption
-                              ? 'Selected option will be sent.'
-                              : 'Choose an option or write a response.'}
+                              ? 'Suggested response will be sent.'
+                              : 'Choose a suggested response or write your own.'}
                         </p>
                         <Button
                           type="button"
@@ -398,7 +403,7 @@ export function EscalationView({
 
 function ResolvedEscalationResponse({ escalation }: { escalation: UserEscalation }) {
   const responseText = escalation.response?.choice ?? 'Resolved by agent'
-  const responseBadgeLabel = escalation.response?.isCustom ? 'Custom response' : 'Selected option'
+  const responseBadgeLabel = escalation.response?.isCustom ? 'Custom response' : 'Suggested response'
 
   return (
     <div className="rounded-lg bg-emerald-500/5 p-4">

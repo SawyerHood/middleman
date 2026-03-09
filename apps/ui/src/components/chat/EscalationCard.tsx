@@ -68,7 +68,7 @@ export function EscalationCard({
         isCustom,
       })
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to resolve escalation.')
+      setSubmitError(error instanceof Error ? error.message : 'Failed to send task response.')
     } finally {
       setIsSubmitting(false)
     }
@@ -121,7 +121,7 @@ export function EscalationCard({
               {escalation.response
                 ? escalation.response.isCustom
                   ? 'Custom response'
-                  : 'Selected option'
+                  : 'Suggested response'
                 : 'Resolved'}
             </div>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
@@ -138,7 +138,7 @@ export function EscalationCard({
             {escalation.options.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Choose an option
+                  Suggested responses
                 </p>
                 <div className="flex flex-col gap-2">
                   {escalation.options.map((option) => {
@@ -178,7 +178,7 @@ export function EscalationCard({
 
             <div className="space-y-2">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Custom response
+                Write your own
               </p>
               <Textarea
                 value={customResponse}
@@ -193,10 +193,10 @@ export function EscalationCard({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[11px] text-muted-foreground">
                 {trimmedCustomResponse
-                  ? 'Custom response will be sent to the manager.'
+                  ? 'Your custom response will be sent.'
                   : selectedOption
-                    ? 'Selected option will be sent to the manager.'
-                    : 'Choose an option or enter a custom response.'}
+                    ? 'Suggested response will be sent.'
+                    : 'Pick a suggested response or write your own.'}
               </p>
 
               <div className="flex items-center gap-2">
@@ -207,7 +207,7 @@ export function EscalationCard({
                     size="sm"
                     onClick={onOpenEscalationsView}
                   >
-                    Open queue
+                    Open tasks
                   </Button>
                 ) : null}
                 <Button

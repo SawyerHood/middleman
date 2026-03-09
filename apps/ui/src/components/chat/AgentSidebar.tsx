@@ -520,7 +520,7 @@ export function AgentSidebar({
             aria-pressed={isEscalationsActive}
           >
             <ListTodo aria-hidden="true" className="size-4" />
-            <span className="flex-1 text-left">Escalations</span>
+            <span className="flex-1 text-left">Your Tasks</span>
             {openEscalationCount > 0 ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium tabular-nums text-amber-600 dark:text-amber-400">
                 <span className="size-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />

@@ -104,7 +104,7 @@ function renderEscalationView(
 }
 
 function getDetailCloseButton(): HTMLButtonElement {
-  const button = container.querySelector('aside button[aria-label="Close escalation details"]')
+  const button = container.querySelector('aside button[aria-label="Close task details"]')
   if (!(button instanceof HTMLButtonElement)) {
     throw new Error('Expected close button to render in escalation detail panel')
   }
