@@ -164,10 +164,15 @@ export class PersistenceService {
     };
 
     const target = this.deps.config.paths.agentsStoreFile;
-    const tmp = `${target}.tmp`;
+    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
     await mkdir(dirname(target), { recursive: true });
     await writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-    await rename(tmp, target);
+    try {
+      await rename(tmp, target);
+    } catch (error) {
+      await unlink(tmp).catch(() => {});
+      throw error;
+    }
   }
 
   async saveManagerOrder(): Promise<void> {
