@@ -13,7 +13,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { ChevronDown, ChevronRight, CircleDashed, GripVertical, ListTodo, Settings, SquarePen, UserStar, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleDashed, ListTodo, Settings, SquarePen, UserStar, X } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { useState } from 'react'
@@ -324,7 +324,6 @@ function SortableManagerRow({
     attributes,
     isDragging,
     listeners,
-    setActivatorNodeRef,
     setNodeRef,
     transform,
     transition,
@@ -353,7 +352,11 @@ function SortableManagerRow({
           isDragging ? 'rounded-md shadow-lg shadow-black/10 ring-1 ring-sidebar-ring/40' : undefined,
         )}
       >
-        <div className="relative flex items-center">
+        <div
+          className="relative flex items-center"
+          {...attributes}
+          {...listeners}
+        >
           <AgentRow
             agent={manager}
             liveStatus={managerLiveStatus}
@@ -361,7 +364,7 @@ function SortableManagerRow({
             onSelect={onSelectManager}
             onDelete={onDeleteManager}
             nameClassName="font-semibold"
-            className="min-w-0 flex-1 py-1.5 pl-12 pr-1.5"
+            className="min-w-0 flex-1 py-1.5 pl-8 pr-1.5"
             streamingWorkerCount={isCollapsed ? streamingWorkerCount : undefined}
           />
 
@@ -401,24 +404,6 @@ function SortableManagerRow({
                 </>
               )}
             </span>
-          </button>
-
-          <button
-            ref={setActivatorNodeRef}
-            type="button"
-            aria-label={`Reorder manager ${manager.agentId}`}
-            disabled={isDragDisabled}
-            className={cn(
-              'absolute left-6 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground/60 transition',
-              isDragDisabled
-                ? 'cursor-default opacity-40'
-                : 'cursor-grab hover:text-sidebar-foreground active:cursor-grabbing',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
-            )}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical aria-hidden="true" className="size-3.5" />
           </button>
         </div>
 
