@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -60,7 +60,7 @@ export function createHealthRoutes(options: { resolveRepoRoot: () => string }): 
         sendJson(response, 200, { ok: true });
 
         const rebootTimer = setTimeout(() => {
-          triggerRebootSignal(resolveRepoRoot());
+          void triggerRebootSignal(resolveRepoRoot());
         }, 25);
         rebootTimer.unref();
       }
@@ -68,9 +68,9 @@ export function createHealthRoutes(options: { resolveRepoRoot: () => string }): 
   ];
 }
 
-function triggerRebootSignal(repoRoot: string): void {
+async function triggerRebootSignal(repoRoot: string): Promise<void> {
   try {
-    const daemonPid = resolveProdDaemonPid(repoRoot);
+    const daemonPid = await resolveProdDaemonPid(repoRoot);
     const targetPid = daemonPid ?? process.pid;
 
     process.kill(targetPid, RESTART_SIGNAL);
@@ -80,13 +80,25 @@ function triggerRebootSignal(repoRoot: string): void {
   }
 }
 
-function resolveProdDaemonPid(repoRoot: string): number | null {
+async function resolveProdDaemonPid(repoRoot: string): Promise<number | null> {
   const pidFile = getProdDaemonPidFile(repoRoot);
-  if (!existsSync(pidFile)) {
-    return null;
+  let pidFileContents: string;
+  try {
+    pidFileContents = await readFile(pidFile, "utf8");
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "ENOENT"
+    ) {
+      return null;
+    }
+
+    throw error;
   }
 
-  const pid = Number.parseInt(readFileSync(pidFile, "utf8").trim(), 10);
+  const pid = Number.parseInt(pidFileContents.trim(), 10);
   if (!Number.isInteger(pid) || pid <= 0) {
     return null;
   }
@@ -101,7 +113,7 @@ function resolveProdDaemonPid(repoRoot: string): number | null {
       "code" in error &&
       (error as { code?: string }).code === "ESRCH"
     ) {
-      rmSync(pidFile, { force: true });
+      await rm(pidFile, { force: true });
     }
 
     return null;

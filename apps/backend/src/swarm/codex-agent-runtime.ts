@@ -78,6 +78,7 @@ export class CodexAgentRuntime implements SwarmAgentRuntime {
   private readonly requiresManualCustomEntryPersistence: boolean;
   private readonly toolBridge: CodexToolBridge;
   private readonly sandboxSettings: CodexSandboxSettings;
+  private readonly pendingCustomEntryPersistence = new Set<Promise<void>>();
 
   private readonly rpc: CodexJsonRpcClient;
 
@@ -240,6 +241,7 @@ export class CodexAgentRuntime implements SwarmAgentRuntime {
     }
 
     this.rpc.dispose();
+    await this.waitForCustomEntryPersistence();
 
     this.pendingDeliveries = [];
     this.queuedSteers = [];
@@ -309,13 +311,38 @@ export class CodexAgentRuntime implements SwarmAgentRuntime {
     }
 
     try {
-      persistSessionEntryForCustomRuntime(this.sessionManager, entryId);
+      this.trackCustomEntryPersistence(
+        customType,
+        persistSessionEntryForCustomRuntime(this.sessionManager, entryId)
+      );
     } catch (error) {
       this.logRuntimeError("startup", error, {
         action: "persist_custom_entry",
         customType
       });
     }
+  }
+
+  private trackCustomEntryPersistence(customType: string, persistence: Promise<void>): void {
+    this.pendingCustomEntryPersistence.add(persistence);
+    void persistence
+      .catch((error) => {
+        this.logRuntimeError("startup", error, {
+          action: "persist_custom_entry",
+          customType
+        });
+      })
+      .finally(() => {
+        this.pendingCustomEntryPersistence.delete(persistence);
+      });
+  }
+
+  private async waitForCustomEntryPersistence(): Promise<void> {
+    if (this.pendingCustomEntryPersistence.size === 0) {
+      return;
+    }
+
+    await Promise.allSettled(Array.from(this.pendingCustomEntryPersistence));
   }
 
   private async initialize(): Promise<void> {

@@ -1,6 +1,8 @@
-import { appendFileSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
+
+const pendingSessionWrites = new Map<string, Promise<void>>();
 
 export function requiresManualCustomEntryPersistence(sessionManager: SessionManager): boolean {
   return !sessionManager.getEntries().some((entry) => {
@@ -16,41 +18,62 @@ export function requiresManualCustomEntryPersistence(sessionManager: SessionMana
 export function persistSessionEntryForCustomRuntime(
   sessionManager: SessionManager,
   entryId: string
-): void {
+): Promise<void> {
   const sessionFile = sessionManager.getSessionFile();
   if (!sessionFile) {
-    return;
+    return Promise.resolve();
   }
 
   const entry = sessionManager.getEntry(entryId);
   if (!entry) {
-    return;
+    return Promise.resolve();
   }
 
-  mkdirSync(dirname(sessionFile), { recursive: true });
+  return enqueueSessionWrite(sessionFile, async () => {
+    await mkdir(dirname(sessionFile), { recursive: true });
 
-  if (!existsSync(sessionFile) || isEmptyFile(sessionFile)) {
-    persistSessionSnapshot(sessionManager, sessionFile);
-    return;
-  }
+    if (await isMissingOrEmptyFile(sessionFile)) {
+      await persistSessionSnapshot(sessionManager, sessionFile);
+      return;
+    }
 
-  appendFileSync(sessionFile, `${JSON.stringify(entry)}\n`);
+    await appendFile(sessionFile, `${JSON.stringify(entry)}\n`, "utf8");
+  });
 }
 
-function isEmptyFile(path: string): boolean {
+async function isMissingOrEmptyFile(path: string): Promise<boolean> {
   try {
-    return statSync(path).size === 0;
+    return (await stat(path)).size === 0;
   } catch {
     return true;
   }
 }
 
-function persistSessionSnapshot(sessionManager: SessionManager, sessionFile: string): void {
+function enqueueSessionWrite(
+  sessionFile: string,
+  operation: () => Promise<void>
+): Promise<void> {
+  const previous = pendingSessionWrites.get(sessionFile) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(operation);
+
+  pendingSessionWrites.set(sessionFile, next);
+
+  return next.finally(() => {
+    if (pendingSessionWrites.get(sessionFile) === next) {
+      pendingSessionWrites.delete(sessionFile);
+    }
+  });
+}
+
+async function persistSessionSnapshot(
+  sessionManager: SessionManager,
+  sessionFile: string
+): Promise<void> {
   const header = sessionManager.getHeader();
   if (!header) {
     return;
   }
 
   const lines = [header, ...sessionManager.getEntries()].map((entry) => JSON.stringify(entry));
-  writeFileSync(sessionFile, `${lines.join("\n")}\n`, "utf8");
+  await writeFile(sessionFile, `${lines.join("\n")}\n`, "utf8");
 }
