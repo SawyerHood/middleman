@@ -1942,6 +1942,80 @@ describe('SwarmWebSocketServer', () => {
     await server.stop()
   })
 
+  it('reorders managers over websocket and broadcasts manager_order_updated', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port, true)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const opsManager = await manager.createManager('manager', {
+      name: 'Ops Manager',
+      cwd: config.defaultCwd,
+    })
+    const qaManager = await manager.createManager('manager', {
+      name: 'QA Manager',
+      cwd: config.defaultCwd,
+    })
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    const clientA = new WebSocket(`ws://${config.host}:${config.port}`)
+    const clientB = new WebSocket(`ws://${config.host}:${config.port}`)
+    const clientAEvents: ServerEvent[] = []
+    const clientBEvents: ServerEvent[] = []
+
+    clientA.on('message', (raw) => {
+      clientAEvents.push(JSON.parse(raw.toString()) as ServerEvent)
+    })
+    clientB.on('message', (raw) => {
+      clientBEvents.push(JSON.parse(raw.toString()) as ServerEvent)
+    })
+
+    await Promise.all([once(clientA, 'open'), once(clientB, 'open')])
+    clientA.send(JSON.stringify({ type: 'subscribe' }))
+    clientB.send(JSON.stringify({ type: 'subscribe' }))
+    await waitForEvent(clientAEvents, (event) => event.type === 'ready')
+    await waitForEvent(clientBEvents, (event) => event.type === 'ready')
+
+    const reorderedManagerIds = [qaManager.agentId, 'manager', opsManager.agentId]
+    clientA.send(JSON.stringify({ type: 'reorder_managers', managerIds: reorderedManagerIds }))
+
+    const reorderedEventA = await waitForEvent(
+      clientAEvents,
+      (event) =>
+        event.type === 'manager_order_updated' &&
+        JSON.stringify(event.managerIds) === JSON.stringify(reorderedManagerIds),
+    )
+    const reorderedEventB = await waitForEvent(
+      clientBEvents,
+      (event) =>
+        event.type === 'manager_order_updated' &&
+        JSON.stringify(event.managerIds) === JSON.stringify(reorderedManagerIds),
+    )
+
+    expect(reorderedEventA.type).toBe('manager_order_updated')
+    expect(reorderedEventB.type).toBe('manager_order_updated')
+    expect(
+      manager
+        .listAgents()
+        .filter((agent) => agent.role === 'manager')
+        .map((agent) => agent.agentId),
+    ).toEqual(reorderedManagerIds)
+
+    clientA.close()
+    clientB.close()
+    await Promise.all([once(clientA, 'close'), once(clientB, 'close')])
+    await server.stop()
+  })
+
   it('supports deleting the selected last manager and creating a replacement manager', async () => {
     const port = await getAvailablePort()
     const config = await makeTempConfig(port, true)

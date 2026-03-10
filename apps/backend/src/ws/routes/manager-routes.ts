@@ -61,6 +61,38 @@ export async function handleManagerCommand(context: ManagerCommandRouteContext):
     return true;
   }
 
+  if (command.type === "reorder_managers") {
+    const managerContextId = resolveManagerContextAgentId(subscribedAgentId);
+    if (!managerContextId) {
+      send(socket, {
+        type: "error",
+        code: "UNKNOWN_AGENT",
+        message: `Agent ${subscribedAgentId} does not exist.`,
+        requestId: command.requestId
+      });
+      return true;
+    }
+
+    try {
+      const managerIds = await swarmManager.reorderManagers(managerContextId, command.managerIds);
+
+      broadcastToSubscribed({
+        type: "manager_order_updated",
+        managerIds,
+        requestId: command.requestId
+      });
+    } catch (error) {
+      send(socket, {
+        type: "error",
+        code: "REORDER_MANAGERS_FAILED",
+        message: error instanceof Error ? error.message : String(error),
+        requestId: command.requestId
+      });
+    }
+
+    return true;
+  }
+
   if (command.type === "delete_manager") {
     const managerContextId = resolveManagerContextAgentId(subscribedAgentId);
     if (!managerContextId) {

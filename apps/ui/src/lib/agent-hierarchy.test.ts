@@ -41,10 +41,10 @@ function worker(agentId: string, managerId: string): AgentDescriptor {
 }
 
 describe('agent-hierarchy', () => {
-  it('groups workers under owning managers', () => {
+  it('groups workers under owning managers without re-sorting manager order', () => {
     const agents: AgentDescriptor[] = [
-      manager('manager'),
       manager('manager-2', 'manager'),
+      manager('manager'),
       worker('worker-a', 'manager'),
       worker('worker-b', 'manager-2'),
       worker('worker-orphan', 'missing-manager'),
@@ -53,21 +53,21 @@ describe('agent-hierarchy', () => {
     const { managerRows, orphanWorkers } = buildManagerTreeRows(agents)
 
     expect(managerRows).toHaveLength(2)
-    expect(managerRows[0]?.manager.agentId).toBe('manager')
-    expect(managerRows[0]?.workers.map((entry) => entry.agentId)).toEqual(['worker-a'])
-    expect(managerRows[1]?.manager.agentId).toBe('manager-2')
-    expect(managerRows[1]?.workers.map((entry) => entry.agentId)).toEqual(['worker-b'])
+    expect(managerRows[0]?.manager.agentId).toBe('manager-2')
+    expect(managerRows[0]?.workers.map((entry) => entry.agentId)).toEqual(['worker-b'])
+    expect(managerRows[1]?.manager.agentId).toBe('manager')
+    expect(managerRows[1]?.workers.map((entry) => entry.agentId)).toEqual(['worker-a'])
     expect(orphanWorkers.map((entry) => entry.agentId)).toEqual(['worker-orphan'])
   })
 
-  it('prefers the legacy default manager id when choosing a primary manager', () => {
-    const agents: AgentDescriptor[] = [manager('manager'), manager('manager-2', 'manager')]
-    expect(getPrimaryManagerId(agents)).toBe('manager')
+  it('chooses a primary manager from the incoming manager order', () => {
+    const agents: AgentDescriptor[] = [manager('manager-2', 'manager'), manager('manager')]
+    expect(getPrimaryManagerId(agents)).toBe('manager-2')
   })
 
-  it('falls back to created-order manager selection when no legacy manager id exists', () => {
+  it('supports an explicit manager order override', () => {
     const agents: AgentDescriptor[] = [manager('beta'), manager('alpha')]
-    expect(getPrimaryManagerId(agents)).toBe('alpha')
+    expect(getPrimaryManagerId(agents, ['alpha', 'beta'])).toBe('alpha')
   })
 
   it('chooses fallback target preferring a primary manager', () => {
@@ -77,8 +77,8 @@ describe('agent-hierarchy', () => {
       worker('worker-a', 'manager-2'),
     ]
 
-    expect(chooseFallbackAgentId(agents, 'worker-a')).toBe('worker-a')
-    expect(chooseFallbackAgentId(agents, 'missing-agent')).toBe('manager')
+    expect(chooseFallbackAgentId(agents, [], 'worker-a')).toBe('worker-a')
+    expect(chooseFallbackAgentId(agents, ['manager-2', 'manager'], 'missing-agent')).toBe('manager-2')
   })
 
   it('treats stopped and errored agents as inactive', () => {
@@ -90,6 +90,6 @@ describe('agent-hierarchy', () => {
     expect(managerRows).toHaveLength(0)
     expect(orphanWorkers).toHaveLength(0)
     expect(getPrimaryManagerId([stoppedManager])).toBeNull()
-    expect(chooseFallbackAgentId([stoppedManager, erroredWorker], null)).toBeNull()
+    expect(chooseFallbackAgentId([stoppedManager, erroredWorker], [], null)).toBeNull()
   })
 })

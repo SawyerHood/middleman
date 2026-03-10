@@ -211,12 +211,21 @@ function areContextUsagesEqual(
   );
 }
 
+function compareDescriptorsByCreatedAtThenId(left: AgentDescriptor, right: AgentDescriptor): number {
+  if (left.createdAt !== right.createdAt) {
+    return left.createdAt.localeCompare(right.createdAt);
+  }
+
+  return left.agentId.localeCompare(right.agentId);
+}
+
 export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private readonly config: SwarmConfig;
   private readonly now: () => string;
   private readonly defaultModelPreset: SwarmModelPreset;
 
   private readonly descriptors = new Map<string, AgentDescriptor>();
+  private managerOrder: string[] = [];
   private readonly runtimes = new Map<string, SwarmAgentRuntime>();
   private readonly conversationEntriesByAgentId = new Map<string, ConversationEntryEvent[]>();
   private readonly conversationProjector: ConversationProjector;
@@ -242,6 +251,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       config: this.config,
       descriptors: this.descriptors,
       sortedDescriptors: () => this.sortedDescriptors(),
+      getManagerOrder: () => [...this.managerOrder],
       getConfiguredManagerId: () => this.getConfiguredManagerId(),
       resolveMemoryOwnerAgentId: (descriptor) => this.resolveMemoryOwnerAgentId(descriptor),
       validateAgentDescriptor,
@@ -327,6 +337,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     for (const descriptor of loaded.agents) {
       this.descriptors.set(descriptor.agentId, descriptor);
     }
+    this.managerOrder = this.sanitizeManagerOrder(await this.loadManagerOrder());
     this.normalizeStreamingStatusesForBoot();
 
     await this.ensureMemoryFilesForBoot();
@@ -591,6 +602,8 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     };
 
     this.descriptors.set(descriptor.agentId, descriptor);
+    const nextManagerOrder = this.sanitizeManagerOrder(this.managerOrder);
+    this.managerOrder = [...nextManagerOrder.filter((managerId) => managerId !== descriptor.agentId), descriptor.agentId];
 
     let runtime: SwarmAgentRuntime;
     try {
@@ -600,6 +613,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       );
     } catch (error) {
       this.descriptors.delete(descriptor.agentId);
+      this.managerOrder = this.managerOrder.filter((managerId) => managerId !== descriptor.agentId);
       throw error;
     }
 
@@ -652,6 +666,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     await this.terminateDescriptor(target, { abort: true, emitStatus: true });
     this.descriptors.delete(targetManagerId);
+    this.managerOrder = this.managerOrder.filter((managerId) => managerId !== targetManagerId);
     this.conversationProjector.deleteConversationHistory(targetManagerId);
 
     await this.deleteManagerSchedulesFile(targetManagerId);
@@ -670,6 +685,41 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     });
 
     return { managerId: targetManagerId, terminatedWorkerIds };
+  }
+
+  async reorderManagers(callerAgentId: string, managerIds: string[]): Promise<string[]> {
+    this.assertManager(callerAgentId, "reorder managers");
+    const normalizedManagerIds = managerIds
+      .map((managerId) => normalizeOptionalAgentId(managerId))
+      .filter((managerId): managerId is string => typeof managerId === "string");
+    const currentManagerIds = this.getOrderedManagerDescriptors().map((descriptor) => descriptor.agentId);
+
+    if (normalizedManagerIds.length !== currentManagerIds.length) {
+      throw new Error("reorder_managers must include every manager exactly once");
+    }
+
+    const currentManagerIdSet = new Set(currentManagerIds);
+    const nextManagerIdSet = new Set(normalizedManagerIds);
+    if (nextManagerIdSet.size !== normalizedManagerIds.length) {
+      throw new Error("reorder_managers must not include duplicate manager ids");
+    }
+
+    for (const managerId of normalizedManagerIds) {
+      if (!currentManagerIdSet.has(managerId)) {
+        throw new Error(`Unknown manager in reorder_managers: ${managerId}`);
+      }
+    }
+
+    this.managerOrder = normalizedManagerIds;
+    await this.saveStore();
+    this.emitAgentsSnapshot();
+
+    this.logDebug("manager:reorder", {
+      callerAgentId,
+      managerIds: normalizedManagerIds
+    });
+
+    return [...this.managerOrder];
   }
 
   async createEscalationForManager(
@@ -1574,24 +1624,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
   private resolvePreferredManagerId(options?: { includeStoppedOnRestart?: boolean }): string | undefined {
     const includeStoppedOnRestart = options?.includeStoppedOnRestart ?? false;
-    const configuredManagerId = this.getConfiguredManagerId();
-    if (configuredManagerId) {
-      const configuredManager = this.descriptors.get(configuredManagerId);
-      if (configuredManager && this.isAvailableManagerDescriptor(configuredManager, includeStoppedOnRestart)) {
-        return configuredManagerId;
-      }
-    }
-
-    const firstManager = Array.from(this.descriptors.values())
-      .filter((descriptor) => this.isAvailableManagerDescriptor(descriptor, includeStoppedOnRestart))
-      .sort((left, right) => {
-        if (left.createdAt !== right.createdAt) {
-          return left.createdAt.localeCompare(right.createdAt);
-        }
-        return left.agentId.localeCompare(right.agentId);
-      })[0];
-
-    return firstManager?.agentId;
+    return this.getOrderedManagerDescriptors().find((descriptor) =>
+      this.isAvailableManagerDescriptor(descriptor, includeStoppedOnRestart)
+    )?.agentId;
   }
 
   private isAvailableManagerDescriptor(
@@ -1614,22 +1649,70 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   }
 
   private sortedDescriptors(): AgentDescriptor[] {
+    const orderedManagers = this.getOrderedManagerDescriptors();
+    const orderedWorkers = Array.from(this.descriptors.values())
+      .filter((descriptor) => descriptor.role === "worker")
+      .sort(compareDescriptorsByCreatedAtThenId);
+
+    return [...orderedManagers, ...orderedWorkers];
+  }
+
+  private getOrderedManagerDescriptors(): AgentDescriptor[] {
+    const managers = this.getLegacyOrderedManagerDescriptors();
+    if (managers.length === 0) {
+      return [];
+    }
+
+    const orderedManagerIds = this.sanitizeManagerOrder(this.managerOrder, managers);
+    const managerById = new Map(managers.map((descriptor) => [descriptor.agentId, descriptor]));
+
+    return orderedManagerIds
+      .map((managerId) => managerById.get(managerId))
+      .filter((descriptor): descriptor is AgentDescriptor => descriptor !== undefined);
+  }
+
+  private getLegacyOrderedManagerDescriptors(): AgentDescriptor[] {
     const configuredManagerId = this.getConfiguredManagerId();
-    return Array.from(this.descriptors.values()).sort((a, b) => {
-      if (configuredManagerId) {
-        if (a.agentId === configuredManagerId) return -1;
-        if (b.agentId === configuredManagerId) return 1;
+
+    return Array.from(this.descriptors.values())
+      .filter((descriptor) => descriptor.role === "manager")
+      .sort((left, right) => {
+        if (configuredManagerId) {
+          if (left.agentId === configuredManagerId) return -1;
+          if (right.agentId === configuredManagerId) return 1;
+        }
+
+        return compareDescriptorsByCreatedAtThenId(left, right);
+      });
+  }
+
+  private sanitizeManagerOrder(
+    managerOrder: string[],
+    managers = this.getLegacyOrderedManagerDescriptors()
+  ): string[] {
+    const managerIds = new Set(managers.map((descriptor) => descriptor.agentId));
+    const nextManagerOrder: string[] = [];
+    const seenManagerIds = new Set<string>();
+
+    for (const managerId of managerOrder) {
+      if (!managerIds.has(managerId) || seenManagerIds.has(managerId)) {
+        continue;
       }
 
-      if (a.role === "manager" && b.role !== "manager") return -1;
-      if (b.role === "manager" && a.role !== "manager") return 1;
+      nextManagerOrder.push(managerId);
+      seenManagerIds.add(managerId);
+    }
 
-      if (a.createdAt !== b.createdAt) {
-        return a.createdAt.localeCompare(b.createdAt);
+    for (const descriptor of managers) {
+      if (seenManagerIds.has(descriptor.agentId)) {
+        continue;
       }
 
-      return a.agentId.localeCompare(b.agentId);
-    });
+      nextManagerOrder.push(descriptor.agentId);
+      seenManagerIds.add(descriptor.agentId);
+    }
+
+    return nextManagerOrder;
   }
 
   private async sendManagerBootstrapMessage(managerId: string): Promise<void> {
@@ -2336,12 +2419,18 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     return this.persistenceService.loadStore();
   }
 
+  private async loadManagerOrder(): Promise<string[]> {
+    return this.persistenceService.loadManagerOrder();
+  }
+
   private loadConversationHistoriesFromStore(): void {
     this.conversationProjector.loadConversationHistoriesFromStore();
   }
 
   private async saveStore(): Promise<void> {
+    this.managerOrder = this.sanitizeManagerOrder(this.managerOrder);
     await this.persistenceService.saveStore();
+    await this.persistenceService.saveManagerOrder();
   }
 }
 

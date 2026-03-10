@@ -1,3 +1,4 @@
+import { getOrderedManagers } from './manager-order'
 import type { AgentDescriptor } from '@middleman/protocol'
 
 const ACTIVE_STATUSES = new Set(['idle', 'streaming'])
@@ -12,11 +13,16 @@ export function isActiveAgent(agent: AgentDescriptor): boolean {
   return ACTIVE_STATUSES.has(agent.status)
 }
 
-export function getPrimaryManagerId(agents: AgentDescriptor[]): string | null {
-  const managers = agents.filter((agent) => agent.role === 'manager' && isActiveAgent(agent))
-  if (managers.length === 0) return null
-
-  return [...managers].sort(byCreatedAtThenId)[0]?.agentId ?? null
+export function getPrimaryManagerId(
+  agents: AgentDescriptor[],
+  managerOrder: string[] = [],
+): string | null {
+  return (
+    getOrderedManagers(
+      agents.filter((agent) => isActiveAgent(agent)),
+      managerOrder,
+    )[0]?.agentId ?? null
+  )
 }
 
 export interface ManagerTreeRow {
@@ -24,12 +30,15 @@ export interface ManagerTreeRow {
   workers: AgentDescriptor[]
 }
 
-export function buildManagerTreeRows(agents: AgentDescriptor[]): {
+export function buildManagerTreeRows(
+  agents: AgentDescriptor[],
+  managerOrder: string[] = [],
+): {
   managerRows: ManagerTreeRow[]
   orphanWorkers: AgentDescriptor[]
 } {
   const activeAgents = agents.filter(isActiveAgent)
-  const managers = activeAgents.filter((agent) => agent.role === 'manager').sort(byCreatedAtThenId)
+  const managers = getOrderedManagers(activeAgents, managerOrder)
   const workers = activeAgents.filter((agent) => agent.role === 'worker').sort(byCreatedAtThenId)
 
   const workersByManager = new Map<string, AgentDescriptor[]>()
@@ -53,7 +62,11 @@ export function buildManagerTreeRows(agents: AgentDescriptor[]): {
   return { managerRows, orphanWorkers }
 }
 
-export function chooseFallbackAgentId(agents: AgentDescriptor[], preferredAgentId?: string | null): string | null {
+export function chooseFallbackAgentId(
+  agents: AgentDescriptor[],
+  managerOrder: string[] = [],
+  preferredAgentId?: string | null,
+): string | null {
   const activeAgents = agents.filter(isActiveAgent)
   if (activeAgents.length === 0) {
     return null
@@ -63,17 +76,9 @@ export function chooseFallbackAgentId(agents: AgentDescriptor[], preferredAgentI
     return preferredAgentId
   }
 
-  const primaryManagerId = getPrimaryManagerId(activeAgents)
+  const primaryManagerId = getPrimaryManagerId(activeAgents, managerOrder)
   if (primaryManagerId) {
     return primaryManagerId
-  }
-
-  const firstManager = activeAgents
-    .filter((agent) => agent.role === 'manager')
-    .sort(byCreatedAtThenId)[0]
-
-  if (firstManager) {
-    return firstManager.agentId
   }
 
   return [...activeAgents].sort(byCreatedAtThenId)[0]?.agentId ?? null

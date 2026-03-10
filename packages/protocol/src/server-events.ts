@@ -92,6 +92,12 @@ export interface ManagerDeletedEvent {
   requestId?: string
 }
 
+export interface ManagerOrderUpdatedEvent {
+  type: 'manager_order_updated'
+  managerIds: string[]
+  requestId?: string
+}
+
 export interface StopAllAgentsResultEvent {
   type: 'stop_all_agents_result'
   managerId: string
@@ -225,6 +231,7 @@ export type ServerEvent =
   | AgentsSnapshotEvent
   | ManagerCreatedEvent
   | ManagerDeletedEvent
+  | ManagerOrderUpdatedEvent
   | StopAllAgentsResultEvent
   | DirectoriesListedEvent
   | DirectoryValidatedEvent

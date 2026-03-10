@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ManagerWsClient } from './ws-client'
+import type { AgentDescriptor } from '@middleman/protocol'
 
 type ListenerMap = Record<string, Array<(event?: any) => void>>
 
@@ -43,6 +44,28 @@ function emitServerEvent(socket: FakeWebSocket, event: unknown): void {
   socket.emit('message', {
     data: JSON.stringify(event),
   })
+}
+
+function managerDescriptor(
+  agentId: string,
+  createdAt: string,
+): AgentDescriptor {
+  return {
+    agentId,
+    managerId: agentId,
+    displayName: agentId,
+    role: 'manager',
+    status: 'idle',
+    createdAt,
+    updatedAt: createdAt,
+    cwd: '/tmp',
+    model: {
+      provider: 'openai-codex',
+      modelId: 'gpt-5.3-codex',
+      thinkingLevel: 'medium',
+    },
+    sessionFile: `/tmp/${agentId}.jsonl`,
+  }
 }
 
 describe('ManagerWsClient', () => {
@@ -936,6 +959,94 @@ describe('ManagerWsClient', () => {
 
     await expect(creationPromise).resolves.toMatchObject({ agentId: 'release-manager' })
     expect(client.getState().agents.some((agent) => agent.agentId === 'release-manager')).toBe(true)
+
+    client.destroy()
+  })
+
+  it('stores manager order from snapshots and applies manager_order_updated events', () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    emitServerEvent(socket, {
+      type: 'agents_snapshot',
+      agents: [
+        managerDescriptor('manager', '2026-01-01T00:00:00.000Z'),
+        managerDescriptor('manager-2', '2026-01-01T00:01:00.000Z'),
+        managerDescriptor('manager-3', '2026-01-01T00:02:00.000Z'),
+      ],
+    })
+
+    expect(client.getState().managerOrder).toEqual(['manager', 'manager-2', 'manager-3'])
+
+    emitServerEvent(socket, {
+      type: 'manager_order_updated',
+      managerIds: ['manager-3', 'manager', 'manager-2'],
+    })
+
+    expect(client.getState().managerOrder).toEqual(['manager-3', 'manager', 'manager-2'])
+    expect(
+      client
+        .getState()
+        .agents.filter((agent) => agent.role === 'manager')
+        .map((agent) => agent.agentId),
+    ).toEqual(['manager-3', 'manager', 'manager-2'])
+
+    client.destroy()
+  })
+
+  it('optimistically reorders managers and rolls back when reorder_managers fails', async () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    emitServerEvent(socket, {
+      type: 'agents_snapshot',
+      agents: [
+        managerDescriptor('manager', '2026-01-01T00:00:00.000Z'),
+        managerDescriptor('manager-2', '2026-01-01T00:01:00.000Z'),
+        managerDescriptor('manager-3', '2026-01-01T00:02:00.000Z'),
+      ],
+    })
+
+    const reorderPromise = client.reorderManagers(['manager-3', 'manager', 'manager-2'])
+    const reorderPayload = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
+
+    expect(reorderPayload).toMatchObject({
+      type: 'reorder_managers',
+      managerIds: ['manager-3', 'manager', 'manager-2'],
+    })
+    expect(client.getState().managerOrder).toEqual(['manager-3', 'manager', 'manager-2'])
+
+    emitServerEvent(socket, {
+      type: 'error',
+      code: 'REORDER_MANAGERS_FAILED',
+      message: 'Unable to persist order.',
+      requestId: reorderPayload.requestId,
+    })
+
+    await expect(reorderPromise).rejects.toThrow('REORDER_MANAGERS_FAILED: Unable to persist order.')
+    expect(client.getState().managerOrder).toEqual(['manager', 'manager-2', 'manager-3'])
 
     client.destroy()
   })

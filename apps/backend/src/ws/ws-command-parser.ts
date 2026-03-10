@@ -62,6 +62,30 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
     };
   }
 
+  if (maybe.type === "reorder_managers") {
+    const managerIds = (maybe as { managerIds?: unknown }).managerIds;
+    const requestId = (maybe as { requestId?: unknown }).requestId;
+
+    if (!Array.isArray(managerIds)) {
+      return { ok: false, error: "reorder_managers.managerIds must be an array of manager ids" };
+    }
+    if (managerIds.some((managerId) => typeof managerId !== "string" || managerId.trim().length === 0)) {
+      return { ok: false, error: "reorder_managers.managerIds must contain only non-empty strings" };
+    }
+    if (requestId !== undefined && typeof requestId !== "string") {
+      return { ok: false, error: "reorder_managers.requestId must be a string when provided" };
+    }
+
+    return {
+      ok: true,
+      command: {
+        type: "reorder_managers",
+        managerIds: managerIds.map((managerId) => managerId.trim()),
+        requestId
+      }
+    };
+  }
+
   if (maybe.type === "get_all_escalations") {
     const requestId = (maybe as { requestId?: unknown }).requestId;
 
@@ -313,6 +337,7 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
 
 export function extractRequestId(command: ClientCommand): string | undefined {
   switch (command.type) {
+    case "reorder_managers":
     case "create_manager":
     case "delete_manager":
     case "stop_all_agents":

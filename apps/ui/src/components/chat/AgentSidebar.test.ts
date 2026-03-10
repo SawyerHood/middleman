@@ -8,6 +8,52 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentSidebar } from './AgentSidebar'
 import type { AgentDescriptor, AgentStatus } from '@middleman/protocol'
 
+const dndState = vi.hoisted(() => ({
+  onDragEnd: undefined as ((event: { active: { id: string }; over: { id: string } | null }) => void) | undefined,
+}))
+
+vi.mock('@dnd-kit/core', async () => {
+  const React = await import('react')
+
+  return {
+    DndContext: ({
+      children,
+      onDragEnd,
+    }: {
+      children: unknown
+      onDragEnd?: (event: { active: { id: string }; over: { id: string } | null }) => void
+    }) => {
+      dndState.onDragEnd = onDragEnd
+      return React.createElement('div', { 'data-testid': 'dnd-context' }, children as any)
+    },
+    closestCenter: vi.fn(),
+    KeyboardSensor: class KeyboardSensor {},
+    PointerSensor: class PointerSensor {},
+    useSensor: vi.fn((_sensor: unknown, options?: unknown) => ({ options })),
+    useSensors: vi.fn((...sensors: unknown[]) => sensors),
+  }
+})
+
+vi.mock('@dnd-kit/sortable', async () => {
+  const React = await import('react')
+
+  return {
+    SortableContext: ({ children }: { children: unknown }) =>
+      React.createElement(React.Fragment, null, children as any),
+    sortableKeyboardCoordinates: vi.fn(),
+    useSortable: vi.fn(({ id, disabled }: { id: string; disabled?: boolean }) => ({
+      attributes: { 'data-sortable-id': id },
+      listeners: disabled ? undefined : { onPointerDown: () => undefined },
+      setActivatorNodeRef: () => undefined,
+      setNodeRef: () => undefined,
+      transform: null,
+      transition: undefined,
+      isDragging: false,
+    })),
+    verticalListSortingStrategy: vi.fn(),
+  }
+})
+
 function manager(
   agentId: string,
   modelOverrides: Partial<AgentDescriptor['model']> = {},
@@ -47,6 +93,7 @@ let container: HTMLDivElement
 let root: Root | null = null
 
 beforeEach(() => {
+  dndState.onDragEnd = undefined
   container = document.createElement('div')
   document.body.appendChild(container)
 })
@@ -79,10 +126,12 @@ function getPrimarySidebar(): HTMLElement {
 
 function renderSidebar({
   agents,
+  managerOrder = agents.filter((agent) => agent.role === 'manager').map((agent) => agent.agentId),
   selectedAgentId = null,
   onSelectAgent = vi.fn(),
   onDeleteAgent = vi.fn(),
   onDeleteManager = vi.fn(),
+  onReorderManagers = vi.fn(),
   onOpenEscalations = vi.fn(),
   onOpenSettings = vi.fn(),
   isSettingsActive = false,
@@ -91,10 +140,12 @@ function renderSidebar({
   statuses = {},
 }: {
   agents: AgentDescriptor[]
+  managerOrder?: string[]
   selectedAgentId?: string | null
   onSelectAgent?: (agentId: string) => void
   onDeleteAgent?: (agentId: string) => void
   onDeleteManager?: (managerId: string) => void
+  onReorderManagers?: (managerIds: string[]) => void
   onOpenEscalations?: () => void
   onOpenSettings?: () => void
   isSettingsActive?: boolean
@@ -117,12 +168,14 @@ function renderSidebar({
       createElement(AgentSidebar, {
         connected: true,
         agents,
+        managerOrder,
         statuses,
         selectedAgentId,
         onAddManager: vi.fn(),
         onSelectAgent,
         onDeleteAgent,
         onDeleteManager,
+        onReorderManagers,
         onOpenEscalations,
         onOpenSettings,
         isSettingsActive,
@@ -215,6 +268,38 @@ describe('AgentSidebar', () => {
     click(workerRowButton)
     expect(onSelectAgent).toHaveBeenCalledWith('worker-alpha')
     expect(onDeleteAgent).not.toHaveBeenCalled()
+  })
+
+  it('shows drag handles only for managers and keeps workers non-sortable', () => {
+    renderSidebar({ agents: [manager('manager-alpha'), worker('worker-alpha', 'manager-alpha')] })
+    const sidebar = getPrimarySidebar()
+
+    expect(within(sidebar).getByRole('button', { name: 'Reorder manager manager-alpha' })).toBeTruthy()
+    expect(queryByText(sidebar, 'worker-alpha')).toBeNull()
+
+    click(within(sidebar).getByRole('button', { name: 'Expand manager manager-alpha' }))
+
+    expect(queryByText(sidebar, 'worker-alpha')).toBeTruthy()
+    expect(within(sidebar).queryByRole('button', { name: 'Reorder manager worker-alpha' })).toBeNull()
+  })
+
+  it('calls onReorderManagers with the reordered manager ids after a drag completes', () => {
+    const onReorderManagers = vi.fn()
+
+    renderSidebar({
+      agents: [manager('manager-alpha'), manager('manager-beta')],
+      onReorderManagers,
+    })
+
+    flushSync(() => {
+      dndState.onDragEnd?.({
+        active: { id: 'manager-beta' },
+        over: { id: 'manager-alpha' },
+      })
+    })
+
+    expect(onReorderManagers).toHaveBeenCalledTimes(1)
+    expect(onReorderManagers).toHaveBeenCalledWith(['manager-beta', 'manager-alpha'])
   })
 
   it('calls onOpenSettings when the settings button is clicked', () => {

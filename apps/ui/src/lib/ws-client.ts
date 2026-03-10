@@ -1,4 +1,5 @@
 import { chooseFallbackAgentId } from './agent-hierarchy'
+import { normalizeManagerOrder, reorderAgentsByManagerOrder } from './manager-order'
 import { WsRequestTracker } from './ws-request-tracker'
 import {
   createInitialManagerWsState,
@@ -43,6 +44,7 @@ type Listener = (state: ManagerWsState) => void
 type WsRequestResultMap = {
   create_manager: AgentDescriptor
   delete_manager: { managerId: string }
+  reorder_managers: string[]
   stop_all_agents: { managerId: string; stoppedWorkerIds: string[]; managerStopped: boolean }
   list_directories: DirectoriesListedResult
   validate_directory: DirectoryValidationResult
@@ -55,6 +57,7 @@ type WsRequestType = Extract<keyof WsRequestResultMap, string>
 const WS_REQUEST_TYPES: WsRequestType[] = [
   'create_manager',
   'delete_manager',
+  'reorder_managers',
   'stop_all_agents',
   'list_directories',
   'validate_directory',
@@ -66,6 +69,7 @@ const WS_REQUEST_TYPES: WsRequestType[] = [
 const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: string }> = [
   { requestType: 'create_manager', codeFragment: 'create_manager' },
   { requestType: 'delete_manager', codeFragment: 'delete_manager' },
+  { requestType: 'reorder_managers', codeFragment: 'reorder_managers' },
   { requestType: 'stop_all_agents', codeFragment: 'stop_all_agents' },
   { requestType: 'list_directories', codeFragment: 'list_directories' },
   { requestType: 'validate_directory', codeFragment: 'validate_directory' },
@@ -349,6 +353,41 @@ export class ManagerWsClient {
       }))
   }
 
+  async reorderManagers(managerIds: string[]): Promise<string[]> {
+    const normalizedManagerIds = managerIds
+      .map((managerId) => managerId.trim())
+      .filter((managerId) => managerId.length > 0)
+
+    if (normalizedManagerIds.length === 0) {
+      throw new Error('Manager order is required.')
+    }
+
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket is disconnected. Reconnecting...')
+    }
+
+    const previousAgents = this.state.agents
+    const previousManagerOrder = this.state.managerOrder
+    this.applyManagerOrderUpdate(normalizedManagerIds)
+
+    try {
+      const nextManagerOrder = await this.enqueueRequest('reorder_managers', (requestId) => ({
+        type: 'reorder_managers',
+        managerIds: normalizedManagerIds,
+        requestId,
+      }))
+
+      this.applyManagerOrderUpdate(nextManagerOrder)
+      return nextManagerOrder
+    } catch (error) {
+      this.updateState({
+        agents: previousAgents,
+        managerOrder: previousManagerOrder,
+      })
+      throw error
+    }
+  }
+
   async listDirectories(path?: string): Promise<DirectoriesListedResult> {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       throw new Error('WebSocket is disconnected. Reconnecting...')
@@ -601,6 +640,12 @@ export class ManagerWsClient {
         break
       }
 
+      case 'manager_order_updated': {
+        this.applyManagerOrderUpdate(event.managerIds)
+        this.requestTracker.resolve('reorder_managers', event.requestId, event.managerIds)
+        break
+      }
+
       case 'stop_all_agents_result': {
         const stoppedWorkerIds = event.stoppedWorkerIds ?? event.terminatedWorkerIds ?? []
         const managerStopped = event.managerStopped ?? event.managerTerminated ?? false
@@ -685,13 +730,15 @@ export class ManagerWsClient {
   }
 
   private applyAgentsSnapshot(agents: AgentDescriptor[]): void {
-    const liveAgentIds = new Set(agents.map((agent) => agent.agentId))
+    const nextManagerOrder = normalizeManagerOrder(extractManagerOrder(agents), agents)
+    const orderedAgents = reorderAgentsByManagerOrder(agents, nextManagerOrder)
+    const liveAgentIds = new Set(orderedAgents.map((agent) => agent.agentId))
     if (this.desiredDetailAgentId && !liveAgentIds.has(this.desiredDetailAgentId)) {
       this.desiredDetailAgentId = null
     }
 
     const statuses = Object.fromEntries(
-      agents.map((agent) => {
+      orderedAgents.map((agent) => {
         const previous = this.state.statuses[agent.agentId]
         const status = agent.status
         return [
@@ -706,7 +753,8 @@ export class ManagerWsClient {
     )
 
     const fallbackTarget = chooseFallbackAgentId(
-      agents,
+      orderedAgents,
+      nextManagerOrder,
       this.state.targetAgentId ?? this.state.subscribedAgentId ?? this.desiredAgentId ?? undefined,
     )
     const targetChanged = fallbackTarget !== this.state.targetAgentId
@@ -716,7 +764,8 @@ export class ManagerWsClient {
         : fallbackTarget ?? null
 
     const patch: Partial<ManagerWsState> = {
-      agents,
+      agents: orderedAgents,
+      managerOrder: nextManagerOrder,
       statuses,
       hasReceivedAgentsSnapshot: true,
     }
@@ -748,14 +797,29 @@ export class ManagerWsClient {
       ...this.state.agents.filter((agent) => agent.agentId !== manager.agentId),
       manager,
     ]
-    this.applyAgentsSnapshot(nextAgents)
+    const nextManagerOrder = normalizeManagerOrder(
+      [...this.state.managerOrder, manager.agentId],
+      nextAgents,
+    )
+    this.applyAgentsSnapshot(reorderAgentsByManagerOrder(nextAgents, nextManagerOrder))
   }
 
   private applyManagerDeleted(managerId: string): void {
     const nextAgents = this.state.agents.filter(
       (agent) => agent.agentId !== managerId && agent.managerId !== managerId,
     )
-    this.applyAgentsSnapshot(nextAgents)
+    const nextManagerOrder = this.state.managerOrder.filter(
+      (orderedManagerId) => orderedManagerId !== managerId,
+    )
+    this.applyAgentsSnapshot(reorderAgentsByManagerOrder(nextAgents, nextManagerOrder))
+  }
+
+  private applyManagerOrderUpdate(managerIds: string[]): void {
+    const nextManagerOrder = normalizeManagerOrder(managerIds, this.state.agents)
+    this.updateState({
+      managerOrder: nextManagerOrder,
+      agents: reorderAgentsByManagerOrder(this.state.agents, nextManagerOrder),
+    })
   }
 
   private pushSystemMessage(text: string): void {
@@ -957,6 +1021,12 @@ function clampConversationHistory(messages: AgentActivityEntry[]): AgentActivity
   }
 
   return messages.slice(-MAX_CLIENT_CONVERSATION_HISTORY)
+}
+
+function extractManagerOrder(agents: AgentDescriptor[]): string[] {
+  return agents
+    .filter((agent) => agent.role === 'manager')
+    .map((agent) => agent.agentId)
 }
 
 function normalizeAgentId(agentId: string | null | undefined): string | null {

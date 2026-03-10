@@ -456,14 +456,6 @@ export class WsHandler {
   }
 
   private resolvePreferredManagerSubscriptionId(): string | undefined {
-    const managerId = this.resolveConfiguredManagerId();
-    if (managerId) {
-      const configuredManager = this.swarmManager.getAgent(managerId);
-      if (configuredManager && this.isSubscribable(configuredManager.status)) {
-        return managerId;
-      }
-    }
-
     const firstManager = this.swarmManager
       .listAgents()
       .find((agent) => agent.role === "manager" && this.isSubscribable(agent.status));

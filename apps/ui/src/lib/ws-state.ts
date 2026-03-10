@@ -25,6 +25,7 @@ export interface ManagerWsState {
   messages: ConversationHistoryEntry[]
   activityMessages: AgentActivityEntry[]
   agents: AgentDescriptor[]
+  managerOrder: string[]
   escalations: UserEscalation[]
   statuses: Record<string, { status: AgentStatus; pendingCount: number; contextUsage?: AgentContextUsage }>
   lastError: string | null
@@ -41,6 +42,7 @@ export function createInitialManagerWsState(targetAgentId: string | null): Manag
     messages: [],
     activityMessages: [],
     agents: [],
+    managerOrder: [],
     escalations: [],
     statuses: {},
     lastError: null,

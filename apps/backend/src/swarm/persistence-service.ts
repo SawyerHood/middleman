@@ -1,5 +1,5 @@
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { getScheduleFilePath } from "../scheduler/schedule-storage.js";
 import { getAgentMemoryPath as getAgentMemoryPathForDataDir } from "./memory-paths.js";
 import type { AgentDescriptor, AgentsStoreFile, SwarmConfig } from "./types.js";
@@ -23,6 +23,7 @@ interface PersistenceServiceDependencies {
   config: SwarmConfig;
   descriptors: Map<string, AgentDescriptor>;
   sortedDescriptors: () => AgentDescriptor[];
+  getManagerOrder: () => string[];
   getConfiguredManagerId: () => string | undefined;
   resolveMemoryOwnerAgentId: (descriptor: AgentDescriptor) => string;
   validateAgentDescriptor: (value: unknown) => AgentDescriptor | string;
@@ -140,6 +141,23 @@ export class PersistenceService {
     }
   }
 
+  async loadManagerOrder(): Promise<string[]> {
+    try {
+      const raw = await readFile(getManagerOrderFilePath(this.deps.config.paths.dataDir), "utf8");
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return parsed
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    } catch {
+      return [];
+    }
+  }
+
   async saveStore(): Promise<void> {
     const payload: AgentsStoreFile = {
       agents: this.deps.sortedDescriptors()
@@ -152,9 +170,22 @@ export class PersistenceService {
     await rename(tmp, target);
   }
 
+  async saveManagerOrder(): Promise<void> {
+    const payload = this.deps.getManagerOrder();
+    const target = getManagerOrderFilePath(this.deps.config.paths.dataDir);
+    const tmp = `${target}.tmp`;
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    await rename(tmp, target);
+  }
+
   private getAgentMemoryPath(agentId: string): string {
     return getAgentMemoryPathForDataDir(this.deps.config.paths.dataDir, agentId);
   }
+}
+
+function getManagerOrderFilePath(dataDir: string): string {
+  return resolve(dataDir, "manager-order.json");
 }
 
 function isEnoentError(error: unknown): boolean {

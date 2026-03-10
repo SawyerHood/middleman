@@ -1,9 +1,25 @@
-import { ChevronDown, ChevronRight, CircleDashed, ListTodo, Settings, SquarePen, UserStar, X } from 'lucide-react'
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { ChevronDown, ChevronRight, CircleDashed, GripVertical, ListTodo, Settings, SquarePen, UserStar, X } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { buildManagerTreeRows } from '@/lib/agent-hierarchy'
+import { moveVisibleManagersWithinOrder, normalizeManagerOrder } from '@/lib/manager-order'
 import { inferModelPreset } from '@/lib/model-preset'
 import { cn } from '@/lib/utils'
 import type {
@@ -17,6 +33,7 @@ import type {
 interface AgentSidebarProps {
   connected: boolean
   agents: AgentDescriptor[]
+  managerOrder: string[]
   statuses: Record<string, { status: AgentStatus; pendingCount: number; contextUsage?: AgentContextUsage }>
   selectedAgentId: string | null
   isSettingsActive: boolean
@@ -28,6 +45,7 @@ interface AgentSidebarProps {
   onSelectAgent: (agentId: string) => void
   onDeleteAgent: (agentId: string) => void
   onDeleteManager: (managerId: string) => void
+  onReorderManagers: (managerIds: string[]) => void
   onOpenEscalations: () => void
   onOpenSettings: () => void
 }
@@ -267,9 +285,177 @@ function AgentRow({
   )
 }
 
+function toDragTransform(transform: { x: number; y: number } | null): string | undefined {
+  if (!transform) {
+    return undefined
+  }
+
+  return `translate3d(${transform.x}px, ${transform.y}px, 0)`
+}
+
+function SortableManagerRow({
+  manager,
+  workers,
+  statuses,
+  selectedAgentId,
+  isSelectionSuppressed,
+  isCollapsed,
+  isDragDisabled,
+  onToggleCollapsed,
+  onSelectManager,
+  onDeleteManager,
+  onSelectWorker,
+  onDeleteWorker,
+}: {
+  manager: AgentDescriptor
+  workers: AgentDescriptor[]
+  statuses: Record<string, { status: AgentStatus; pendingCount: number; contextUsage?: AgentContextUsage }>
+  selectedAgentId: string | null
+  isSelectionSuppressed: boolean
+  isCollapsed: boolean
+  isDragDisabled: boolean
+  onToggleCollapsed: () => void
+  onSelectManager: () => void
+  onDeleteManager: () => void
+  onSelectWorker: (agentId: string) => void
+  onDeleteWorker: (agentId: string) => void
+}) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: manager.agentId,
+    disabled: isDragDisabled,
+  })
+  const managerLiveStatus = getAgentLiveStatus(manager, statuses)
+  const managerIsSelected = !isSelectionSuppressed && selectedAgentId === manager.agentId
+  const streamingWorkerCount = isCollapsed
+    ? workers.filter((worker) => getAgentLiveStatus(worker, statuses).status === 'streaming').length
+    : 0
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{
+        transform: toDragTransform(transform),
+        transition,
+      }}
+      className={cn(isDragging ? 'relative z-10' : undefined)}
+    >
+      <div
+        className={cn(
+          'relative',
+          isDragging ? 'rounded-md shadow-lg shadow-black/10 ring-1 ring-sidebar-ring/40' : undefined,
+        )}
+      >
+        <div className="relative flex items-center">
+          <AgentRow
+            agent={manager}
+            liveStatus={managerLiveStatus}
+            isSelected={managerIsSelected}
+            onSelect={onSelectManager}
+            onDelete={onDeleteManager}
+            nameClassName="font-semibold"
+            className="min-w-0 flex-1 py-1.5 pl-12 pr-1.5"
+            streamingWorkerCount={isCollapsed ? streamingWorkerCount : undefined}
+          />
+
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} manager ${manager.agentId}`}
+            aria-expanded={!isCollapsed}
+            className={cn(
+              'group absolute left-1 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground/70 transition',
+              'hover:text-sidebar-foreground',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
+            )}
+          >
+            <span className="relative flex h-3.5 w-3.5 items-center justify-center">
+              {isCollapsed ? (
+                <>
+                  <UserStar
+                    aria-hidden="true"
+                    className="size-3.5 opacity-70 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0"
+                  />
+                  <ChevronRight
+                    aria-hidden="true"
+                    className="absolute size-3 opacity-0 transition-opacity group-hover:opacity-70 group-focus-visible:opacity-70"
+                  />
+                </>
+              ) : (
+                <>
+                  <UserStar
+                    aria-hidden="true"
+                    className="size-3.5 opacity-70 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0"
+                  />
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="absolute size-3 opacity-0 transition-opacity group-hover:opacity-70 group-focus-visible:opacity-70"
+                  />
+                </>
+              )}
+            </span>
+          </button>
+
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            aria-label={`Reorder manager ${manager.agentId}`}
+            disabled={isDragDisabled}
+            className={cn(
+              'absolute left-6 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground/60 transition',
+              isDragDisabled
+                ? 'cursor-default opacity-40'
+                : 'cursor-grab hover:text-sidebar-foreground active:cursor-grabbing',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
+            )}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical aria-hidden="true" className="size-3.5" />
+          </button>
+        </div>
+
+        {workers.length > 0 && !isCollapsed ? (
+          <div className="relative mt-0.5">
+            <div className="absolute bottom-1 left-3.5 top-0 w-px bg-sidebar-border/40" />
+            <ul className="space-y-0.5">
+              {workers.map((worker) => {
+                const workerLiveStatus = getAgentLiveStatus(worker, statuses)
+                const workerIsSelected = !isSelectionSuppressed && selectedAgentId === worker.agentId
+
+                return (
+                  <li key={worker.agentId}>
+                    <AgentRow
+                      agent={worker}
+                      liveStatus={workerLiveStatus}
+                      isSelected={workerIsSelected}
+                      onSelect={() => onSelectWorker(worker.agentId)}
+                      onDelete={() => onDeleteWorker(worker.agentId)}
+                      nameClassName="font-normal"
+                      className="py-1.5 pl-7 pr-1.5"
+                    />
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </li>
+  )
+}
+
 export function AgentSidebar({
   connected,
   agents,
+  managerOrder,
   statuses,
   selectedAgentId,
   isSettingsActive,
@@ -281,12 +467,25 @@ export function AgentSidebar({
   onSelectAgent,
   onDeleteAgent,
   onDeleteManager,
+  onReorderManagers,
   onOpenEscalations,
   onOpenSettings,
 }: AgentSidebarProps) {
-  const { managerRows, orphanWorkers } = buildManagerTreeRows(agents)
+  const normalizedManagerOrder = normalizeManagerOrder(managerOrder, agents)
+  const { managerRows, orphanWorkers } = buildManagerTreeRows(agents, normalizedManagerOrder)
   const [expandedManagerIds, setExpandedManagerIds] = useState<Set<string>>(() => new Set())
   const openEscalationCount = escalations.filter((escalation) => escalation.status === 'open').length
+  const visibleManagerIds = managerRows.map(({ manager }) => manager.agentId)
+  const canDragManagers = visibleManagerIds.length > 1
+  const isSelectionSuppressed = isSettingsActive || isEscalationsActive
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   const toggleManagerCollapsed = (managerId: string) => {
     setExpandedManagerIds((previous) => {
@@ -315,6 +514,32 @@ export function AgentSidebar({
   const handleOpenEscalations = () => {
     onOpenEscalations()
     onMobileClose?.()
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!canDragManagers || !event.over) {
+      return
+    }
+
+    const activeId = String(event.active.id)
+    const overId = String(event.over.id)
+    if (activeId === overId) {
+      return
+    }
+
+    const nextManagerOrder = moveVisibleManagersWithinOrder({
+      agents,
+      managerOrder: normalizedManagerOrder,
+      visibleManagerIds,
+      activeId,
+      overId,
+    })
+
+    if (nextManagerOrder.every((managerId, index) => managerId === normalizedManagerOrder[index])) {
+      return
+    }
+
+    onReorderManagers(nextManagerOrder)
   }
 
   const sidebarContent = (
@@ -381,128 +606,57 @@ export function AgentSidebar({
             No active agents.
           </p>
         ) : (
-          <ul className="space-y-0.5">
-            {managerRows.map(({ manager, workers }) => {
-              const managerLiveStatus = getAgentLiveStatus(manager, statuses)
-              const managerIsSelected =
-                !isSettingsActive && !isEscalationsActive && selectedAgentId === manager.agentId
-              const managerIsCollapsed = !expandedManagerIds.has(manager.agentId)
-              const streamingWorkerCount = managerIsCollapsed
-                ? workers.filter((w) => getAgentLiveStatus(w, statuses).status === 'streaming').length
-                : 0
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={visibleManagerIds} strategy={verticalListSortingStrategy}>
+              <ul className="space-y-0.5">
+                {managerRows.map(({ manager, workers }) => (
+                  <SortableManagerRow
+                    key={manager.agentId}
+                    manager={manager}
+                    workers={workers}
+                    statuses={statuses}
+                    selectedAgentId={selectedAgentId}
+                    isSelectionSuppressed={isSelectionSuppressed}
+                    isCollapsed={!expandedManagerIds.has(manager.agentId)}
+                    isDragDisabled={!canDragManagers}
+                    onToggleCollapsed={() => toggleManagerCollapsed(manager.agentId)}
+                    onSelectManager={() => handleSelectAgent(manager.agentId)}
+                    onDeleteManager={() => onDeleteManager(manager.agentId)}
+                    onSelectWorker={handleSelectAgent}
+                    onDeleteWorker={onDeleteAgent}
+                  />
+                ))}
 
-              return (
-                <li key={manager.agentId}>
-                  <div className="relative flex items-center">
-                    <AgentRow
-                      agent={manager}
-                      liveStatus={managerLiveStatus}
-                      isSelected={managerIsSelected}
-                      onSelect={() => handleSelectAgent(manager.agentId)}
-                      onDelete={() => onDeleteManager(manager.agentId)}
-                      nameClassName="font-semibold"
-                      className="min-w-0 flex-1 py-1.5 pl-7 pr-1.5"
-                      streamingWorkerCount={managerIsCollapsed ? streamingWorkerCount : undefined}
-                    />
+                {orphanWorkers.length > 0 ? (
+                  <li className="mt-3">
+                    <p className="mb-1 px-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/60">
+                      Unassigned
+                    </p>
+                    <ul className="space-y-0.5">
+                      {orphanWorkers.map((worker) => {
+                        const workerLiveStatus = getAgentLiveStatus(worker, statuses)
+                        const workerIsSelected = !isSelectionSuppressed && selectedAgentId === worker.agentId
 
-                    <button
-                      type="button"
-                      onClick={() => toggleManagerCollapsed(manager.agentId)}
-                      aria-label={`${managerIsCollapsed ? 'Expand' : 'Collapse'} manager ${manager.agentId}`}
-                      aria-expanded={!managerIsCollapsed}
-                      className={cn(
-                        'group absolute left-1 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground/70 transition',
-                        'hover:text-sidebar-foreground',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
-                      )}
-                    >
-                      <span className="relative flex h-3.5 w-3.5 items-center justify-center">
-                        {managerIsCollapsed ? (
-                          <>
-                            <UserStar
-                              aria-hidden="true"
-                              className="size-3.5 opacity-70 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0"
+                        return (
+                          <li key={worker.agentId}>
+                            <AgentRow
+                              agent={worker}
+                              liveStatus={workerLiveStatus}
+                              isSelected={workerIsSelected}
+                              onSelect={() => handleSelectAgent(worker.agentId)}
+                              onDelete={() => onDeleteAgent(worker.agentId)}
+                              nameClassName="font-normal"
+                              className="py-1.5 pl-7 pr-1.5"
                             />
-                            <ChevronRight
-                              aria-hidden="true"
-                              className="absolute size-3 opacity-0 transition-opacity group-hover:opacity-70 group-focus-visible:opacity-70"
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <UserStar
-                              aria-hidden="true"
-                              className="size-3.5 opacity-70 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0"
-                            />
-                            <ChevronDown
-                              aria-hidden="true"
-                              className="absolute size-3 opacity-0 transition-opacity group-hover:opacity-70 group-focus-visible:opacity-70"
-                            />
-                          </>
-                        )}
-                      </span>
-                    </button>
-                  </div>
-
-                  {workers.length > 0 && !managerIsCollapsed ? (
-                    <div className="relative mt-0.5">
-                      <div className="absolute bottom-1 left-3.5 top-0 w-px bg-sidebar-border/40" />
-                      <ul className="space-y-0.5">
-                        {workers.map((worker) => {
-                          const workerLiveStatus = getAgentLiveStatus(worker, statuses)
-                          const workerIsSelected =
-                            !isSettingsActive && !isEscalationsActive && selectedAgentId === worker.agentId
-
-                          return (
-                            <li key={worker.agentId}>
-                              <AgentRow
-                                agent={worker}
-                                liveStatus={workerLiveStatus}
-                                isSelected={workerIsSelected}
-                                onSelect={() => handleSelectAgent(worker.agentId)}
-                                onDelete={() => onDeleteAgent(worker.agentId)}
-                                nameClassName="font-normal"
-                                className="py-1.5 pl-7 pr-1.5"
-                              />
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  ) : null}
-                </li>
-              )
-            })}
-
-            {orphanWorkers.length > 0 ? (
-              <li className="mt-3">
-                <p className="mb-1 px-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/60">
-                  Unassigned
-                </p>
-                <ul className="space-y-0.5">
-                  {orphanWorkers.map((worker) => {
-                    const workerLiveStatus = getAgentLiveStatus(worker, statuses)
-                    const workerIsSelected =
-                      !isSettingsActive && !isEscalationsActive && selectedAgentId === worker.agentId
-
-                    return (
-                      <li key={worker.agentId}>
-                        <AgentRow
-                          agent={worker}
-                          liveStatus={workerLiveStatus}
-                          isSelected={workerIsSelected}
-                          onSelect={() => handleSelectAgent(worker.agentId)}
-                          onDelete={() => onDeleteAgent(worker.agentId)}
-                          nameClassName="font-normal"
-                          className="py-1.5 pl-7 pr-1.5"
-                        />
-                      </li>
-                    )
-                  })}
-                </ul>
-              </li>
-            ) : null}
-          </ul>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </li>
+                ) : null}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 

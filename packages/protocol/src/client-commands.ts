@@ -5,6 +5,7 @@ export type ClientCommand =
   | { type: 'subscribe'; agentId?: string }
   | { type: 'subscribe_agent_detail'; agentId: string }
   | { type: 'unsubscribe_agent_detail'; agentId: string }
+  | { type: 'reorder_managers'; managerIds: string[]; requestId?: string }
   | { type: 'get_all_escalations'; requestId?: string }
   | {
       type: 'resolve_escalation'

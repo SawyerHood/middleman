@@ -252,6 +252,10 @@ async function bootWithDefaultManager(manager: TestSwarmManager, config: SwarmCo
   return createdManager
 }
 
+function listManagerIds(agents: AgentDescriptor[]): string[] {
+  return agents.filter((agent) => agent.role === 'manager').map((agent) => agent.agentId)
+}
+
 describe('SwarmManager', () => {
   it('does not auto-create a manager on boot when the store is empty', async () => {
     const config = await makeTempConfig()
@@ -1934,6 +1938,65 @@ describe('SwarmManager', () => {
     await expect(readFile(secondaryScheduleFile, 'utf8')).rejects.toMatchObject({
       code: 'ENOENT',
     })
+  })
+
+  it('sanitizes persisted manager order on boot and rewrites stale ids', async () => {
+    const config = await makeTempConfig()
+    const firstBoot = new TestSwarmManager(config)
+    await bootWithDefaultManager(firstBoot, config)
+
+    const secondary = await firstBoot.createManager('manager', {
+      name: 'Secondary Manager',
+      cwd: config.defaultCwd,
+    })
+
+    await writeFile(
+      join(config.paths.dataDir, 'manager-order.json'),
+      JSON.stringify(['missing-manager', secondary.agentId], null, 2),
+      'utf8',
+    )
+
+    const secondBoot = new TestSwarmManager(config)
+    await secondBoot.boot()
+
+    expect(listManagerIds(secondBoot.listAgents())).toEqual([secondary.agentId, 'manager'])
+    const persistedManagerOrder = JSON.parse(
+      await readFile(join(config.paths.dataDir, 'manager-order.json'), 'utf8'),
+    ) as string[]
+    expect(persistedManagerOrder).toEqual([secondary.agentId, 'manager'])
+  })
+
+  it('appends new managers, removes deleted managers, and persists custom order', async () => {
+    const config = await makeTempConfig()
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const opsManager = await manager.createManager('manager', {
+      name: 'Ops Manager',
+      cwd: config.defaultCwd,
+    })
+    const qaManager = await manager.createManager('manager', {
+      name: 'QA Manager',
+      cwd: config.defaultCwd,
+    })
+
+    expect(listManagerIds(manager.listAgents())).toEqual(['manager', opsManager.agentId, qaManager.agentId])
+
+    const reorderedManagerIds = [qaManager.agentId, 'manager', opsManager.agentId]
+    await expect(manager.reorderManagers('manager', reorderedManagerIds)).resolves.toEqual(reorderedManagerIds)
+    expect(listManagerIds(manager.listAgents())).toEqual(reorderedManagerIds)
+
+    await manager.deleteManager('manager', opsManager.agentId)
+    expect(listManagerIds(manager.listAgents())).toEqual([qaManager.agentId, 'manager'])
+
+    const persistedManagerOrder = JSON.parse(
+      await readFile(join(config.paths.dataDir, 'manager-order.json'), 'utf8'),
+    ) as string[]
+    expect(persistedManagerOrder).toEqual([qaManager.agentId, 'manager'])
+
+    const rebooted = new TestSwarmManager(config)
+    await rebooted.boot()
+    expect(listManagerIds(rebooted.listAgents())).toEqual([qaManager.agentId, 'manager'])
   })
 
   it('maps create_manager model presets to canonical runtime models with highest reasoning', async () => {

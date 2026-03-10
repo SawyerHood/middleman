@@ -93,8 +93,12 @@ export function IndexPage() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   const activeAgentId = useMemo(() => {
-    return state.targetAgentId ?? state.subscribedAgentId ?? chooseFallbackAgentId(state.agents)
-  }, [state.agents, state.subscribedAgentId, state.targetAgentId])
+    return (
+      state.targetAgentId ??
+      state.subscribedAgentId ??
+      chooseFallbackAgentId(state.agents, state.managerOrder)
+    )
+  }, [state.agents, state.managerOrder, state.subscribedAgentId, state.targetAgentId])
 
   const activeAgent = useMemo(() => {
     if (!activeAgentId) {
@@ -279,7 +283,7 @@ export function IndexPage() {
       return
     }
 
-    const fallbackAgentId = chooseFallbackAgentId(state.agents)
+    const fallbackAgentId = chooseFallbackAgentId(state.agents, state.managerOrder)
     if (!fallbackAgentId || fallbackAgentId === currentAgentId) {
       return
     }
@@ -291,6 +295,7 @@ export function IndexPage() {
     navigateToRoute,
     routeState,
     state.agents,
+    state.managerOrder,
     state.hasReceivedAgentsSnapshot,
     state.subscribedAgentId,
     state.targetAgentId,
@@ -427,6 +432,7 @@ export function IndexPage() {
         <AgentSidebar
           connected={state.connected}
           agents={state.agents}
+          managerOrder={state.managerOrder}
           statuses={state.statuses}
           selectedAgentId={activeAgentId}
           isSettingsActive={activeView === 'settings'}
@@ -438,6 +444,14 @@ export function IndexPage() {
           onSelectAgent={handleSelectAgent}
           onDeleteAgent={handleDeleteAgent}
           onDeleteManager={handleRequestDeleteManager}
+          onReorderManagers={(managerIds) => {
+            const client = clientRef.current
+            if (!client) {
+              return
+            }
+
+            void client.reorderManagers(managerIds).catch(() => undefined)
+          }}
           onOpenEscalations={handleOpenEscalationsPanel}
           onOpenSettings={handleOpenSettingsPanel}
         />
