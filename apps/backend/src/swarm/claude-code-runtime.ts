@@ -65,6 +65,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
   private readonly requiresManualCustomEntryPersistence: boolean;
   private readonly runtimeEnv: Record<string, string | undefined>;
   private readonly tools: ToolDefinition[];
+  private readonly pendingCustomEntryPersistence = new Set<Promise<void>>();
 
   private readonly abortController = new AbortController();
   private readonly mcpServer: McpSdkServerConfigWithInstance;
@@ -182,6 +183,7 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
 
     this.query?.close();
     this.query = undefined;
+    await this.waitForCustomEntryPersistence();
 
     this.pendingDeliveries = [];
     this.isProcessing = false;
@@ -245,13 +247,38 @@ export class ClaudeCodeRuntime implements SwarmAgentRuntime {
     }
 
     try {
-      persistSessionEntryForCustomRuntime(this.sessionManager, entryId);
+      this.trackCustomEntryPersistence(
+        customType,
+        persistSessionEntryForCustomRuntime(this.sessionManager, entryId)
+      );
     } catch (error) {
       this.logRuntimeError("startup", error, {
         action: "persist_custom_entry",
         customType
       });
     }
+  }
+
+  private trackCustomEntryPersistence(customType: string, persistence: Promise<void>): void {
+    this.pendingCustomEntryPersistence.add(persistence);
+    void persistence
+      .catch((error) => {
+        this.logRuntimeError("startup", error, {
+          action: "persist_custom_entry",
+          customType
+        });
+      })
+      .finally(() => {
+        this.pendingCustomEntryPersistence.delete(persistence);
+      });
+  }
+
+  private async waitForCustomEntryPersistence(): Promise<void> {
+    if (this.pendingCustomEntryPersistence.size === 0) {
+      return;
+    }
+
+    await Promise.allSettled(Array.from(this.pendingCustomEntryPersistence));
   }
 
   private startQuery(): void {

@@ -1,5 +1,4 @@
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
-import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { WebSocketServer } from "ws";
@@ -24,6 +23,7 @@ export class SwarmWebSocketServer {
   private readonly port: number;
   private readonly integrationRegistry: IntegrationRegistryService | null;
   private readonly uiDir: string;
+  private uiDirAvailable = false;
 
   private httpServer: HttpServer | null = null;
   private wss: WebSocketServer | null = null;
@@ -139,6 +139,8 @@ export class SwarmWebSocketServer {
     if (this.httpServer || this.wss) {
       return;
     }
+
+    this.uiDirAvailable = await isDirectory(this.uiDir);
 
     const httpServer = createServer((request, response) => {
       void this.handleHttpRequest(request, response);
@@ -261,7 +263,7 @@ export class SwarmWebSocketServer {
     response: ServerResponse,
     requestUrl: URL
   ): Promise<boolean> {
-    if ((request.method !== "GET" && request.method !== "HEAD") || !existsSync(this.uiDir)) {
+    if ((request.method !== "GET" && request.method !== "HEAD") || !this.uiDirAvailable) {
       return false;
     }
 
@@ -324,6 +326,15 @@ async function isFile(path: string): Promise<boolean> {
   try {
     const fileStats = await stat(path);
     return fileStats.isFile();
+  } catch {
+    return false;
+  }
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    const fileStats = await stat(path);
+    return fileStats.isDirectory();
   } catch {
     return false;
   }

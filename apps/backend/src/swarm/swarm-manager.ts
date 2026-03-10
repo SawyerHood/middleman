@@ -1,5 +1,4 @@
 import { EventEmitter } from "node:events";
-import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ServerEvent } from "@middleman/protocol";
@@ -223,6 +222,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private readonly config: SwarmConfig;
   private readonly now: () => string;
   private readonly defaultModelPreset: SwarmModelPreset;
+  private readonly cwdAllowlistRoots: string[];
 
   private readonly descriptors = new Map<string, AgentDescriptor>();
   private managerOrder: string[] = [];
@@ -242,9 +242,11 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     this.defaultModelPreset =
       inferSwarmModelPresetFromDescriptor(config.defaultModel) ?? DEFAULT_SWARM_MODEL_PRESET;
+    this.cwdAllowlistRoots = normalizeAllowlistRoots(config.cwdAllowlistRoots);
     this.config = {
       ...config,
-      defaultModel: resolveModelDescriptorFromPreset(this.defaultModelPreset)
+      defaultModel: resolveModelDescriptorFromPreset(this.defaultModelPreset),
+      cwdAllowlistRoots: this.cwdAllowlistRoots
     };
     this.now = options?.now ?? nowIso;
     this.persistenceService = new PersistenceService({
@@ -1949,7 +1951,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private getCwdPolicy(): { rootDir: string; allowlistRoots: string[] } {
     return {
       rootDir: this.config.paths.projectRoot,
-      allowlistRoots: normalizeAllowlistRoots(this.config.cwdAllowlistRoots)
+      allowlistRoots: this.cwdAllowlistRoots
     };
   }
 
@@ -2125,7 +2127,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     while (true) {
       const candidatePath = join(currentDir, SWARM_CONTEXT_FILE_NAME);
-      if (!seenPaths.has(candidatePath) && existsSync(candidatePath)) {
+      if (!seenPaths.has(candidatePath)) {
         try {
           contextFiles.unshift({
             path: candidatePath,
@@ -2133,11 +2135,20 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
           });
           seenPaths.add(candidatePath);
         } catch (error) {
-          this.logDebug("runtime:swarm_context:read:error", {
-            cwd,
-            path: candidatePath,
-            message: error instanceof Error ? error.message : String(error)
-          });
+          if (
+            error &&
+            typeof error === "object" &&
+            "code" in error &&
+            (error as { code?: string }).code === "ENOENT"
+          ) {
+            // Ignore missing context files while walking ancestors.
+          } else {
+            this.logDebug("runtime:swarm_context:read:error", {
+              cwd,
+              path: candidatePath,
+              message: error instanceof Error ? error.message : String(error)
+            });
+          }
         }
       }
 

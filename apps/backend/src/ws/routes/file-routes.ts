@@ -83,7 +83,7 @@ export function createFileRoutes(options: { swarmManager: SwarmManager }): HttpR
             "/tmp"
           ]);
 
-          if (!isPathWithinRoots(resolvedPath, allowedRoots)) {
+          if (!(await isPathWithinRoots(resolvedPath, allowedRoots))) {
             sendJson(response, 403, { error: "Path is outside allowed roots." });
             return;
           }
