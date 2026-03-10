@@ -364,7 +364,7 @@ function SortableManagerRow({
             onSelect={onSelectManager}
             onDelete={onDeleteManager}
             nameClassName="font-semibold"
-            className="min-w-0 flex-1 py-1.5 pl-8 pr-1.5"
+            className="min-w-0 flex-1 py-1.5 pl-7 pr-1.5"
             streamingWorkerCount={isCollapsed ? streamingWorkerCount : undefined}
           />
 
