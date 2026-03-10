@@ -59,7 +59,7 @@ describe('createConfig', () => {
     await withEnv({}, () => {
       const config = createConfig()
 
-      expect(config.host).toBe('127.0.0.1')
+      expect(config.host).toBe('0.0.0.0')
       expect(config.port).toBe(47187)
       expect(config.debug).toBe(true)
       expect(config.allowNonManagerSubscriptions).toBe(true)
