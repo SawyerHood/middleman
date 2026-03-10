@@ -270,17 +270,19 @@ describe('AgentSidebar', () => {
     expect(onDeleteAgent).not.toHaveBeenCalled()
   })
 
-  it('shows drag handles only for managers and keeps workers non-sortable', () => {
+  it('makes manager rows sortable and keeps workers non-sortable', () => {
     renderSidebar({ agents: [manager('manager-alpha'), worker('worker-alpha', 'manager-alpha')] })
     const sidebar = getPrimarySidebar()
 
-    expect(within(sidebar).getByRole('button', { name: 'Reorder manager manager-alpha' })).toBeTruthy()
+    const managerRowButton = within(sidebar).getByRole('button', { name: 'manager-alpha' })
+    expect(managerRowButton.closest('[data-sortable-id="manager-alpha"]')).toBeTruthy()
     expect(queryByText(sidebar, 'worker-alpha')).toBeNull()
 
     click(within(sidebar).getByRole('button', { name: 'Expand manager manager-alpha' }))
 
-    expect(queryByText(sidebar, 'worker-alpha')).toBeTruthy()
-    expect(within(sidebar).queryByRole('button', { name: 'Reorder manager worker-alpha' })).toBeNull()
+    const workerRowButton = within(sidebar).getByRole('button', { name: 'worker-alpha' })
+    expect(workerRowButton).toBeTruthy()
+    expect(workerRowButton.closest('[data-sortable-id]')).toBeNull()
   })
 
   it('calls onReorderManagers with the reordered manager ids after a drag completes', () => {

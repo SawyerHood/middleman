@@ -6,14 +6,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import { Provider as JotaiProvider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MANAGER_MODEL_PRESETS } from '@middleman/protocol'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { MESSAGE_DRAFTS_STORAGE_KEY } from '@/lib/message-drafts'
 import { IndexPage } from './index'
 
-const CREATE_MANAGER_MODEL_PRESETS = MANAGER_MODEL_PRESETS.filter(
-  (modelPreset) => modelPreset !== 'codex-app',
-)
+const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus'] as const
 
 type ListenerMap = Record<string, Array<(event?: any) => void>>
 const faviconEmojiByCanvas = new WeakMap<HTMLCanvasElement, string>()
