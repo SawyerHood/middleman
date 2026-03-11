@@ -94,6 +94,7 @@ async function main() {
     type: "module",
     main: "./dist/cli/index.js",
     bin: {
+      "middleman-app": "./bin/middleman.js",
       middleman: "./bin/middleman.js"
     },
     files: ["bin", "dist", "ui", "assets", "README.md", "LICENSE"],
