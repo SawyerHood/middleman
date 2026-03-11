@@ -14,23 +14,22 @@ You're not an IC anymore. You've become a project manager. You need a middle man
 
 ![Middleman UI](docs/images/ui-screenshot.png)
 
-## Setup
+## Quick Start
+
+```bash
+npx middleman-app
+```
+
+That's it. Open `http://localhost:47187`, go to **Settings**, sign in with your OpenAI or Anthropic key, create a new manager, and start talking.
+
+## Development
 
 ```bash
 git clone https://github.com/SawyerHood/middleman.git
 cd middleman
 pnpm i
-pnpm prod:daemon
-```
-
-Open the UI, go to **Settings**, and sign in with your OpenAI or Anthropic key. Then create a new manager and start talking.
-
-For development:
-
-```bash
 pnpm dev
-# Backend: http://127.0.0.1:47187
-# UI:      http://127.0.0.1:47188
+# http://127.0.0.1:47187
 ```
 
 ## Key Features
