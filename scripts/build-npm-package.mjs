@@ -87,7 +87,7 @@ async function main() {
   delete runtimeDependencies["@middleman/protocol"];
 
   const publishManifest = {
-    name: "middleman",
+    name: "middleman-app",
     version: rootManifest.version,
     description: rootManifest.description ?? "Local-first multi-agent orchestration platform.",
     license: rootManifest.license ?? "Apache-2.0",

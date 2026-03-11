@@ -1,5 +1,5 @@
 {
-  "name": "middleman",
+  "name": "middleman-app",
   "version": "0.1.0",
   "description": "Local-first multi-agent orchestration platform.",
   "private": true,
