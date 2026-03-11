@@ -1,9 +1,18 @@
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
+import { dirname, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { createConfig, type CreateConfigOptions } from "./config.js";
 import { IntegrationRegistryService } from "./integrations/registry.js";
+import {
+  DAEMONIZED_ENV_VAR,
+  getControlPidFilePath,
+  RESTART_PARENT_PID_ENV_VAR,
+  RESTART_SIGNAL,
+  SUPPRESS_OPEN_ON_RESTART_ENV_VAR
+} from "./reboot/control-pid.js";
 import { CronSchedulerService } from "./scheduler/cron-scheduler-service.js";
 import { getScheduleFilePath } from "./scheduler/schedule-storage.js";
 import { SwarmManager } from "./swarm/swarm-manager.js";
@@ -21,6 +30,8 @@ export interface StartedMiddlemanServer {
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<StartedMiddlemanServer> {
+  await waitForRestartParentToExit();
+
   const projectRoot = resolveProjectRootOption(options.projectRoot);
   const dataDir = resolveDataDirOption(options.dataDir);
 
@@ -115,6 +126,19 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
   });
   await wsServer.start();
 
+  const shouldManageControlPid =
+    options.registerSignalHandlers !== false && process.env[DAEMONIZED_ENV_VAR] !== "1";
+  const controlPidFile = getControlPidFilePath(config.paths.runDir);
+  let managingControlPid = false;
+  if (shouldManageControlPid) {
+    try {
+      managingControlPid = await tryWriteControlPidFile(controlPidFile);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[reboot] Failed to write control pid file: ${message}`);
+    }
+  }
+
   let stopped = false;
   const stop = async (): Promise<void> => {
     if (stopped) {
@@ -128,13 +152,39 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
       integrationRegistry.stop(),
       wsServer.stop()
     ]);
+
+    if (managingControlPid) {
+      await removeOwnedControlPidFile(controlPidFile);
+      managingControlPid = false;
+    }
   };
 
   if (options.registerSignalHandlers !== false) {
+    let restarting = false;
+
     const shutdown = async (signal: string): Promise<void> => {
       console.log(`Received ${signal}. Shutting down...`);
       await stop();
       process.exit(0);
+    };
+
+    const restart = async (): Promise<void> => {
+      if (restarting || stopped) {
+        return;
+      }
+
+      restarting = true;
+      console.log(`Received ${RESTART_SIGNAL}. Rebooting...`);
+
+      try {
+        await spawnReplacementProcess();
+        await stop();
+        process.exit(0);
+      } catch (error) {
+        restarting = false;
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[reboot] Failed to restart current process: ${message}`);
+      }
     };
 
     process.on("SIGINT", () => {
@@ -144,6 +194,12 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     process.on("SIGTERM", () => {
       void shutdown("SIGTERM");
     });
+
+    if (process.env[DAEMONIZED_ENV_VAR] !== "1") {
+      process.on(RESTART_SIGNAL, () => {
+        void restart();
+      });
+    }
   }
 
   return {
@@ -215,6 +271,116 @@ function resolveDataDirOption(dataDir?: string): string {
   }
 
   return resolve(homedir(), ".middleman");
+}
+
+async function waitForRestartParentToExit(): Promise<void> {
+  const rawParentPid = process.env[RESTART_PARENT_PID_ENV_VAR];
+  if (typeof rawParentPid !== "string" || rawParentPid.trim().length === 0) {
+    return;
+  }
+
+  delete process.env[RESTART_PARENT_PID_ENV_VAR];
+
+  const parentPid = Number.parseInt(rawParentPid.trim(), 10);
+  if (!Number.isInteger(parentPid) || parentPid <= 0) {
+    return;
+  }
+
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(parentPid, 0);
+    } catch (error) {
+      if (isErrorWithCode(error, "ESRCH")) {
+        return;
+      }
+
+      throw error;
+    }
+
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+  }
+}
+
+async function tryWriteControlPidFile(pidFile: string): Promise<boolean> {
+  await mkdir(dirname(pidFile), { recursive: true });
+
+  let existingPid: number | null = null;
+  try {
+    const raw = await readFile(pidFile, "utf8");
+    const parsed = Number.parseInt(raw.trim(), 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      existingPid = parsed;
+    }
+  } catch (error) {
+    if (!isErrorWithCode(error, "ENOENT")) {
+      throw error;
+    }
+  }
+
+  if (existingPid !== null && existingPid !== process.pid) {
+    try {
+      process.kill(existingPid, 0);
+      console.warn(`[reboot] Control pid file is already owned by pid ${existingPid}: ${pidFile}`);
+      return false;
+    } catch (error) {
+      if (!isErrorWithCode(error, "ESRCH")) {
+        throw error;
+      }
+    }
+  }
+
+  await writeFile(pidFile, `${process.pid}\n`, "utf8");
+  return true;
+}
+
+async function removeOwnedControlPidFile(pidFile: string): Promise<void> {
+  try {
+    const raw = await readFile(pidFile, "utf8");
+    const parsed = Number.parseInt(raw.trim(), 10);
+    if (parsed !== process.pid) {
+      return;
+    }
+  } catch (error) {
+    if (isErrorWithCode(error, "ENOENT")) {
+      return;
+    }
+
+    throw error;
+  }
+
+  await rm(pidFile, { force: true });
+}
+
+async function spawnReplacementProcess(): Promise<void> {
+  const replacementArgs = [...process.execArgv, ...process.argv.slice(1)];
+  const replacementEnv = {
+    ...process.env,
+    [RESTART_PARENT_PID_ENV_VAR]: `${process.pid}`,
+    [SUPPRESS_OPEN_ON_RESTART_ENV_VAR]: "1"
+  };
+
+  await new Promise<void>((resolveSpawn, reject) => {
+    const child = spawn(process.execPath, replacementArgs, {
+      cwd: process.cwd(),
+      env: replacementEnv,
+      stdio: "inherit"
+    });
+
+    child.once("error", reject);
+    child.once("spawn", () => {
+      resolveSpawn();
+    });
+  });
+}
+
+function isErrorWithCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === code
+  );
 }
 
 if (import.meta.url === new URL(process.argv[1] ?? "", "file://").href) {

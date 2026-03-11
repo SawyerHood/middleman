@@ -4,6 +4,7 @@ import { extname, resolve, sep } from "node:path";
 import { WebSocketServer } from "ws";
 import type { IntegrationRegistryService } from "../integrations/registry.js";
 import type { ServerEvent } from "@middleman/protocol";
+import { getControlPidFileCandidates } from "../reboot/control-pid.js";
 import type { SwarmManager } from "../swarm/swarm-manager.js";
 import { applyCorsHeaders, resolveReadFileContentType, resolveRequestUrl, sendJson } from "./http-utils.js";
 import { createAgentHttpRoutes } from "./routes/agent-routes.js";
@@ -120,7 +121,10 @@ export class SwarmWebSocketServer {
     this.settingsRoutes = createSettingsRoutes({ swarmManager: this.swarmManager });
     this.httpRoutes = [
       ...createHealthRoutes({
-        resolveRepoRoot: () => this.swarmManager.getConfig().paths.projectRoot
+        resolveControlPidFiles: () => {
+          const { installDir, runDir } = this.swarmManager.getConfig().paths;
+          return getControlPidFileCandidates({ installDir, runDir });
+        }
       }),
       ...createFileRoutes({ swarmManager: this.swarmManager }),
       ...createTranscriptionRoutes({ swarmManager: this.swarmManager }),

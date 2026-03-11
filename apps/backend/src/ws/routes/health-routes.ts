@@ -1,7 +1,5 @@
-import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { RESTART_SIGNAL } from "../../reboot/control-pid.js";
 import {
   applyCorsHeaders,
   sendJson
@@ -10,10 +8,9 @@ import type { HttpRoute } from "./http-route.js";
 
 const HEALTH_ENDPOINT_PATH = "/api/health";
 const REBOOT_ENDPOINT_PATH = "/api/reboot";
-const RESTART_SIGNAL: NodeJS.Signals = "SIGUSR1";
 
-export function createHealthRoutes(options: { resolveRepoRoot: () => string }): HttpRoute[] {
-  const { resolveRepoRoot } = options;
+export function createHealthRoutes(options: { resolveControlPidFiles: () => string[] }): HttpRoute[] {
+  const { resolveControlPidFiles } = options;
 
   return [
     {
@@ -60,7 +57,7 @@ export function createHealthRoutes(options: { resolveRepoRoot: () => string }): 
         sendJson(response, 200, { ok: true });
 
         const rebootTimer = setTimeout(() => {
-          void triggerRebootSignal(resolveRepoRoot());
+          void triggerRebootSignal(resolveControlPidFiles());
         }, 25);
         rebootTimer.unref();
       }
@@ -68,9 +65,9 @@ export function createHealthRoutes(options: { resolveRepoRoot: () => string }): 
   ];
 }
 
-async function triggerRebootSignal(repoRoot: string): Promise<void> {
+async function triggerRebootSignal(pidFiles: readonly string[]): Promise<void> {
   try {
-    const daemonPid = await resolveProdDaemonPid(repoRoot);
+    const daemonPid = await resolveProdDaemonPid(pidFiles);
     const targetPid = daemonPid ?? process.pid;
 
     process.kill(targetPid, RESTART_SIGNAL);
@@ -80,8 +77,18 @@ async function triggerRebootSignal(repoRoot: string): Promise<void> {
   }
 }
 
-async function resolveProdDaemonPid(repoRoot: string): Promise<number | null> {
-  const pidFile = getProdDaemonPidFile(repoRoot);
+async function resolveProdDaemonPid(pidFiles: readonly string[]): Promise<number | null> {
+  for (const pidFile of pidFiles) {
+    const pid = await readRunningPidFromFile(pidFile);
+    if (pid !== null) {
+      return pid;
+    }
+  }
+
+  return null;
+}
+
+async function readRunningPidFromFile(pidFile: string): Promise<number | null> {
   let pidFileContents: string;
   try {
     pidFileContents = await readFile(pidFile, "utf8");
@@ -118,9 +125,4 @@ async function resolveProdDaemonPid(repoRoot: string): Promise<number | null> {
 
     return null;
   }
-}
-
-function getProdDaemonPidFile(repoRoot: string): string {
-  const repoHash = createHash("sha1").update(repoRoot).digest("hex").slice(0, 10);
-  return join(tmpdir(), `swarm-prod-daemon-${repoHash}.pid`);
 }

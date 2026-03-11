@@ -3,9 +3,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  getControlPidFileCandidates,
+  getControlPidFilePath,
+  getLegacyControlPidFilePath
+} from "./prod-daemon-paths.mjs";
 
 const RESTART_SIGNAL = "SIGUSR1";
 const STOP_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
@@ -14,10 +18,10 @@ const DEFAULT_COMMAND = "pnpm prod";
 const DEFAULT_INSTALL_COMMAND = "pnpm i";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const repoHash = createHash("sha1").update(repoRoot).digest("hex").slice(0, 10);
-const pidFile = path.join(os.tmpdir(), `swarm-prod-daemon-${repoHash}.pid`);
+const pidFile = getControlPidFilePath();
+const legacyPidFile = getLegacyControlPidFilePath(repoRoot);
 const lockFilePath = path.join(repoRoot, "pnpm-lock.yaml");
-const lockHashFile = path.join(os.tmpdir(), `swarm-prod-daemon-lock-${repoHash}.sha1`);
+const lockHashFile = `${legacyPidFile}.lock.sha1`;
 const command = process.env.SWARM_PROD_DAEMON_COMMAND?.trim() || DEFAULT_COMMAND;
 const installCommand = process.env.SWARM_PROD_DAEMON_INSTALL_COMMAND?.trim() || DEFAULT_INSTALL_COMMAND;
 
@@ -118,8 +122,12 @@ function isChildRunning() {
 }
 
 function writePidFile() {
-  if (fs.existsSync(pidFile)) {
-    const existingPid = Number.parseInt(fs.readFileSync(pidFile, "utf8").trim(), 10);
+  for (const candidate of getControlPidFileCandidates(repoRoot)) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+
+    const existingPid = Number.parseInt(fs.readFileSync(candidate, "utf8").trim(), 10);
 
     if (Number.isInteger(existingPid) && existingPid > 0 && existingPid !== process.pid) {
       try {
@@ -133,17 +141,21 @@ function writePidFile() {
     }
   }
 
+  fs.mkdirSync(path.dirname(pidFile), { recursive: true });
   fs.writeFileSync(pidFile, `${process.pid}\n`, "utf8");
+  fs.writeFileSync(legacyPidFile, `${process.pid}\n`, "utf8");
 }
 
 function removePidFile() {
-  if (!fs.existsSync(pidFile)) {
-    return;
-  }
+  for (const candidate of [pidFile, legacyPidFile]) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
 
-  const filePid = Number.parseInt(fs.readFileSync(pidFile, "utf8").trim(), 10);
-  if (filePid === process.pid) {
-    fs.rmSync(pidFile, { force: true });
+    const filePid = Number.parseInt(fs.readFileSync(candidate, "utf8").trim(), 10);
+    if (filePid === process.pid) {
+      fs.rmSync(candidate, { force: true });
+    }
   }
 }
 
@@ -225,7 +237,10 @@ function startChild() {
 
   child = spawn(command, {
     cwd: repoRoot,
-    env: process.env,
+    env: {
+      ...process.env,
+      MIDDLEMAN_DAEMONIZED: "1",
+    },
     stdio: "inherit",
     shell: true,
     detached: true,

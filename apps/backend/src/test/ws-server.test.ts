@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { once } from 'node:events'
 import { createServer } from 'node:net'
@@ -16,6 +15,7 @@ import type {
   SwarmConfig,
 } from '../swarm/types.js'
 import type { SwarmAgentRuntime } from '../swarm/runtime-types.js'
+import { getControlPidFilePath, getLegacyControlPidFilePath } from '../reboot/control-pid.js'
 import { getScheduleFilePath } from '../scheduler/schedule-storage.js'
 import { SwarmWebSocketServer } from '../ws/server.js'
 import type { ServerEvent } from '@middleman/protocol'
@@ -309,8 +309,46 @@ describe('SwarmWebSocketServer', () => {
     await server.start()
 
     const daemonPid = 54321
-    const repoHash = createHash('sha1').update(config.paths.projectRoot).digest('hex').slice(0, 10)
-    const pidFile = join(tmpdir(), `swarm-prod-daemon-${repoHash}.pid`)
+    const pidFile = getControlPidFilePath(config.paths.runDir)
+    await writeFile(pidFile, `${daemonPid}\n`, 'utf8')
+
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
+
+    try {
+      const response = await fetch(`http://${config.host}:${config.port}/api/reboot`, {
+        method: 'POST',
+      })
+
+      expect(response.status).toBe(200)
+      await new Promise((resolve) => setTimeout(resolve, 60))
+
+      expect(killSpy).toHaveBeenCalledWith(daemonPid, 0)
+      expect(killSpy).toHaveBeenCalledWith(daemonPid, 'SIGUSR1')
+    } finally {
+      killSpy.mockRestore()
+      await rm(pidFile, { force: true })
+      await server.stop()
+    }
+  })
+
+  it('accepts POST /api/reboot and falls back to the legacy installDir pid file', async () => {
+    const port = await getAvailablePort()
+    const config = await makeTempConfig(port)
+
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
+    })
+
+    await server.start()
+
+    const daemonPid = 65432
+    const pidFile = getLegacyControlPidFilePath(config.paths.installDir)
     await writeFile(pidFile, `${daemonPid}\n`, 'utf8')
 
     const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)

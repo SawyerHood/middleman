@@ -39,6 +39,7 @@ interface BackendEntrypoint {
 
 const DEFAULT_API_BASE_URL = 'http://127.0.0.1:47187'
 const CLI_MODULE_DIR = dirname(fileURLToPath(import.meta.url))
+const SUPPRESS_OPEN_ON_RESTART_ENV_VAR = 'MIDDLEMAN_SUPPRESS_OPEN_ON_RESTART'
 
 export async function runCli(argv: string[]): Promise<void> {
   if (argv.length === 0) {
@@ -130,7 +131,10 @@ async function handleStart(argv: string[]): Promise<void> {
   process.stdout.write(`Data dir: ${config.paths.dataDir}\n`)
   process.stdout.write(`Project root: ${config.paths.projectRoot}\n`)
 
-  if (parsed.openBrowser) {
+  const suppressOpenOnRestart = process.env[SUPPRESS_OPEN_ON_RESTART_ENV_VAR] === '1'
+  delete process.env[SUPPRESS_OPEN_ON_RESTART_ENV_VAR]
+
+  if (parsed.openBrowser && !suppressOpenOnRestart) {
     openBrowser(url)
   }
 }

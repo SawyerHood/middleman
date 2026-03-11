@@ -1,26 +1,20 @@
 #!/usr/bin/env node
 
-import { createHash } from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getControlPidFileCandidates } from "./prod-daemon-paths.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const repoHash = createHash("sha1").update(repoRoot).digest("hex").slice(0, 10);
-const pidFile = path.join(os.tmpdir(), `swarm-prod-daemon-${repoHash}.pid`);
+const pidFiles = getControlPidFileCandidates(repoRoot);
 
-if (!fs.existsSync(pidFile)) {
-  console.error(`[prod-daemon] No daemon pid file found at ${pidFile}. Start it with \`pnpm prod:daemon\`.`);
+const resolved = resolveRunningPidFile(pidFiles);
+if (!resolved) {
+  console.error(`[prod-daemon] No daemon pid file found. Checked: ${pidFiles.join(", ")}`);
   process.exit(1);
 }
 
-const pid = Number.parseInt(fs.readFileSync(pidFile, "utf8").trim(), 10);
-if (!Number.isInteger(pid) || pid <= 0) {
-  console.error(`[prod-daemon] Invalid pid file: ${pidFile}`);
-  process.exit(1);
-}
-
+const { pidFile, pid } = resolved;
 try {
   process.kill(pid, "SIGUSR1");
   console.log(`[prod-daemon] Sent SIGUSR1 to daemon pid ${pid}.`);
@@ -33,4 +27,31 @@ try {
 
   console.error(`[prod-daemon] Failed to signal daemon pid ${pid}: ${error.message}`);
   process.exit(1);
+}
+
+function resolveRunningPidFile(candidates) {
+  for (const pidFile of candidates) {
+    if (!fs.existsSync(pidFile)) {
+      continue;
+    }
+
+    const pid = Number.parseInt(fs.readFileSync(pidFile, "utf8").trim(), 10);
+    if (!Number.isInteger(pid) || pid <= 0) {
+      continue;
+    }
+
+    try {
+      process.kill(pid, 0);
+      return { pidFile, pid };
+    } catch (error) {
+      if (error.code === "ESRCH") {
+        fs.rmSync(pidFile, { force: true });
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  return null;
 }
