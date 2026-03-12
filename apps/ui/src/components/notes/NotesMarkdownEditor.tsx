@@ -1,6 +1,8 @@
+import { $convertFromMarkdownString, $convertToMarkdownString } from '@lexical/markdown'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
-import { ContentEditable } from '@lexical/react/LexicalContentEditable'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { CheckListPlugin } from '@lexical/react/LexicalCheckListPlugin'
+import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
@@ -8,10 +10,21 @@ import { ListPlugin } from '@lexical/react/LexicalListPlugin'
 import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin'
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
-import { $convertFromMarkdownString, $convertToMarkdownString } from '@lexical/markdown'
-import { memo, useMemo } from 'react'
+import {
+  $createParagraphNode,
+  $insertNodes,
+  COMMAND_PRIORITY_LOW,
+  DRAGOVER_COMMAND,
+  DROP_COMMAND,
+  PASTE_COMMAND,
+  mergeRegister,
+} from 'lexical'
+import { Loader2 } from 'lucide-react'
+import { memo, useEffect, useEffectEvent, useMemo, useState } from 'react'
 
+import { $createImageNode, NotesImageContext } from './ImageNode'
 import { FloatingToolbar } from './FloatingToolbar'
+import { uploadNoteAttachment } from './notes-api'
 import { NOTES_EDITOR_NODES, NOTES_MARKDOWN_TRANSFORMERS } from './notes-markdown'
 
 const editorTheme = {
@@ -50,13 +63,20 @@ const editorTheme = {
 
 interface NotesMarkdownEditorProps {
   editorId: string
+  wsUrl: string
   markdown: string
   onChange: (markdown: string) => void
   placeholder?: string
 }
 
+interface UploadedImage {
+  altText: string
+  src: string
+}
+
 export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
   editorId,
+  wsUrl,
   markdown,
   onChange,
   placeholder = 'Start writing...',
@@ -82,37 +102,223 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="relative min-h-0 flex-1 overflow-y-auto bg-background">
-        <RichTextPlugin
-          contentEditable={
-            <ContentEditable
-              aria-label="Note editor"
-              className="mx-auto block min-h-full w-full max-w-[720px] px-5 py-8 text-[16px] leading-[1.72] text-foreground outline-none md:px-10 md:py-14"
-              spellCheck
-            />
-          }
-          placeholder={
-            <div className="pointer-events-none absolute inset-x-0 top-8 px-5 text-[16px] leading-[1.72] text-muted-foreground/40 md:top-14 md:px-10">
-              <div className="mx-auto max-w-[720px]">{placeholder}</div>
-            </div>
-          }
-          ErrorBoundary={LexicalErrorBoundary}
+      <NotesImageContext.Provider value={wsUrl}>
+        <div className="relative min-h-0 flex-1 overflow-y-auto bg-background">
+          <ImagePlugin wsUrl={wsUrl} />
+          <RichTextPlugin
+            contentEditable={
+              <ContentEditable
+                aria-label="Note editor"
+                className="mx-auto block min-h-full w-full max-w-[720px] px-5 py-8 text-[16px] leading-[1.72] text-foreground outline-none md:px-10 md:py-14"
+                spellCheck
+              />
+            }
+            placeholder={
+              <div className="pointer-events-none absolute inset-x-0 top-8 px-5 text-[16px] leading-[1.72] text-muted-foreground/40 md:top-14 md:px-10">
+                <div className="mx-auto max-w-[720px]">{placeholder}</div>
+              </div>
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+        </div>
+        <HistoryPlugin />
+        <ListPlugin />
+        <CheckListPlugin />
+        <LinkPlugin />
+        <FloatingToolbar />
+        <MarkdownShortcutPlugin transformers={NOTES_MARKDOWN_TRANSFORMERS} />
+        <OnChangePlugin
+          ignoreSelectionChange
+          onChange={(editorState) => {
+            editorState.read(() => {
+              onChange($convertToMarkdownString(NOTES_MARKDOWN_TRANSFORMERS))
+            })
+          }}
         />
-      </div>
-      <HistoryPlugin />
-      <ListPlugin />
-      <CheckListPlugin />
-      <LinkPlugin />
-      <FloatingToolbar />
-      <MarkdownShortcutPlugin transformers={NOTES_MARKDOWN_TRANSFORMERS} />
-      <OnChangePlugin
-        ignoreSelectionChange
-        onChange={(editorState) => {
-          editorState.read(() => {
-            onChange($convertToMarkdownString(NOTES_MARKDOWN_TRANSFORMERS))
-          })
-        }}
-      />
+      </NotesImageContext.Provider>
     </LexicalComposer>
   )
 })
+
+function ImagePlugin({ wsUrl }: { wsUrl: string }) {
+  const [editor] = useLexicalComposerContext()
+  const [uploadCount, setUploadCount] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  const uploadImages = useEffectEvent(async (files: File[]) => {
+    if (files.length === 0) {
+      return
+    }
+
+    setUploadError(null)
+    setUploadCount((count) => count + files.length)
+
+    try {
+      const uploadedImages: UploadedImage[] = []
+
+      for (const file of files) {
+        const src = await uploadNoteAttachment(wsUrl, file)
+        uploadedImages.push({
+          altText: resolveImageAltText(file),
+          src,
+        })
+      }
+
+      editor.update(
+        () => {
+          insertUploadedImages(uploadedImages)
+        },
+        { discrete: true },
+      )
+    } catch (error) {
+      setUploadError(toErrorMessage(error))
+    } finally {
+      setUploadCount((count) => Math.max(0, count - files.length))
+    }
+  })
+
+  useEffect(() => {
+    return mergeRegister(
+      editor.registerCommand(
+        PASTE_COMMAND,
+        (event) => {
+          const imageFiles = extractImageFilesFromPasteEvent(event)
+          if (imageFiles.length === 0) {
+            return false
+          }
+
+          event.preventDefault()
+          void uploadImages(imageFiles)
+          return true
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+      editor.registerCommand(
+        DRAGOVER_COMMAND,
+        (event) => {
+          const imageFiles = extractImageFilesFromDataTransfer(event.dataTransfer)
+          if (imageFiles.length === 0) {
+            return false
+          }
+
+          event.preventDefault()
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'copy'
+          }
+          return true
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+      editor.registerCommand(
+        DROP_COMMAND,
+        (event) => {
+          const imageFiles = extractImageFilesFromDataTransfer(event.dataTransfer)
+          if (imageFiles.length === 0) {
+            return false
+          }
+
+          event.preventDefault()
+          void uploadImages(imageFiles)
+          return true
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+    )
+  }, [editor, uploadImages])
+
+  if (uploadCount === 0 && uploadError === null) {
+    return null
+  }
+
+  const isUploading = uploadCount > 0
+  const statusText = isUploading
+    ? `Uploading ${uploadCount} image${uploadCount === 1 ? '' : 's'}...`
+    : uploadError
+
+  return (
+    <div
+      className={`pointer-events-none absolute right-4 top-4 z-10 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-full border px-3 py-1.5 text-xs shadow-sm backdrop-blur ${
+        isUploading
+          ? 'border-border/70 bg-background/95 text-foreground'
+          : 'border-destructive/20 bg-destructive/10 text-destructive'
+      }`}
+    >
+      {isUploading ? <Loader2 className="size-3.5 animate-spin" /> : null}
+      <span>{statusText}</span>
+    </div>
+  )
+}
+
+function insertUploadedImages(images: UploadedImage[]): void {
+  if (images.length === 0) {
+    return
+  }
+
+  const nodes = images.map(({ altText, src }) => $createImageNode({ altText, src }))
+  $insertNodes(nodes)
+
+  const lastNode = nodes.at(-1)
+  if (!lastNode) {
+    return
+  }
+
+  if (lastNode.getNextSibling() !== null) {
+    lastNode.selectNext()
+    return
+  }
+
+  const trailingParagraph = $createParagraphNode()
+  lastNode.insertAfter(trailingParagraph)
+  trailingParagraph.select()
+}
+
+function extractImageFilesFromPasteEvent(event: Event): File[] {
+  if (!('clipboardData' in event)) {
+    return []
+  }
+
+  return extractImageFilesFromDataTransfer((event as ClipboardEvent).clipboardData)
+}
+
+function extractImageFilesFromDataTransfer(dataTransfer: DataTransfer | null | undefined): File[] {
+  if (!dataTransfer) {
+    return []
+  }
+
+  const files = Array.from(dataTransfer.files ?? []).filter((file) => file.type.startsWith('image/'))
+  if (files.length > 0) {
+    return files
+  }
+
+  const fallbackFiles: File[] = []
+  for (const item of Array.from(dataTransfer.items ?? [])) {
+    if (item.kind !== 'file' || !item.type.startsWith('image/')) {
+      continue
+    }
+
+    const file = item.getAsFile()
+    if (file) {
+      fallbackFiles.push(file)
+    }
+  }
+
+  return fallbackFiles
+}
+
+function resolveImageAltText(file: File): string {
+  const trimmedName = file.name.trim()
+  if (!trimmedName) {
+    return 'image'
+  }
+
+  const baseName = trimmedName.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim()
+  return baseName || 'image'
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message
+  }
+
+  return 'Unable to upload image.'
+}

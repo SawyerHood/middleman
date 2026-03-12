@@ -1,6 +1,8 @@
 import { resolveApiEndpoint } from '@/lib/api-endpoint'
 import type { NoteDocument, NoteFolder, NoteSummary, NoteTreeFile, NoteTreeNode } from '@middleman/protocol'
 
+const NOTE_ATTACHMENT_PATH_REGEXP = /^attachments\/[^/]+$/i
+
 function isNoteSummary(value: unknown): value is NoteSummary {
   if (!value || typeof value !== 'object') {
     return false
@@ -63,6 +65,29 @@ async function readApiError(response: Response): Promise<string> {
   return `Request failed (${response.status})`
 }
 
+export function resolveNoteImageUrl(wsUrl: string, src: string): string {
+  const trimmedSrc = src.trim()
+  if (!trimmedSrc) {
+    return trimmedSrc
+  }
+
+  if (
+    /^https?:\/\//i.test(trimmedSrc) ||
+    trimmedSrc.startsWith('data:') ||
+    trimmedSrc.startsWith('blob:') ||
+    trimmedSrc.startsWith('/')
+  ) {
+    return trimmedSrc
+  }
+
+  if (!NOTE_ATTACHMENT_PATH_REGEXP.test(trimmedSrc)) {
+    return trimmedSrc
+  }
+
+  const filename = trimmedSrc.slice('attachments/'.length)
+  return resolveApiEndpoint(wsUrl, `/api/notes/attachments/${encodeURIComponent(filename)}`)
+}
+
 export async function fetchNoteTree(wsUrl: string, signal?: AbortSignal): Promise<NoteTreeNode[]> {
   const response = await fetch(resolveApiEndpoint(wsUrl, '/api/notes'), { signal })
   if (!response.ok) {
@@ -116,6 +141,32 @@ export async function saveNote(
   }
 
   return payload.note
+}
+
+export async function uploadNoteAttachment(
+  wsUrl: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<string> {
+  const formData = new FormData()
+  formData.set('file', file, file.name || 'image.png')
+
+  const response = await fetch(resolveApiEndpoint(wsUrl, '/api/notes/upload'), {
+    method: 'POST',
+    body: formData,
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response))
+  }
+
+  const payload = (await response.json()) as { path?: unknown }
+  if (typeof payload.path !== 'string' || !NOTE_ATTACHMENT_PATH_REGEXP.test(payload.path)) {
+    throw new Error('Invalid upload payload.')
+  }
+
+  return payload.path
 }
 
 export async function renameNote(

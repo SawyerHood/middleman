@@ -1009,6 +1009,7 @@ export function NotesView({
               <NotesMarkdownEditor
                 key={selectedNote.path}
                 editorId={selectedNote.path}
+                wsUrl={wsUrl}
                 markdown={selectedNote.content}
                 onChange={handleEditorChange}
               />

@@ -695,6 +695,54 @@ describe('SwarmWebSocketServer P0 endpoints', () => {
     }
   })
 
+  it('uploads note images, serves them back, and keeps attachments out of the notes tree', async () => {
+    const config = await makeTempConfig({ managerId: 'manager' })
+    const manager = new FakeSwarmManager(config, [createManagerDescriptor(config.paths.projectRoot, 'manager')])
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager as unknown as never,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: false,
+    })
+
+    await server.start()
+
+    try {
+      const imageBytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10])
+      const formData = new FormData()
+      formData.set('file', new File([imageBytes], 'clipboard.png', { type: 'image/png' }))
+
+      const uploadResponse = await fetch(`http://${config.host}:${config.port}/api/notes/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+      const upload = await parseJsonResponse(uploadResponse)
+      expect(upload.status).toBe(201)
+      expect(upload.json.path).toMatch(/^attachments\/\d{13}-[a-f0-9]{12}-[a-f0-9]{12}\.png$/)
+
+      const attachmentPath = upload.json.path as string
+      const attachmentFileName = attachmentPath.slice('attachments/'.length)
+
+      expect(
+        await readFile(join(config.paths.dataDir, 'notes', 'attachments', attachmentFileName)),
+      ).toEqual(Buffer.from(imageBytes))
+
+      const treeResponse = await fetch(`http://${config.host}:${config.port}/api/notes`)
+      const tree = await parseJsonResponse(treeResponse)
+      expect(tree.status).toBe(200)
+      expect(tree.json.tree).toEqual([])
+
+      const attachmentResponse = await fetch(
+        `http://${config.host}:${config.port}/api/notes/attachments/${encodeURIComponent(attachmentFileName)}`,
+      )
+      expect(attachmentResponse.status).toBe(200)
+      expect(attachmentResponse.headers.get('content-type')).toBe('image/png')
+      expect(Buffer.from(await attachmentResponse.arrayBuffer())).toEqual(Buffer.from(imageBytes))
+    } finally {
+      await server.stop()
+    }
+  })
+
   it('rejects path traversal and symbolic links for nested note reads and writes', async () => {
     const config = await makeTempConfig({ managerId: 'manager' })
     const manager = new FakeSwarmManager(config, [createManagerDescriptor(config.paths.projectRoot, 'manager')])
@@ -768,6 +816,55 @@ describe('SwarmWebSocketServer P0 endpoints', () => {
       const writeNestedLinked = await parseJsonResponse(writeNestedLinkedResponse)
       expect(writeNestedLinked.status).toBe(400)
       expect(writeNestedLinked.json.error).toBe('Folder "daily" must not be a symbolic link.')
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('rejects note attachment traversal and symbolic links', async () => {
+    const config = await makeTempConfig({ managerId: 'manager' })
+    const manager = new FakeSwarmManager(config, [createManagerDescriptor(config.paths.projectRoot, 'manager')])
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager as unknown as never,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: false,
+    })
+
+    await server.start()
+
+    try {
+      const traversalResponse = await fetch(
+        `http://${config.host}:${config.port}/api/notes/attachments/${encodeURIComponent('../escape.png')}`,
+      )
+      const traversal = await parseJsonResponse(traversalResponse)
+      expect(traversal.status).toBe(400)
+      expect(traversal.json.error).toBe('filename must not include path separators or dot segments.')
+
+      const notesDir = join(config.paths.dataDir, 'notes')
+      const externalAttachmentDir = join(config.paths.dataDir, 'outside-attachments')
+      await mkdir(notesDir, { recursive: true })
+      await mkdir(externalAttachmentDir, { recursive: true })
+      await writeFile(join(externalAttachmentDir, 'linked.png'), Buffer.from([1, 2, 3]))
+      await symlink(externalAttachmentDir, join(notesDir, 'attachments'))
+
+      const formData = new FormData()
+      formData.set('file', new File([Uint8Array.from([1, 2, 3])], 'linked.png', { type: 'image/png' }))
+
+      const uploadResponse = await fetch(`http://${config.host}:${config.port}/api/notes/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+      const upload = await parseJsonResponse(uploadResponse)
+      expect(upload.status).toBe(400)
+      expect(upload.json.error).toBe('Folder "attachments" must not be a symbolic link.')
+
+      const attachmentResponse = await fetch(
+        `http://${config.host}:${config.port}/api/notes/attachments/${encodeURIComponent('linked.png')}`,
+      )
+      const attachment = await parseJsonResponse(attachmentResponse)
+      expect(attachment.status).toBe(400)
+      expect(attachment.json.error).toBe('Folder "attachments" must not be a symbolic link.')
     } finally {
       await server.stop()
     }

@@ -131,6 +131,10 @@ export function resolveReadFileContentType(path: string): string {
       return "image/gif";
     case ".webp":
       return "image/webp";
+    case ".avif":
+      return "image/avif";
+    case ".bmp":
+      return "image/bmp";
     case ".svg":
       return "image/svg+xml; charset=utf-8";
     case ".ico":

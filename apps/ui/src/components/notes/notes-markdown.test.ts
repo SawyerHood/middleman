@@ -3,6 +3,7 @@ import { $isListItemNode, $isListNode } from '@lexical/list'
 import { $getRoot, createEditor } from 'lexical'
 import { describe, expect, it } from 'vitest'
 
+import { $isImageNode } from './ImageNode'
 import { NOTES_EDITOR_NODES, NOTES_MARKDOWN_TRANSFORMERS } from './notes-markdown'
 
 function createNotesEditor() {
@@ -59,5 +60,41 @@ describe('NOTES_MARKDOWN_TRANSFORMERS', () => {
     )
 
     expect(exportedMarkdown).toBe(markdown)
+  })
+
+  it('imports markdown image syntax as an image node', () => {
+    const editor = createNotesEditor()
+
+    editor.update(
+      () => {
+        $convertFromMarkdownString('![Screenshot](attachments/upload.png)', NOTES_MARKDOWN_TRANSFORMERS)
+
+        const root = $getRoot()
+        const image = root.getFirstChild()
+        expect($isImageNode(image)).toBe(true)
+        if (!$isImageNode(image)) {
+          return
+        }
+
+        expect(image.getAltText()).toBe('Screenshot')
+        expect(image.getSrc()).toBe('attachments/upload.png')
+      },
+      { discrete: true },
+    )
+  })
+
+  it('round-trips markdown images through conversion', () => {
+    const editor = createNotesEditor()
+    let exportedMarkdown = ''
+
+    editor.update(
+      () => {
+        $convertFromMarkdownString('![Screenshot](https://example.com/image.png)', NOTES_MARKDOWN_TRANSFORMERS)
+        exportedMarkdown = $convertToMarkdownString(NOTES_MARKDOWN_TRANSFORMERS)
+      },
+      { discrete: true },
+    )
+
+    expect(exportedMarkdown).toBe('![Screenshot](https://example.com/image.png)')
   })
 })
