@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { FileText, FolderPlus, Loader2, PanelLeft, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText, FolderPlus, Loader2, PanelLeft, Plus, Trash2 } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { NotesTree } from '@/components/notes/NotesTree'
 import {
@@ -48,6 +48,7 @@ type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error'
 const DEFAULT_NEW_NOTE_CONTENT = '# Untitled note\n'
 const NOTES_HOME_LABEL = '~/.middleman/notes'
 const ROOT_FOLDER_VALUE = '__root__'
+const NOTES_EXPLORER_COLLAPSED_STORAGE_KEY = 'middleman:notes:explorer-collapsed'
 const NotesMarkdownEditor = lazy(async () => {
   const module = await import('@/components/notes/NotesMarkdownEditor')
   return { default: module.NotesMarkdownEditor }
@@ -77,6 +78,7 @@ export function NotesView({
   const [isLoadingNote, setIsLoadingNote] = useState(false)
   const [expandedFolderPaths, setExpandedFolderPaths] = useState<string[]>([])
   const [activeFolderPath, setActiveFolderPath] = useState<string | null>(null)
+  const [isExplorerCollapsed, setIsExplorerCollapsed] = useState(readStoredExplorerCollapsed)
   const [renamingNotePath, setRenamingNotePath] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const [isRenamingNote, setIsRenamingNote] = useState(false)
@@ -416,6 +418,10 @@ export function NotesView({
     setActiveFolderPath(parentFolderPathOf(selectedNotePath))
   }, [selectedNotePath])
 
+  useEffect(() => {
+    writeStoredExplorerCollapsed(isExplorerCollapsed)
+  }, [isExplorerCollapsed])
+
   const handleEditorChange = useCallback((nextMarkdown: string) => {
     setEditorMarkdown(normalizeNoteMarkdown(nextMarkdown))
   }, [])
@@ -450,6 +456,9 @@ export function NotesView({
     })
   }, [])
 
+  const handleSetExplorerCollapsed = useCallback((nextCollapsed: boolean) => {
+    setIsExplorerCollapsed(nextCollapsed)
+  }, [])
   const openCreateFolderDialog = useCallback((folderPath: string | null) => {
     setCreateFolderParentPath(folderPath)
     setCreateFolderNameDraft('new-folder')
@@ -765,95 +774,128 @@ export function NotesView({
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-        <div className="flex min-h-0 w-full shrink-0 flex-col border-b border-border/70 md:w-80 md:border-b-0 md:border-r">
-          <div className="flex h-12 items-center justify-between border-b border-border/70 px-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
-                Explorer
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
+        <div
+          className={cn(
+            'flex shrink-0 border-border/70 bg-background transition-[width] duration-200 ease-out',
+            isExplorerCollapsed
+              ? 'w-full border-b md:w-11 md:border-b-0 md:border-r'
+              : 'min-h-0 w-full flex-col border-b md:w-80 md:border-b-0 md:border-r',
+          )}
+        >
+          {isExplorerCollapsed ? (
+            <div className="flex h-11 w-full items-center justify-center px-1.5 md:h-full md:flex-col md:justify-start md:py-2">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => openCreateFolderDialog(null)}
-                aria-label="Create folder"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => handleSetExplorerCollapsed(false)}
+                aria-label="Expand explorer"
+                title="Expand explorer"
               >
-                <FolderPlus className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => void handleCreateNote()}
-                aria-label="Create note"
-                disabled={isCreatingNote}
-              >
-                {isCreatingNote ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                <ChevronRight className="size-4" />
               </Button>
             </div>
-          </div>
-
-          <ScrollArea className="h-56 md:h-auto md:flex-1">
-            {isLoadingTree ? (
-              <div className="flex h-full items-center justify-center px-4 py-10 text-sm text-muted-foreground">
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Loading notes
-              </div>
-            ) : tree.length === 0 ? (
-              <div className="px-6 py-14 text-center">
-                <div className="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-muted/50">
-                  <FileText className="size-5 text-muted-foreground/50" />
-                </div>
-                <p className="text-sm font-medium text-foreground/75">No notes yet</p>
-                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground/60">
-                  Create a markdown note or folder and it will live in {NOTES_HOME_LABEL}.
-                </p>
-                <div className="mt-4 flex items-center justify-center gap-2">
+          ) : (
+            <>
+              <div className="flex h-11 items-center justify-between border-b border-border/70 px-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => handleSetExplorerCollapsed(true)}
+                  aria-label="Collapse explorer"
+                  title="Collapse explorer"
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <div className="flex items-center gap-1">
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => openCreateFolderDialog(null)}
+                    aria-label="Create folder"
+                    title="Create folder"
+                  >
+                    <FolderPlus className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => void handleCreateNote()}
+                    aria-label="Create note"
+                    title="Create note"
                     disabled={isCreatingNote}
                   >
-                    {isCreatingNote ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-                    New note
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openCreateFolderDialog(null)}
-                  >
-                    <FolderPlus className="size-3.5" />
-                    New folder
+                    {isCreatingNote ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
                   </Button>
                 </div>
               </div>
-            ) : (
-              <NotesTree
-                tree={tree}
-                selectedNotePath={selectedNotePath}
-                expandedFolderPaths={expandedFolderPaths}
-                renamingNotePath={renamingNotePath}
-                renameDraft={renameDraft}
-                isRenamingNote={isRenamingNote}
-                onSelectNote={handleSelectNote}
-                onToggleFolder={handleToggleFolder}
-                onStartRenameNote={handleStartRenameNote}
-                onRenameDraftChange={setRenameDraft}
-                onCommitRenameNote={handleCommitRenameNote}
-                onCancelRenameNote={handleCancelRenameNote}
-                onCreateNoteInFolder={handleCreateNote}
-                onCreateFolderInFolder={openCreateFolderDialog}
-                onMoveNote={handleOpenMoveDialog}
-                onDeleteNote={setNotePendingDelete}
-                onDeleteFolder={setFolderPendingDelete}
-              />
-            )}
-          </ScrollArea>
+
+              <ScrollArea className="h-56 md:h-auto md:flex-1">
+                {isLoadingTree ? (
+                  <div className="flex h-full items-center justify-center px-4 py-10 text-sm text-muted-foreground">
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Loading notes
+                  </div>
+                ) : tree.length === 0 ? (
+                  <div className="px-6 py-14 text-center">
+                    <div className="mx-auto mb-4 flex size-10 items-center justify-center rounded-full bg-muted/50">
+                      <FileText className="size-5 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-sm font-medium text-foreground/75">No notes yet</p>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground/60">
+                      Create a markdown note or folder and it will live in {NOTES_HOME_LABEL}.
+                    </p>
+                    <div className="mt-4 flex items-center justify-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleCreateNote()}
+                        disabled={isCreatingNote}
+                      >
+                        {isCreatingNote ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                        New note
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openCreateFolderDialog(null)}
+                      >
+                        <FolderPlus className="size-3.5" />
+                        New folder
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <NotesTree
+                    tree={tree}
+                    selectedNotePath={selectedNotePath}
+                    expandedFolderPaths={expandedFolderPaths}
+                    renamingNotePath={renamingNotePath}
+                    renameDraft={renameDraft}
+                    isRenamingNote={isRenamingNote}
+                    onSelectNote={handleSelectNote}
+                    onToggleFolder={handleToggleFolder}
+                    onStartRenameNote={handleStartRenameNote}
+                    onRenameDraftChange={setRenameDraft}
+                    onCommitRenameNote={handleCommitRenameNote}
+                    onCancelRenameNote={handleCancelRenameNote}
+                    onCreateNoteInFolder={handleCreateNote}
+                    onCreateFolderInFolder={openCreateFolderDialog}
+                    onMoveNote={handleOpenMoveDialog}
+                    onDeleteNote={setNotePendingDelete}
+                    onDeleteFolder={setFolderPendingDelete}
+                  />
+                )}
+              </ScrollArea>
+            </>
+          )}
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
@@ -1062,6 +1104,35 @@ function SaveStatusPill({ status }: { status: SaveStatus }) {
       {status === 'saved' ? 'Saved' : status === 'saving' ? 'Saving' : status === 'unsaved' ? 'Unsaved' : 'Save failed'}
     </span>
   )
+}
+
+function readStoredExplorerCollapsed(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    return window.localStorage.getItem(NOTES_EXPLORER_COLLAPSED_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function writeStoredExplorerCollapsed(isCollapsed: boolean): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    if (isCollapsed) {
+      window.localStorage.setItem(NOTES_EXPLORER_COLLAPSED_STORAGE_KEY, 'true')
+      return
+    }
+
+    window.localStorage.removeItem(NOTES_EXPLORER_COLLAPSED_STORAGE_KEY)
+  } catch {
+    // Ignore localStorage write failures in restricted environments.
+  }
 }
 
 function normalizeNoteDocument(note: NoteDocument): NoteDocument {
