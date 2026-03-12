@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { ChevronLeft, ChevronRight, FileText, FolderPlus, Loader2, PanelLeft, Plus, Trash2 } from 'lucide-react'
+import { FileText, FolderPlus, Loader2, PanelLeft, PanelRight, Plus, Trash2 } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { NotesTree } from '@/components/notes/NotesTree'
 import {
@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { NoteDocument, NoteFolder, NoteSummary, NoteTreeNode } from '@middleman/protocol'
 
@@ -742,6 +743,7 @@ export function NotesView({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <ViewHeader
+        className="mb-0"
         title={
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold text-foreground">Notes</h1>
@@ -761,7 +763,34 @@ export function NotesView({
           </Button>
         }
         trailing={
-          selectedNotePath ? <SaveStatusPill status={saveStatus} /> : null
+          <>
+            {selectedNotePath ? <SaveStatusPill status={saveStatus} /> : null}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      'size-7 shrink-0 transition-colors',
+                      isExplorerCollapsed
+                        ? 'text-muted-foreground hover:bg-accent/70 hover:text-foreground'
+                        : 'bg-accent text-foreground',
+                    )}
+                    onClick={() => handleSetExplorerCollapsed(!isExplorerCollapsed)}
+                    aria-label={isExplorerCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+                    aria-pressed={!isExplorerCollapsed}
+                  />
+                }
+              >
+                <PanelRight className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={6}>
+                {isExplorerCollapsed ? 'Show explorer' : 'Hide explorer'}
+              </TooltipContent>
+            </Tooltip>
+          </>
         }
         onBack={onBack}
         backAriaLabel="Back to chat"
@@ -776,40 +805,15 @@ export function NotesView({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         <div
           className={cn(
-            'flex shrink-0 border-border/70 bg-background transition-[width] duration-200 ease-out',
+            'shrink-0 overflow-hidden border-border/70 bg-background transition-[width] duration-200 ease-out',
             isExplorerCollapsed
-              ? 'w-full border-b md:w-11 md:border-b-0 md:border-r'
-              : 'min-h-0 w-full flex-col border-b md:w-80 md:border-b-0 md:border-r',
+              ? 'w-0 border-0'
+              : 'flex min-h-0 w-full flex-col border-b md:w-80 md:border-b-0 md:border-r',
           )}
         >
-          {isExplorerCollapsed ? (
-            <div className="flex h-11 w-full items-center justify-center px-1.5 md:h-full md:flex-col md:justify-start md:py-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => handleSetExplorerCollapsed(false)}
-                aria-label="Expand explorer"
-                title="Expand explorer"
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
-          ) : (
+          {isExplorerCollapsed ? null : (
             <>
-              <div className="flex h-11 items-center justify-between border-b border-border/70 px-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => handleSetExplorerCollapsed(true)}
-                  aria-label="Collapse explorer"
-                  title="Collapse explorer"
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
+              <div className="flex h-11 items-center justify-end border-b border-border/70 px-2">
                 <div className="flex items-center gap-1">
                   <Button
                     type="button"

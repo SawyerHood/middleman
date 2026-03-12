@@ -200,17 +200,16 @@ function renderNotesView() {
 }
 
 describe('NotesView', () => {
-  it('replaces the explorer label with icon controls and persists collapse state', async () => {
+  it('toggles the explorer from the header and persists collapse state', async () => {
     renderNotesView()
 
     await waitFor(() => {
       expect(getByText(container, 'first.md')).toBeTruthy()
     })
 
-    expect(queryByText(container, 'Explorer')).toBeNull()
-
     const collapseButton = container.querySelector('button[aria-label="Collapse explorer"]')
     expect(collapseButton).toBeTruthy()
+    expect(collapseButton?.getAttribute('aria-pressed')).toBe('true')
 
     click(collapseButton as HTMLButtonElement)
 
@@ -219,7 +218,9 @@ describe('NotesView', () => {
     })
 
     expect(queryByText(container, 'first.md')).toBeNull()
-    expect(container.querySelector('button[aria-label="Expand explorer"]')).toBeTruthy()
+    const expandButton = container.querySelector('button[aria-label="Expand explorer"]')
+    expect(expandButton).toBeTruthy()
+    expect(expandButton?.getAttribute('aria-pressed')).toBe('false')
   })
 
   it('starts collapsed when the saved preference is present', async () => {
@@ -231,7 +232,9 @@ describe('NotesView', () => {
       expect(notesApiMocks.fetchNoteTree).toHaveBeenCalled()
     })
 
-    expect(container.querySelector('button[aria-label="Expand explorer"]')).toBeTruthy()
+    const expandButton = container.querySelector('button[aria-label="Expand explorer"]')
+    expect(expandButton).toBeTruthy()
+    expect(expandButton?.getAttribute('aria-pressed')).toBe('false')
     expect(container.querySelector('button[aria-label="Collapse explorer"]')).toBeNull()
     expect(queryByText(container, 'first.md')).toBeNull()
   })
