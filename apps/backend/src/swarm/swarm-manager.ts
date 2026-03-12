@@ -127,6 +127,8 @@ If they agree, summarize the choices and persist them using the memory workflow.
 // Retain recent non-web activity while preserving the full user-facing web transcript.
 const SWARM_CONTEXT_FILE_NAME = "SWARM.md";
 const SWARM_MANAGER_MAX_EVENT_LISTENERS = 64;
+const MAX_WORKER_COMPLETION_REPORT_CHARS = 4_000;
+const WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX = "\n\n[truncated]";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -228,6 +230,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private managerOrder: string[] = [];
   private readonly runtimes = new Map<string, SwarmAgentRuntime>();
   private readonly conversationEntriesByAgentId = new Map<string, ConversationEntryEvent[]>();
+  private readonly lastWorkerCompletionReportTimestampByAgentId = new Map<string, string>();
   private readonly conversationProjector: ConversationProjector;
   private readonly persistenceService: PersistenceService;
   private readonly escalationStorage: EscalationStorage;
@@ -438,6 +441,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     const runtime = await this.createRuntimeForDescriptor(descriptor, runtimeSystemPrompt);
     this.runtimes.set(agentId, runtime);
+    this.markLatestWorkerCompletionSummaryAsReported(agentId);
 
     const contextUsage = runtime.getContextUsage();
     descriptor.contextUsage = contextUsage;
@@ -468,6 +472,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     }
 
     await this.terminateDescriptor(target, { abort: true, emitStatus: false });
+    this.lastWorkerCompletionReportTimestampByAgentId.delete(targetAgentId);
     await this.saveStore();
 
     this.logDebug("agent:kill", {
@@ -664,6 +669,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       terminatedWorkerIds.push(descriptor.agentId);
       await this.terminateDescriptor(descriptor, { abort: true, emitStatus: true });
       this.descriptors.delete(descriptor.agentId);
+      this.lastWorkerCompletionReportTimestampByAgentId.delete(descriptor.agentId);
       this.conversationProjector.deleteConversationHistory(descriptor.agentId);
     }
 
@@ -1844,6 +1850,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     }
 
     this.runtimes.set(descriptor.agentId, runtime);
+    this.markLatestWorkerCompletionSummaryAsReported(descriptor.agentId);
     const contextUsage = runtime.getContextUsage();
     latestDescriptor.contextUsage = contextUsage;
     this.descriptors.set(descriptor.agentId, latestDescriptor);
@@ -2385,9 +2392,93 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     } satisfies ServerEvent);
   }
 
-  private async handleRuntimeAgentEnd(_agentId: string): Promise<void> {
-    // No-op: managers now receive all inbound messages with sourceContext metadata
-    // and decide whether to respond without pending-reply bookkeeping.
+  private async handleRuntimeAgentEnd(agentId: string): Promise<void> {
+    const descriptor = this.descriptors.get(agentId);
+    if (!descriptor || descriptor.role !== "worker") {
+      return;
+    }
+
+    const managerId = normalizeOptionalAgentId(descriptor.managerId);
+    if (!managerId) {
+      return;
+    }
+
+    const managerDescriptor = this.descriptors.get(managerId);
+    if (!managerDescriptor || managerDescriptor.role !== "manager" || isNonRunningAgentStatus(managerDescriptor.status)) {
+      this.logDebug("worker:completion_report:skip_manager_unavailable", {
+        agentId,
+        managerId,
+        managerStatus: managerDescriptor?.status
+      });
+      return;
+    }
+
+    const runtime = this.runtimes.get(agentId);
+    if (!runtime) {
+      this.logDebug("worker:completion_report:skip_runtime_missing", {
+        agentId,
+        managerId
+      });
+      return;
+    }
+
+    const runtimeStatus = runtime.getStatus();
+    const pendingCount = runtime.getPendingCount();
+    if (runtimeStatus !== "idle" || pendingCount > 0) {
+      this.logDebug("worker:completion_report:skip_runtime_active", {
+        agentId,
+        managerId,
+        status: runtimeStatus,
+        pendingCount
+      });
+      return;
+    }
+
+    const report = buildWorkerCompletionReport(
+      descriptor,
+      this.getConversationHistory(agentId),
+      this.lastWorkerCompletionReportTimestampByAgentId.get(agentId)
+    );
+
+    try {
+      const receipt = await this.sendMessage(agentId, managerId, report.message, "auto", {
+        origin: "internal"
+      });
+
+      if (report.summaryTimestamp) {
+        this.lastWorkerCompletionReportTimestampByAgentId.set(agentId, report.summaryTimestamp);
+      }
+
+      this.logDebug("worker:completion_report:sent", {
+        agentId,
+        managerId,
+        acceptedMode: receipt.acceptedMode,
+        summaryTimestamp: report.summaryTimestamp,
+        textPreview: previewForLog(report.message, 240)
+      });
+    } catch (error) {
+      this.logDebug("worker:completion_report:error", {
+        agentId,
+        managerId,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    }
+  }
+
+  private markLatestWorkerCompletionSummaryAsReported(agentId: string): void {
+    const descriptor = this.descriptors.get(agentId);
+    if (!descriptor || descriptor.role !== "worker") {
+      return;
+    }
+
+    const latestSummary = findLatestWorkerCompletionSummary(this.getConversationHistory(agentId));
+    if (latestSummary) {
+      this.lastWorkerCompletionReportTimestampByAgentId.set(agentId, latestSummary.timestamp);
+      return;
+    }
+
+    this.lastWorkerCompletionReportTimestampByAgentId.delete(agentId);
   }
 
   private async ensureDirectories(): Promise<void> {
@@ -2839,6 +2930,82 @@ function formatInboundUserMessageForManager(text: string, sourceContext: Message
 
 function formatEscalationResolutionMessage(escalation: UserEscalation, choice: string): string {
   return `Escalation resolved: [${escalation.id}] — Question: "${escalation.title}" — Response: "${choice}"`;
+}
+
+function buildWorkerCompletionReport(
+  descriptor: Pick<AgentDescriptor, "agentId">,
+  history: ConversationEntryEvent[],
+  lastReportedSummaryTimestamp?: string
+): { message: string; summaryTimestamp?: string } {
+  const latestSummary = findLatestWorkerCompletionSummary(history);
+
+  if (!latestSummary || latestSummary.timestamp === lastReportedSummaryTimestamp) {
+    return {
+      message: `SYSTEM: Worker ${descriptor.agentId} completed its turn.`
+    };
+  }
+
+  const summaryText = truncateWorkerCompletionText(latestSummary.text);
+  const attachmentCount = latestSummary.attachments?.length ?? 0;
+  const attachmentLine =
+    attachmentCount > 0
+      ? `\n\nAttachments: ${attachmentCount} generated attachment${attachmentCount === 1 ? "" : "s"}.`
+      : "";
+
+  if (summaryText.length > 0) {
+    return {
+      message: [
+        `SYSTEM: Worker ${descriptor.agentId} completed its turn.`,
+        "",
+        `${latestSummary.role === "system" ? "Last system message" : "Last assistant message"}:`,
+        summaryText
+      ].join("\n") + attachmentLine,
+      summaryTimestamp: latestSummary.timestamp
+    };
+  }
+
+  return {
+    message: `SYSTEM: Worker ${descriptor.agentId} completed its turn and generated ${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}.`,
+    summaryTimestamp: latestSummary.timestamp
+  };
+}
+
+function findLatestWorkerCompletionSummary(
+  history: ConversationEntryEvent[]
+): ConversationMessageEvent | undefined {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index];
+    if (entry.type !== "conversation_message") {
+      continue;
+    }
+
+    if (entry.role !== "assistant" && entry.role !== "system") {
+      continue;
+    }
+
+    const trimmedText = entry.text.trim();
+    const attachmentCount = entry.attachments?.length ?? 0;
+    if (trimmedText.length === 0 && attachmentCount === 0) {
+      continue;
+    }
+
+    return entry;
+  }
+
+  return undefined;
+}
+
+function truncateWorkerCompletionText(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= MAX_WORKER_COMPLETION_REPORT_CHARS) {
+    return trimmed;
+  }
+
+  const limit = Math.max(
+    0,
+    MAX_WORKER_COMPLETION_REPORT_CHARS - WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX.length
+  );
+  return `${trimmed.slice(0, limit).trimEnd()}${WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX}`;
 }
 
 function parseCompactSlashCommand(text: string): { customInstructions?: string } | undefined {
