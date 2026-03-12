@@ -160,9 +160,10 @@ function SidebarResizeHandle() {
   return (
     <ResizableSeparator
       aria-label="Resize sidebar"
-      className="group hidden w-3 shrink-0 cursor-col-resize items-stretch justify-center bg-sidebar outline-none transition-colors md:flex"
+      className="group relative hidden w-0 shrink-0 cursor-col-resize items-stretch justify-center bg-transparent outline-none md:flex"
     >
-      <div className="w-px bg-border/70 transition-colors duration-150 group-hover:bg-border group-focus-visible:bg-primary group-data-[separator=active]:bg-primary" />
+      {/* Invisible hit area for easier grabbing */}
+      <div className="absolute inset-y-0 -left-1.5 -right-1.5 z-10" />
     </ResizableSeparator>
   )
 }

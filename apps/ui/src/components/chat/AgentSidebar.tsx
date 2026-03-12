@@ -539,7 +539,7 @@ export function AgentSidebar({
   const sidebarContent = (
     <aside
       className={cn(
-        'flex h-full w-full min-w-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:border-r-0',
+        'flex h-full w-full min-w-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
       )}
     >
       <ViewHeader
