@@ -2,10 +2,11 @@ import { useCallback, useMemo } from 'react'
 
 export const DEFAULT_MANAGER_AGENT_ID = 'opus-manager'
 
-export type ActiveView = 'chat' | 'escalations' | 'settings'
+export type ActiveView = 'chat' | 'escalations' | 'notes' | 'settings'
 export type AppRouteState =
   | { view: 'chat'; agentId: string }
   | { view: 'escalations' }
+  | { view: 'notes' }
   | { view: 'settings' }
 
 type AppRouteSearch = {
@@ -44,6 +45,13 @@ function parseRouteStateFromPathname(pathname: string): ParsedRouteState {
   if (normalizedPath === '/escalations') {
     return {
       routeState: { view: 'escalations' },
+      hasExplicitAgentSelection: false,
+    }
+  }
+
+  if (normalizedPath === '/notes') {
+    return {
+      routeState: { view: 'notes' },
       hasExplicitAgentSelection: false,
     }
   }
@@ -87,6 +95,13 @@ function parseRouteStateFromLocation(pathname: string, search: unknown): ParsedR
     }
   }
 
+  if (view === 'notes') {
+    return {
+      routeState: { view: 'notes' },
+      hasExplicitAgentSelection: false,
+    }
+  }
+
   if (view === 'chat' || agentId !== undefined) {
     return {
       routeState: {
@@ -109,6 +124,10 @@ function normalizeRouteState(routeState: AppRouteState): AppRouteState {
     return { view: 'escalations' }
   }
 
+  if (routeState.view === 'notes') {
+    return { view: 'notes' }
+  }
+
   return {
     view: 'chat',
     agentId: normalizeAgentId(routeState.agentId),
@@ -122,6 +141,10 @@ function toRouteSearch(routeState: AppRouteState): AppRouteSearch {
 
   if (routeState.view === 'escalations') {
     return { view: 'escalations' }
+  }
+
+  if (routeState.view === 'notes') {
+    return { view: 'notes' }
   }
 
   const agentId = normalizeAgentId(routeState.agentId)
@@ -138,6 +161,10 @@ function routeStatesEqual(left: AppRouteState, right: AppRouteState): boolean {
   }
 
   if (left.view === 'escalations' && right.view === 'escalations') {
+    return true
+  }
+
+  if (left.view === 'notes' && right.view === 'notes') {
     return true
   }
 

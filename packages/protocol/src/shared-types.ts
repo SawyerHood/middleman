@@ -49,6 +49,18 @@ export interface UserEscalation {
   resolvedAt?: string
 }
 
+export interface NoteSummary {
+  filename: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  sizeBytes: number
+}
+
+export interface NoteDocument extends NoteSummary {
+  content: string
+}
+
 export type DeliveryMode = 'auto' | 'followUp' | 'steer'
 export type AcceptedDeliveryMode = 'prompt' | 'followUp' | 'steer'
 
