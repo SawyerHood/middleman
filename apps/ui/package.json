@@ -20,6 +20,7 @@
     "@lexical/markdown": "^0.41.0",
     "@lexical/react": "^0.41.0",
     "@lexical/rich-text": "^0.41.0",
+    "@lexical/selection": "^0.41.0",
     "@middleman/protocol": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-devtools": "^0.7.0",

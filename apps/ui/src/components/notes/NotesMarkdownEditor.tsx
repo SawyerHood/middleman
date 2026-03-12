@@ -11,6 +11,7 @@ import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
 import { $convertFromMarkdownString, $convertToMarkdownString } from '@lexical/markdown'
 import { memo, useMemo } from 'react'
 
+import { FloatingToolbar } from './FloatingToolbar'
 import { NOTES_EDITOR_NODES, NOTES_MARKDOWN_TRANSFORMERS } from './notes-markdown'
 
 const editorTheme = {
@@ -102,6 +103,7 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
       <ListPlugin />
       <CheckListPlugin />
       <LinkPlugin />
+      <FloatingToolbar />
       <MarkdownShortcutPlugin transformers={NOTES_MARKDOWN_TRANSFORMERS} />
       <OnChangePlugin
         ignoreSelectionChange

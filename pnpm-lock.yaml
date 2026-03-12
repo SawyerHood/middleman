@@ -184,6 +184,9 @@ importers:
       '@lexical/rich-text':
         specifier: ^0.41.0
         version: 0.41.0
+      '@lexical/selection':
+        specifier: ^0.41.0
+        version: 0.41.0
       '@middleman/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
