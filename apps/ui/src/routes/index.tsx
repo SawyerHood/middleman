@@ -11,6 +11,12 @@ import {
   useLocation,
   useNavigate,
 } from '@tanstack/react-router'
+import {
+  Group as ResizablePanelGroup,
+  Panel as ResizablePanel,
+  Separator as ResizableSeparator,
+  usePanelRef,
+} from 'react-resizable-panels'
 import { AgentSidebar } from '@/components/chat/AgentSidebar'
 import {
   ArtifactPanel,
@@ -51,6 +57,11 @@ export const Route = createFileRoute('/')({
 
 const DEFAULT_MANAGER_MODEL: ManagerModelPreset = 'pi-codex'
 const DEFAULT_DEV_WS_URL = 'ws://127.0.0.1:47187'
+const DESKTOP_SIDEBAR_MEDIA_QUERY = '(min-width: 768px)'
+const SIDEBAR_WIDTH_STORAGE_KEY = 'middleman:index:sidebar-width'
+const SIDEBAR_DEFAULT_WIDTH = 320
+const SIDEBAR_MIN_WIDTH = 256
+const SIDEBAR_MAX_WIDTH = 480
 
 function resolveDefaultWsUrl(): string {
   if (typeof window === 'undefined') {
@@ -67,13 +78,104 @@ function resolveDefaultWsUrl(): string {
   return `${protocol}//${host}`
 }
 
+function clampSidebarWidth(width: number): number {
+  return Math.min(
+    SIDEBAR_MAX_WIDTH,
+    Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)),
+  )
+}
+
+function readStoredSidebarWidth(): number {
+  if (typeof window === 'undefined') {
+    return SIDEBAR_DEFAULT_WIDTH
+  }
+
+  try {
+    const stored = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY)
+    if (!stored) {
+      return SIDEBAR_DEFAULT_WIDTH
+    }
+
+    const parsed = Number.parseFloat(stored)
+    if (!Number.isFinite(parsed)) {
+      return SIDEBAR_DEFAULT_WIDTH
+    }
+
+    return clampSidebarWidth(parsed)
+  } catch {
+    return SIDEBAR_DEFAULT_WIDTH
+  }
+}
+
+function writeStoredSidebarWidth(width: number): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(
+      SIDEBAR_WIDTH_STORAGE_KEY,
+      String(clampSidebarWidth(width)),
+    )
+  } catch {
+    // Ignore localStorage write failures in restricted environments.
+  }
+}
+
+function useDesktopSidebarLayout(): boolean {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return true
+    }
+
+    return window.matchMedia(DESKTOP_SIDEBAR_MEDIA_QUERY).matches
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia(DESKTOP_SIDEBAR_MEDIA_QUERY)
+    const updateMatches = () => {
+      setMatches(mediaQuery.matches)
+    }
+
+    updateMatches()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', updateMatches)
+      return () => mediaQuery.removeEventListener('change', updateMatches)
+    }
+
+    mediaQuery.addListener(updateMatches)
+    return () => mediaQuery.removeListener(updateMatches)
+  }, [])
+
+  return matches
+}
+
+function SidebarResizeHandle() {
+  return (
+    <ResizableSeparator
+      aria-label="Resize sidebar"
+      className="group hidden w-3 shrink-0 cursor-col-resize items-stretch justify-center bg-transparent outline-none transition-colors md:flex"
+    >
+      <div className="w-px bg-border/70 transition-colors duration-150 group-hover:bg-border group-focus-visible:bg-primary group-data-[separator=active]:bg-primary" />
+    </ResizableSeparator>
+  )
+}
+
 export function IndexPage() {
   const wsUrl = import.meta.env.VITE_MIDDLEMAN_WS_URL ?? resolveDefaultWsUrl()
   const messageInputRef = useRef<MessageInputHandle | null>(null)
   const messageListRef = useRef<MessageListHandle | null>(null)
+  const sidebarPanelRef = usePanelRef()
+  const storedSidebarWidthRef = useRef(readStoredSidebarWidth())
   const navigate = useOptionalNavigate()
   const location = useOptionalLocation()
   const pruneMessageDrafts = useSetAtom(pruneMessageDraftsAtom)
+  const isDesktopSidebarLayout = useDesktopSidebarLayout()
 
   const { clientRef, state, setState } = useWsConnection(wsUrl)
   const {
@@ -314,6 +416,32 @@ export function IndexPage() {
     client.subscribeToAgentDetail(activeAgent.agentId)
   }, [activeAgent?.agentId, activeAgent?.role, activeView, clientRef])
 
+  useEffect(() => {
+    if (isDesktopSidebarLayout) {
+      setIsMobileSidebarOpen(false)
+    }
+  }, [isDesktopSidebarLayout])
+
+  useEffect(() => {
+    const sidebarPanel = sidebarPanelRef.current
+    if (!sidebarPanel) {
+      return
+    }
+
+    const nextWidth = isDesktopSidebarLayout ? storedSidebarWidthRef.current : 0
+    try {
+      const currentWidth = Math.round(sidebarPanel.getSize().inPixels)
+      if (currentWidth === Math.round(nextWidth)) {
+        return
+      }
+
+      sidebarPanel.resize(nextWidth)
+    } catch {
+      // The panel group may not be ready yet during initial test mounts.
+      return
+    }
+  }, [isDesktopSidebarLayout, sidebarPanelRef])
+
   const handleSend = (text: string, attachments?: ConversationAttachment[]) => {
     if (!activeAgentId) {
       return
@@ -425,146 +553,192 @@ export function IndexPage() {
     </div>
   ) : null
 
+  const handleSidebarLayoutChanged = useCallback(() => {
+    if (!isDesktopSidebarLayout) {
+      return
+    }
+
+    let nextWidth: number | undefined
+    try {
+      nextWidth = sidebarPanelRef.current?.getSize().inPixels
+    } catch {
+      return
+    }
+
+    if (!nextWidth || !Number.isFinite(nextWidth)) {
+      return
+    }
+
+    const clampedWidth = clampSidebarWidth(nextWidth)
+    storedSidebarWidthRef.current = clampedWidth
+    writeStoredSidebarWidth(clampedWidth)
+  }, [isDesktopSidebarLayout, sidebarPanelRef])
+
+  const mainContent = (
+    <div
+      className="relative flex min-w-0 flex-1"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {activeView === 'chat' && isDraggingFiles ? (
+        <div className="pointer-events-none absolute inset-2 z-50 rounded-lg border-2 border-dashed border-primary bg-primary/10" />
+      ) : null}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {activeView === 'settings' ? (
+          <SettingsPanel
+            wsUrl={wsUrl}
+            managers={state.agents.filter((agent) => agent.role === 'manager')}
+            slackStatus={state.slackStatus}
+            telegramStatus={state.telegramStatus}
+            statusBanner={statusBanner}
+            onBack={() =>
+              navigateToRoute({
+                view: 'chat',
+                agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
+              })
+            }
+          />
+        ) : activeView === 'escalations' ? (
+          <EscalationView
+            escalations={state.escalations}
+            managers={state.agents.filter((agent) => agent.role === 'manager')}
+            statusBanner={statusBanner}
+            onBack={() =>
+              navigateToRoute({
+                view: 'chat',
+                agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
+              })
+            }
+            onResolveEscalation={handleResolveEscalation}
+            onToggleMobileSidebar={() => setIsMobileSidebarOpen((previous) => !previous)}
+          />
+        ) : (
+          <>
+            <ChatHeader
+              connected={state.connected}
+              activeAgentId={activeAgentId}
+              activeAgentLabel={activeAgentLabel}
+              activeAgentArchetypeId={activeAgent?.archetypeId}
+              activeAgentStatus={activeAgentStatus}
+              contextWindowUsage={contextWindowUsage}
+              showCompact={isActiveManager}
+              compactInProgress={isCompactingManager}
+              onCompact={() => void handleCompactManager()}
+              showStopAll={isActiveManager}
+              stopAllInProgress={isStoppingAllAgents}
+              stopAllDisabled={!state.connected || !canStopAllAgents}
+              onStopAll={() => void handleStopAllAgents()}
+              showNewChat={isActiveManager}
+              onNewChat={handleNewChat}
+              isArtifactsPanelOpen={isArtifactsPanelOpen}
+              onToggleArtifactsPanel={handleToggleArtifactsPanel}
+              onToggleMobileSidebar={() =>
+                setIsMobileSidebarOpen((previous) => !previous)
+              }
+            />
+            {statusBanner}
+
+            <MessageList
+              ref={messageListRef}
+              messages={visibleMessages}
+              isLoading={isLoading}
+              activeAgentId={activeAgentId}
+              isWorkerDetailView={activeAgent?.role === 'worker'}
+              onSuggestionClick={handleSuggestionClick}
+              onArtifactClick={handleOpenArtifact}
+              escalations={state.escalations}
+              onResolveEscalation={handleResolveEscalation}
+              onOpenEscalationsView={handleOpenEscalationsView}
+              wsUrl={wsUrl}
+            />
+
+            <MessageInput
+              ref={messageInputRef}
+              agentId={activeAgentId}
+              onSend={handleSend}
+              pinnedEscalations={pinnedEscalations}
+              onEscalationClick={handleOpenEscalation}
+              onSubmitted={handleMessageInputSubmitted}
+              isLoading={isLoading}
+              disabled={!state.connected || !activeAgentId}
+              allowWhileLoading
+              agentLabel={activeAgentLabel}
+              wsUrl={wsUrl}
+            />
+          </>
+        )}
+      </div>
+
+      {activeView === 'chat' ? (
+        <ArtifactsSidebar
+          wsUrl={wsUrl}
+          managerId={activeManagerId}
+          artifacts={collectedArtifacts}
+          escalations={state.escalations}
+          isOpen={isArtifactsPanelOpen}
+          onClose={() => setIsArtifactsPanelOpen(false)}
+          onArtifactClick={handleOpenArtifact}
+          onEscalationClick={handleOpenEscalation}
+        />
+      ) : null}
+    </div>
+  )
+
   return (
     <main className="h-screen bg-background text-foreground">
       <div className="flex h-screen w-full min-w-0 overflow-hidden bg-background">
-        <AgentSidebar
-          connected={state.connected}
-          agents={state.agents}
-          managerOrder={state.managerOrder}
-          statuses={state.statuses}
-          selectedAgentId={activeAgentId}
-          isSettingsActive={activeView === 'settings'}
-          isEscalationsActive={activeView === 'escalations'}
-          escalations={state.escalations}
-          isMobileOpen={isMobileSidebarOpen}
-          onMobileClose={() => setIsMobileSidebarOpen(false)}
-          onAddManager={handleOpenCreateManagerDialog}
-          onSelectAgent={handleSelectAgent}
-          onDeleteAgent={handleDeleteAgent}
-          onDeleteManager={handleRequestDeleteManager}
-          onReorderManagers={(managerIds) => {
-            const client = clientRef.current
-            if (!client) {
-              return
-            }
-
-            void client.reorderManagers(managerIds).catch(() => undefined)
-          }}
-          onOpenEscalations={handleOpenEscalationsPanel}
-          onOpenSettings={handleOpenSettingsPanel}
-        />
-
-        <div
-          className="relative flex min-w-0 flex-1"
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+        <ResizablePanelGroup
+          id="main-layout"
+          orientation="horizontal"
+          onLayoutChanged={handleSidebarLayoutChanged}
         >
-          {activeView === 'chat' && isDraggingFiles ? (
-            <div className="pointer-events-none absolute inset-2 z-50 rounded-lg border-2 border-dashed border-primary bg-primary/10" />
-          ) : null}
-
-          <div className="flex min-w-0 flex-1 flex-col">
-            {activeView === 'settings' ? (
-              <SettingsPanel
-                wsUrl={wsUrl}
-                managers={state.agents.filter((agent) => agent.role === 'manager')}
-                slackStatus={state.slackStatus}
-                telegramStatus={state.telegramStatus}
-                statusBanner={statusBanner}
-                onBack={() =>
-                  navigateToRoute({
-                    view: 'chat',
-                    agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
-                  })
-                }
-              />
-            ) : activeView === 'escalations' ? (
-              <EscalationView
-                escalations={state.escalations}
-                managers={state.agents.filter((agent) => agent.role === 'manager')}
-                statusBanner={statusBanner}
-                onBack={() =>
-                  navigateToRoute({
-                    view: 'chat',
-                    agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
-                  })
-                }
-                onResolveEscalation={handleResolveEscalation}
-                onToggleMobileSidebar={() => setIsMobileSidebarOpen((previous) => !previous)}
-              />
-            ) : (
-              <>
-                <ChatHeader
-                  connected={state.connected}
-                  activeAgentId={activeAgentId}
-                  activeAgentLabel={activeAgentLabel}
-                  activeAgentArchetypeId={activeAgent?.archetypeId}
-                  activeAgentStatus={activeAgentStatus}
-                  contextWindowUsage={contextWindowUsage}
-                  showCompact={isActiveManager}
-                  compactInProgress={isCompactingManager}
-                  onCompact={() => void handleCompactManager()}
-                  showStopAll={isActiveManager}
-                  stopAllInProgress={isStoppingAllAgents}
-                  stopAllDisabled={!state.connected || !canStopAllAgents}
-                  onStopAll={() => void handleStopAllAgents()}
-                  showNewChat={isActiveManager}
-                  onNewChat={handleNewChat}
-                  isArtifactsPanelOpen={isArtifactsPanelOpen}
-                  onToggleArtifactsPanel={handleToggleArtifactsPanel}
-                  onToggleMobileSidebar={() =>
-                    setIsMobileSidebarOpen((previous) => !previous)
-                  }
-                />
-                {statusBanner}
-
-                <MessageList
-                  ref={messageListRef}
-                  messages={visibleMessages}
-                  isLoading={isLoading}
-                  activeAgentId={activeAgentId}
-                  isWorkerDetailView={activeAgent?.role === 'worker'}
-                  onSuggestionClick={handleSuggestionClick}
-                  onArtifactClick={handleOpenArtifact}
-                  escalations={state.escalations}
-                  onResolveEscalation={handleResolveEscalation}
-                  onOpenEscalationsView={handleOpenEscalationsView}
-                  wsUrl={wsUrl}
-                />
-
-                <MessageInput
-                  ref={messageInputRef}
-                  agentId={activeAgentId}
-                  onSend={handleSend}
-                  pinnedEscalations={pinnedEscalations}
-                  onEscalationClick={handleOpenEscalation}
-                  onSubmitted={handleMessageInputSubmitted}
-                  isLoading={isLoading}
-                  disabled={!state.connected || !activeAgentId}
-                  allowWhileLoading
-                  agentLabel={activeAgentLabel}
-                  wsUrl={wsUrl}
-                />
-              </>
-            )}
-          </div>
-
-          {activeView === 'chat' ? (
-            <ArtifactsSidebar
-              wsUrl={wsUrl}
-              managerId={activeManagerId}
-              artifacts={collectedArtifacts}
+          <ResizablePanel
+            id="agent-sidebar"
+            panelRef={sidebarPanelRef}
+            defaultSize={isDesktopSidebarLayout ? storedSidebarWidthRef.current : 0}
+            minSize={isDesktopSidebarLayout ? SIDEBAR_MIN_WIDTH : 0}
+            maxSize={isDesktopSidebarLayout ? SIDEBAR_MAX_WIDTH : 0}
+            disabled={!isDesktopSidebarLayout}
+            groupResizeBehavior="preserve-pixel-size"
+            style={{ overflow: 'visible' }}
+          >
+            <AgentSidebar
+              connected={state.connected}
+              agents={state.agents}
+              managerOrder={state.managerOrder}
+              statuses={state.statuses}
+              selectedAgentId={activeAgentId}
+              isSettingsActive={activeView === 'settings'}
+              isEscalationsActive={activeView === 'escalations'}
               escalations={state.escalations}
-              isOpen={isArtifactsPanelOpen}
-              onClose={() => setIsArtifactsPanelOpen(false)}
-              onArtifactClick={handleOpenArtifact}
-              onEscalationClick={handleOpenEscalation}
+              isMobileOpen={isMobileSidebarOpen}
+              onMobileClose={() => setIsMobileSidebarOpen(false)}
+              onAddManager={handleOpenCreateManagerDialog}
+              onSelectAgent={handleSelectAgent}
+              onDeleteAgent={handleDeleteAgent}
+              onDeleteManager={handleRequestDeleteManager}
+              onReorderManagers={(managerIds) => {
+                const client = clientRef.current
+                if (!client) {
+                  return
+                }
+
+                void client.reorderManagers(managerIds).catch(() => undefined)
+              }}
+              onOpenEscalations={handleOpenEscalationsPanel}
+              onOpenSettings={handleOpenSettingsPanel}
             />
-          ) : null}
-        </div>
+          </ResizablePanel>
+
+          <SidebarResizeHandle />
+
+          <ResizablePanel id="chat-content" style={{ overflow: 'hidden' }}>
+            {mainContent}
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
 
       <ArtifactPanel

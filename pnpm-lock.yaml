@@ -220,6 +220,9 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.14)(react@19.2.4)
+      react-resizable-panels:
+        specifier: ^4.7.2
+        version: 4.7.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -4423,6 +4426,12 @@ packages:
   react-refresh@0.18.0:
     resolution: {integrity: sha512-QgT5//D3jfjJb6Gsjxv0Slpj23ip+HtOpnNgnb2S5zU3CB26G/IDPGoy4RJB42wzFE46DRsstbW6tKHoKbhAxw==}
     engines: {node: '>=0.10.0'}
+
+  react-resizable-panels@4.7.2:
+    resolution: {integrity: sha512-1L2vyeBG96hp7N6x6rzYXJ8EjYiDiffMsqj3cd+T9aOKwscvuyCn2CuZ5q3PoUSTIJUM6Q5DgXH1bdDe6uvh2w==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   react@19.2.4:
     resolution: {integrity: sha512-9nfp2hYpCwOjAN+8TZFGhtWEwgvWHXqESH8qT89AT/lWklpLON22Lc8pEtnpsZz7VmawabSU0gCjnj8aC0euHQ==}
@@ -8906,7 +8915,7 @@ snapshots:
   h3@2.0.1-rc.14(crossws@0.4.4(srvx@0.11.7)):
     dependencies:
       rou3: 0.7.12
-      srvx: 0.11.4
+      srvx: 0.11.7
     optionalDependencies:
       crossws: 0.4.4(srvx@0.11.7)
 
@@ -10204,6 +10213,11 @@ snapshots:
       - supports-color
 
   react-refresh@0.18.0: {}
+
+  react-resizable-panels@4.7.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
 
   react@19.2.4: {}
 

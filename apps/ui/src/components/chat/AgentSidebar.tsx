@@ -530,9 +530,7 @@ export function AgentSidebar({
   const sidebarContent = (
     <aside
       className={cn(
-        'flex h-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
-        // Desktop: fixed width in flex layout
-        'max-md:w-full md:w-[20rem] md:min-w-[20rem] md:shrink-0',
+        'flex h-full w-full min-w-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:border-r-0',
       )}
     >
       <ViewHeader
@@ -692,7 +690,7 @@ export function AgentSidebar({
   return (
     <>
       {/* Desktop: render inline */}
-      <div className="hidden md:flex md:shrink-0">
+      <div className="hidden h-full min-w-0 md:flex md:w-full">
         {sidebarContent}
       </div>
 

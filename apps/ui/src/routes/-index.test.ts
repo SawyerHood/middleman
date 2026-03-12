@@ -15,6 +15,16 @@ const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus'] as const
 type ListenerMap = Record<string, Array<(event?: any) => void>>
 const faviconEmojiByCanvas = new WeakMap<HTMLCanvasElement, string>()
 
+class ResizeObserverMock {
+  constructor(_callback: ResizeObserverCallback) {}
+
+  observe(): void {}
+
+  unobserve(): void {}
+
+  disconnect(): void {}
+}
+
 class FakeWebSocket {
   static readonly OPEN = 1
   static readonly CLOSED = 3
@@ -148,6 +158,8 @@ let root: Root | null = null
 
 const originalWebSocket = globalThis.WebSocket
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
+const originalResizeObserverDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver')
+const originalGetAnimations = Element.prototype.getAnimations
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
 const originalScrollTo = HTMLElement.prototype.scrollTo
 const originalCanvasGetContext = HTMLCanvasElement.prototype.getContext
@@ -166,6 +178,14 @@ beforeEach(() => {
     configurable: true,
     value: localStorageMock,
   })
+  Object.defineProperty(window, 'ResizeObserver', {
+    configurable: true,
+    value: ResizeObserverMock,
+  })
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    value: ResizeObserverMock,
+  })
   window.history.replaceState(null, '', '/')
   window.localStorage.clear()
   document.head.querySelectorAll('link[rel="icon"]').forEach((node) => node.remove())
@@ -173,6 +193,11 @@ beforeEach(() => {
     configurable: true,
     writable: true,
     value: vi.fn(),
+  })
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    writable: true,
+    value: vi.fn(() => []),
   })
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
     configurable: true,
@@ -223,10 +248,22 @@ afterEach(() => {
     Object.defineProperty(window, 'localStorage', originalLocalStorageDescriptor)
     Object.defineProperty(globalThis, 'localStorage', originalLocalStorageDescriptor)
   }
+  if (originalResizeObserverDescriptor) {
+    Object.defineProperty(window, 'ResizeObserver', originalResizeObserverDescriptor)
+    Object.defineProperty(globalThis, 'ResizeObserver', originalResizeObserverDescriptor)
+  } else {
+    Reflect.deleteProperty(window, 'ResizeObserver')
+    Reflect.deleteProperty(globalThis, 'ResizeObserver')
+  }
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     writable: true,
     value: originalScrollIntoView,
+  })
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    writable: true,
+    value: originalGetAnimations,
   })
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
     configurable: true,
