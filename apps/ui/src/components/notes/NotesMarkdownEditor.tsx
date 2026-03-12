@@ -1,8 +1,10 @@
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
+import { CheckListPlugin } from '@lexical/react/LexicalCheckListPlugin'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
+import { ListPlugin } from '@lexical/react/LexicalListPlugin'
 import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin'
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
@@ -14,30 +16,36 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { memo, useMemo } from 'react'
 
 const editorTheme = {
-  paragraph: 'mb-3 leading-7 text-foreground last:mb-0',
+  paragraph: 'mb-4 leading-[1.72] text-foreground/95 last:mb-0',
   heading: {
-    h1: 'mb-4 mt-8 text-3xl font-semibold tracking-tight text-foreground first:mt-0',
-    h2: 'mb-3 mt-8 text-2xl font-semibold tracking-tight text-foreground first:mt-0',
-    h3: 'mb-2 mt-6 text-xl font-semibold tracking-tight text-foreground first:mt-0',
-    h4: 'mb-2 mt-5 text-lg font-semibold tracking-tight text-foreground first:mt-0',
-    h5: 'mb-2 mt-4 text-base font-semibold tracking-tight text-foreground first:mt-0',
-    h6: 'mb-2 mt-4 text-sm font-semibold tracking-tight text-muted-foreground first:mt-0',
+    h1: 'mb-6 mt-4 text-[2.3rem] font-bold leading-tight tracking-[-0.04em] text-foreground first:mt-0 md:text-[2.75rem]',
+    h2: 'mb-4 mt-12 text-[1.75rem] font-semibold leading-tight tracking-[-0.03em] text-foreground first:mt-0 md:text-[2rem]',
+    h3: 'mb-3 mt-10 text-[1.35rem] font-semibold leading-tight tracking-[-0.02em] text-foreground first:mt-0 md:text-[1.55rem]',
+    h4: 'mb-3 mt-8 text-lg font-semibold tracking-tight text-foreground first:mt-0 md:text-[1.15rem]',
+    h5: 'mb-2 mt-6 text-base font-semibold tracking-tight text-foreground first:mt-0',
+    h6: 'mb-2 mt-6 text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground first:mt-0',
   },
   list: {
-    ul: 'mb-3 ml-6 list-disc space-y-1.5',
-    ol: 'mb-3 ml-6 list-decimal space-y-1.5',
-    listitem: 'leading-7',
+    ul: 'mb-6 ml-6 list-disc space-y-2',
+    ol: 'mb-6 ml-6 list-decimal space-y-2',
+    checklist: 'mb-6 ml-0 space-y-2 pl-0',
+    listitem: 'leading-[1.72] marker:text-muted-foreground/65',
+    listitemChecked:
+      "relative list-none pl-9 text-muted-foreground/80 before:absolute before:left-0 before:top-[0.42rem] before:h-5 before:w-5 before:rounded-md before:border before:border-primary/30 before:bg-primary/15 before:content-[''] after:pointer-events-none after:absolute after:left-[0.43rem] after:top-[0.7rem] after:h-2.5 after:w-1.5 after:rotate-45 after:border-b-2 after:border-r-2 after:border-primary after:content-['']",
+    listitemUnchecked:
+      "relative list-none pl-9 before:absolute before:left-0 before:top-[0.42rem] before:h-5 before:w-5 before:rounded-md before:border before:border-border before:bg-background/80 before:content-['']",
     nested: {
-      listitem: 'mt-1',
+      list: 'mt-2',
+      listitem: 'mt-2',
     },
   },
-  quote: 'mb-3 border-l-2 border-border pl-4 italic text-muted-foreground',
-  code: 'mb-3 block rounded-lg border border-border/80 bg-muted/50 px-3 py-3 font-mono text-[13px] leading-6 text-foreground',
-  link: 'text-primary underline decoration-primary/35 underline-offset-4',
+  quote: 'mb-6 border-l border-border pl-4 italic text-muted-foreground',
+  code: 'mb-6 block rounded-xl border border-border/70 bg-muted/45 px-4 py-3 font-mono text-[13px] leading-6 text-foreground',
+  link: 'text-primary/90 underline decoration-transparent underline-offset-4 transition-colors hover:text-primary hover:decoration-primary/60',
   text: {
     bold: 'font-semibold',
     italic: 'italic',
-    code: 'rounded bg-muted px-1.5 py-0.5 font-mono text-[0.92em]',
+    code: 'rounded-md bg-muted/70 px-1.5 py-0.5 font-mono text-[0.92em] text-foreground',
   },
 }
 
@@ -54,7 +62,7 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
   editorId,
   markdown,
   onChange,
-  placeholder = 'Start typing. Markdown shortcuts render as you go.',
+  placeholder = 'Start writing...',
 }: NotesMarkdownEditorProps) {
   const initialConfig = useMemo(
     () => ({
@@ -77,24 +85,26 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="relative flex min-h-0 flex-1 bg-background">
+      <div className="relative min-h-0 flex-1 overflow-y-auto bg-background">
         <RichTextPlugin
           contentEditable={
             <ContentEditable
               aria-label="Note editor"
-              className="min-h-full flex-1 overflow-y-auto px-5 py-5 text-[15px] outline-none md:px-8 md:py-7"
+              className="mx-auto block min-h-full w-full max-w-[720px] px-5 py-8 text-[16px] leading-[1.72] text-foreground outline-none md:px-10 md:py-14"
               spellCheck
             />
           }
           placeholder={
-            <div className="pointer-events-none absolute left-5 top-5 text-sm text-muted-foreground/50 md:left-8 md:top-7">
-              {placeholder}
+            <div className="pointer-events-none absolute inset-x-0 top-8 px-5 text-[16px] leading-[1.72] text-muted-foreground/40 md:top-14 md:px-10">
+              <div className="mx-auto max-w-[720px]">{placeholder}</div>
             </div>
           }
           ErrorBoundary={LexicalErrorBoundary}
         />
       </div>
       <HistoryPlugin />
+      <ListPlugin />
+      <CheckListPlugin />
       <LinkPlugin />
       <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
       <OnChangePlugin

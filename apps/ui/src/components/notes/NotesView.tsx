@@ -801,27 +801,14 @@ export function NotesView({
           </ScrollArea>
         </div>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {selectedNoteSummary ? (
-            <div className="flex h-12 shrink-0 items-center justify-between border-b border-border/70 px-4">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">{selectedNoteSummary.title}</p>
-                <p className="truncate text-[11px] text-muted-foreground/65">{selectedNoteSummary.path}</p>
-              </div>
-              {selectedNoteUpdatedAt ? (
-                <span className="shrink-0 text-[11px] text-muted-foreground/60">
-                  {formatRelativeTime(selectedNoteUpdatedAt)}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           {selectedNotePath === null ? (
             <div className="flex min-h-0 flex-1 items-center justify-center px-6">
               <div className="max-w-sm text-center">
                 <p className="text-sm font-medium text-foreground/75">Choose a note to start writing</p>
                 <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground/65">
-                  Notes autosave as markdown files and folders stay organized in a nested explorer.
+                  Notes autosave as markdown files, stay organized in a nested explorer, and keep the editor in live
+                  preview mode.
                 </p>
               </div>
             </div>
