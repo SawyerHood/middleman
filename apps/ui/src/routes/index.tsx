@@ -581,7 +581,7 @@ export function IndexPage() {
 
   const mainContent = (
     <div
-      className="relative flex min-w-0 flex-1"
+      className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -591,7 +591,7 @@ export function IndexPage() {
         <div className="pointer-events-none absolute inset-2 z-50 rounded-lg border-2 border-dashed border-primary bg-primary/10" />
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {activeView === 'settings' ? (
           <SettingsPanel
             wsUrl={wsUrl}
@@ -710,6 +710,7 @@ export function IndexPage() {
         <ResizablePanelGroup
           id="main-layout"
           orientation="horizontal"
+          className="h-full min-h-0 min-w-0"
           onLayoutChanged={handleSidebarLayoutChanged}
         >
           <ResizablePanel
@@ -754,7 +755,11 @@ export function IndexPage() {
 
           <SidebarResizeHandle />
 
-          <ResizablePanel id="chat-content" style={{ overflow: 'hidden' }}>
+          <ResizablePanel
+            id="chat-content"
+            className="flex min-h-0 min-w-0 overflow-hidden"
+            style={{ overflow: 'hidden' }}
+          >
             {mainContent}
           </ResizablePanel>
         </ResizablePanelGroup>
