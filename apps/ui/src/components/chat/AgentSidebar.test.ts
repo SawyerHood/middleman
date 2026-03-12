@@ -132,8 +132,10 @@ function renderSidebar({
   onDeleteAgent = vi.fn(),
   onDeleteManager = vi.fn(),
   onReorderManagers = vi.fn(),
+  onOpenNotes = vi.fn(),
   onOpenEscalations = vi.fn(),
   onOpenSettings = vi.fn(),
+  isNotesActive = false,
   isSettingsActive = false,
   isEscalationsActive = false,
   escalations = [],
@@ -146,8 +148,10 @@ function renderSidebar({
   onDeleteAgent?: (agentId: string) => void
   onDeleteManager?: (managerId: string) => void
   onReorderManagers?: (managerIds: string[]) => void
+  onOpenNotes?: () => void
   onOpenEscalations?: () => void
   onOpenSettings?: () => void
+  isNotesActive?: boolean
   isSettingsActive?: boolean
   isEscalationsActive?: boolean
   escalations?: Array<{
@@ -176,8 +180,10 @@ function renderSidebar({
         onDeleteAgent,
         onDeleteManager,
         onReorderManagers,
+        onOpenNotes,
         onOpenEscalations,
         onOpenSettings,
+        isNotesActive,
         isSettingsActive,
         isEscalationsActive,
         escalations,
@@ -317,6 +323,19 @@ describe('AgentSidebar', () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 
+  it('calls onOpenNotes when the notes button is clicked', () => {
+    const onOpenNotes = vi.fn()
+
+    renderSidebar({
+      agents: [manager('manager-alpha')],
+      onOpenNotes,
+    })
+    const sidebar = getPrimarySidebar()
+
+    click(within(sidebar).getByRole('button', { name: 'Notes' }))
+    expect(onOpenNotes).toHaveBeenCalledTimes(1)
+  })
+
   it('shows open escalation count and calls onOpenEscalations when the button is clicked', () => {
     const onOpenEscalations = vi.fn()
 
@@ -341,5 +360,4 @@ describe('AgentSidebar', () => {
     click(within(sidebar).getByRole('button', { name: /^Your Tasks/ }))
     expect(onOpenEscalations).toHaveBeenCalledTimes(1)
   })
-
 })

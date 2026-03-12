@@ -30,6 +30,7 @@ import { EscalationView } from '@/components/chat/EscalationView'
 import { MessageInput, type MessageInputHandle } from '@/components/chat/MessageInput'
 import { MessageList, type MessageListHandle } from '@/components/chat/MessageList'
 import { SettingsPanel } from '@/components/chat/SettingsDialog'
+import { NotesView } from '@/components/notes/NotesView'
 import { chooseFallbackAgentId } from '@/lib/agent-hierarchy'
 import type { ArtifactReference } from '@/lib/artifacts'
 import { collectArtifactsFromMessages } from '@/lib/collect-artifacts'
@@ -499,6 +500,10 @@ export function IndexPage() {
     navigateToRoute({ view: 'settings' })
   }
 
+  const handleOpenNotesPanel = () => {
+    navigateToRoute({ view: 'notes' })
+  }
+
   const handleOpenEscalationsPanel = () => {
     navigateToRoute({ view: 'escalations' })
   }
@@ -600,6 +605,18 @@ export function IndexPage() {
                 agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
               })
             }
+          />
+        ) : activeView === 'notes' ? (
+          <NotesView
+            wsUrl={wsUrl}
+            statusBanner={statusBanner}
+            onBack={() =>
+              navigateToRoute({
+                view: 'chat',
+                agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
+              })
+            }
+            onToggleMobileSidebar={() => setIsMobileSidebarOpen((previous) => !previous)}
           />
         ) : activeView === 'escalations' ? (
           <EscalationView
@@ -713,6 +730,7 @@ export function IndexPage() {
               selectedAgentId={activeAgentId}
               isSettingsActive={activeView === 'settings'}
               isEscalationsActive={activeView === 'escalations'}
+              isNotesActive={activeView === 'notes'}
               escalations={state.escalations}
               isMobileOpen={isMobileSidebarOpen}
               onMobileClose={() => setIsMobileSidebarOpen(false)}
@@ -728,6 +746,7 @@ export function IndexPage() {
 
                 void client.reorderManagers(managerIds).catch(() => undefined)
               }}
+              onOpenNotes={handleOpenNotesPanel}
               onOpenEscalations={handleOpenEscalationsPanel}
               onOpenSettings={handleOpenSettingsPanel}
             />

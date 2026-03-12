@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -521,6 +521,86 @@ describe('SwarmWebSocketServer P0 endpoints', () => {
       const invalidPath = await parseJsonResponse(invalidPathResponse)
       expect(invalidPath.status).toBe(400)
       expect(invalidPath.json.error).toBe('Invalid OAuth login path')
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('supports note CRUD via /api/notes and stores markdown files under the notes directory', async () => {
+    const config = await makeTempConfig({ managerId: 'manager' })
+    const manager = new FakeSwarmManager(config, [createManagerDescriptor(config.paths.projectRoot, 'manager')])
+    const server = new SwarmWebSocketServer({
+      swarmManager: manager as unknown as never,
+      host: config.host,
+      port: config.port,
+      allowNonManagerSubscriptions: false,
+    })
+
+    await server.start()
+
+    try {
+      const emptyListResponse = await fetch(`http://${config.host}:${config.port}/api/notes`)
+      const emptyList = await parseJsonResponse(emptyListResponse)
+      expect(emptyList.status).toBe(200)
+      expect(emptyList.json.notes).toEqual([])
+
+      const notesDirStats = await stat(join(config.paths.dataDir, 'notes'))
+      expect(notesDirStats.isDirectory()).toBe(true)
+
+      const createResponse = await fetch(
+        `http://${config.host}:${config.port}/api/notes/${encodeURIComponent('weekly-plan.md')}`,
+        {
+          method: 'PUT',
+          headers: { 'content-type': 'text/markdown; charset=utf-8' },
+          body: '# Weekly Plan\n\n- Ship notes\n- Verify autosave\n',
+        },
+      )
+      const created = await parseJsonResponse(createResponse)
+      expect(created.status).toBe(201)
+      expect(created.json.note).toMatchObject({
+        filename: 'weekly-plan.md',
+        title: 'Weekly Plan',
+      })
+
+      expect(await readFile(join(config.paths.dataDir, 'notes', 'weekly-plan.md'), 'utf8')).toBe(
+        '# Weekly Plan\n\n- Ship notes\n- Verify autosave\n',
+      )
+
+      const noteResponse = await fetch(
+        `http://${config.host}:${config.port}/api/notes/${encodeURIComponent('weekly-plan.md')}`,
+      )
+      const note = await parseJsonResponse(noteResponse)
+      expect(note.status).toBe(200)
+      expect(note.json.note).toMatchObject({
+        filename: 'weekly-plan.md',
+        title: 'Weekly Plan',
+        content: '# Weekly Plan\n\n- Ship notes\n- Verify autosave\n',
+      })
+
+      const listResponse = await fetch(`http://${config.host}:${config.port}/api/notes`)
+      const list = await parseJsonResponse(listResponse)
+      expect(list.status).toBe(200)
+      expect(list.json.notes).toEqual([
+        expect.objectContaining({
+          filename: 'weekly-plan.md',
+          title: 'Weekly Plan',
+        }),
+      ])
+
+      const deleteResponse = await fetch(
+        `http://${config.host}:${config.port}/api/notes/${encodeURIComponent('weekly-plan.md')}`,
+        {
+          method: 'DELETE',
+        },
+      )
+      expect(deleteResponse.status).toBe(204)
+
+      const missingResponse = await fetch(
+        `http://${config.host}:${config.port}/api/notes/${encodeURIComponent('weekly-plan.md')}`,
+      )
+      const missing = await parseJsonResponse(missingResponse)
+      expect(missing.status).toBe(404)
+      expect(missing.json.error).toBe('Note "weekly-plan.md" was not found.')
     } finally {
       await server.stop()
     }

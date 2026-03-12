@@ -13,7 +13,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { ChevronDown, ChevronRight, CircleDashed, ListTodo, Settings, SquarePen, UserStar, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleDashed, FileText, ListTodo, Settings, SquarePen, UserStar, X } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { useState } from 'react'
@@ -38,6 +38,7 @@ interface AgentSidebarProps {
   selectedAgentId: string | null
   isSettingsActive: boolean
   isEscalationsActive: boolean
+  isNotesActive: boolean
   escalations: UserEscalation[]
   isMobileOpen?: boolean
   onMobileClose?: () => void
@@ -46,6 +47,7 @@ interface AgentSidebarProps {
   onDeleteAgent: (agentId: string) => void
   onDeleteManager: (managerId: string) => void
   onReorderManagers: (managerIds: string[]) => void
+  onOpenNotes: () => void
   onOpenEscalations: () => void
   onOpenSettings: () => void
 }
@@ -445,6 +447,7 @@ export function AgentSidebar({
   selectedAgentId,
   isSettingsActive,
   isEscalationsActive,
+  isNotesActive,
   escalations,
   isMobileOpen = false,
   onMobileClose,
@@ -453,6 +456,7 @@ export function AgentSidebar({
   onDeleteAgent,
   onDeleteManager,
   onReorderManagers,
+  onOpenNotes,
   onOpenEscalations,
   onOpenSettings,
 }: AgentSidebarProps) {
@@ -462,7 +466,7 @@ export function AgentSidebar({
   const openEscalationCount = escalations.filter((escalation) => escalation.status === 'open').length
   const visibleManagerIds = managerRows.map(({ manager }) => manager.agentId)
   const canDragManagers = visibleManagerIds.length > 1
-  const isSelectionSuppressed = isSettingsActive || isEscalationsActive
+  const isSelectionSuppressed = isSettingsActive || isEscalationsActive || isNotesActive
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -493,6 +497,11 @@ export function AgentSidebar({
 
   const handleOpenSettings = () => {
     onOpenSettings()
+    onMobileClose?.()
+  }
+
+  const handleOpenNotes = () => {
+    onOpenNotes()
     onMobileClose?.()
   }
 
@@ -645,6 +654,21 @@ export function AgentSidebar({
 
       <div className="shrink-0 border-t border-sidebar-border p-2">
         <div className="space-y-1">
+          <button
+            type="button"
+            onClick={handleOpenNotes}
+            className={cn(
+              'flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
+              isNotesActive
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+            )}
+            aria-pressed={isNotesActive}
+          >
+            <FileText aria-hidden="true" className="size-4" />
+            <span className="flex-1 text-left">Notes</span>
+          </button>
+
           <button
             type="button"
             onClick={handleOpenEscalations}

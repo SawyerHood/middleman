@@ -15,6 +15,7 @@ import { createIntegrationRoutes } from "./routes/integration-routes.js";
 import { createSchedulerRoutes } from "./routes/scheduler-routes.js";
 import { createSettingsRoutes, type SettingsRouteBundle } from "./routes/settings-routes.js";
 import { createEscalationHttpRoutes } from "./routes/escalation-routes.js";
+import { createNotesHttpRoutes } from "./routes/notes-routes.js";
 import { createTranscriptionRoutes } from "./routes/transcription-routes.js";
 import { WsHandler } from "./ws-handler.js";
 
@@ -131,6 +132,7 @@ export class SwarmWebSocketServer {
       ...createSchedulerRoutes({ swarmManager: this.swarmManager }),
       ...createAgentHttpRoutes({ swarmManager: this.swarmManager }),
       ...createEscalationHttpRoutes({ swarmManager: this.swarmManager }),
+      ...createNotesHttpRoutes({ swarmManager: this.swarmManager }),
       ...this.settingsRoutes.routes,
       ...createIntegrationRoutes({
         swarmManager: this.swarmManager,
