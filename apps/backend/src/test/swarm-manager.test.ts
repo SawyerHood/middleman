@@ -1287,6 +1287,149 @@ describe('SwarmManager', () => {
     expect(workerRuntime?.sendCalls.at(-1)?.message).toBe('SYSTEM: pre-tagged')
   })
 
+  it('automatically reports worker completion summaries to the owning manager', async () => {
+    const config = await makeTempConfig()
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const worker = await manager.spawnAgent('manager', { agentId: 'Summary Worker' })
+    const managerRuntime = manager.runtimeByAgentId.get('manager')
+    expect(managerRuntime).toBeDefined()
+
+    await (manager as any).handleRuntimeSessionEvent(worker.agentId, {
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Implemented the completion hook and verified the flow.' }],
+      },
+    })
+
+    managerRuntime!.sendCalls = []
+
+    await (manager as any).handleRuntimeAgentEnd(worker.agentId)
+
+    expect(managerRuntime?.sendCalls).toHaveLength(1)
+    expect(managerRuntime?.sendCalls[0]).toMatchObject({
+      delivery: 'auto',
+      message:
+        'SYSTEM: Worker summary-worker completed its turn.\n\nLast assistant message:\nImplemented the completion hook and verified the flow.',
+    })
+
+    const history = manager.getConversationHistory('manager')
+    expect(
+      history.some(
+        (entry) =>
+          entry.type === 'agent_message' &&
+          entry.fromAgentId === worker.agentId &&
+          entry.toAgentId === 'manager' &&
+          entry.text.includes('Last assistant message'),
+      ),
+    ).toBe(true)
+  })
+
+  it('falls back to a generic completion signal when no new worker summary was captured', async () => {
+    const config = await makeTempConfig()
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const worker = await manager.spawnAgent('manager', { agentId: 'Repeat Summary Worker' })
+    const managerRuntime = manager.runtimeByAgentId.get('manager')
+    expect(managerRuntime).toBeDefined()
+
+    await (manager as any).handleRuntimeSessionEvent(worker.agentId, {
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Initial completion summary.' }],
+      },
+    })
+
+    await (manager as any).handleRuntimeAgentEnd(worker.agentId)
+
+    managerRuntime!.sendCalls = []
+
+    await (manager as any).handleRuntimeAgentEnd(worker.agentId)
+
+    expect(managerRuntime?.sendCalls).toHaveLength(1)
+    expect(managerRuntime?.sendCalls[0]).toMatchObject({
+      delivery: 'auto',
+      message: 'SYSTEM: Worker repeat-summary-worker completed its turn.',
+    })
+  })
+
+  it('does not auto-report worker completion while the worker runtime is still active', async () => {
+    const config = await makeTempConfig()
+    const manager = new TestSwarmManager(config)
+    await bootWithDefaultManager(manager, config)
+
+    const worker = await manager.spawnAgent('manager', { agentId: 'Busy Completion Worker' })
+    const workerRuntime = manager.runtimeByAgentId.get(worker.agentId)
+    const managerRuntime = manager.runtimeByAgentId.get('manager')
+    expect(workerRuntime).toBeDefined()
+    expect(managerRuntime).toBeDefined()
+
+    workerRuntime!.busy = true
+    workerRuntime!.descriptor.status = 'streaming'
+    managerRuntime!.sendCalls = []
+
+    await (manager as any).handleRuntimeAgentEnd(worker.agentId)
+
+    expect(managerRuntime?.sendCalls).toEqual([])
+  })
+
+  it('does not replay stale worker summaries when recreating an idle worker runtime', async () => {
+    const config = await makeTempConfig()
+
+    appendSessionConversationMessage(join(config.paths.sessionsDir, 'worker-idle.jsonl'), 'worker-idle', 'stale summary')
+
+    await writeFile(
+      config.paths.agentsStoreFile,
+      JSON.stringify(
+        {
+          agents: [
+            {
+              agentId: 'manager',
+              displayName: 'Manager',
+              role: 'manager',
+              managerId: 'manager',
+              status: 'idle',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+              cwd: config.defaultCwd,
+              model: config.defaultModel,
+              sessionFile: join(config.paths.sessionsDir, 'manager.jsonl'),
+            },
+            {
+              agentId: 'worker-idle',
+              displayName: 'Worker Idle',
+              role: 'worker',
+              managerId: 'manager',
+              status: 'idle',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+              cwd: config.defaultCwd,
+              model: config.defaultModel,
+              sessionFile: join(config.paths.sessionsDir, 'worker-idle.jsonl'),
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    const manager = new TestSwarmManager(config)
+    await manager.boot()
+
+    await manager.sendMessage('manager', 'worker-idle', 'start now')
+    await (manager as any).handleRuntimeAgentEnd('worker-idle')
+
+    const managerRuntime = manager.runtimeByAgentId.get('manager')
+    expect(managerRuntime).toBeDefined()
+    expect(managerRuntime?.sendCalls.at(-1)?.message).toBe('SYSTEM: Worker worker-idle completed its turn.')
+  })
+
   it('accepts busy-runtime messages as steer regardless of requested delivery', async () => {
     const config = await makeTempConfig()
     const manager = new TestSwarmManager(config)
