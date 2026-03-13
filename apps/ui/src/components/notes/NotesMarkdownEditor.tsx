@@ -4,6 +4,7 @@ import {
   editorViewCtx,
   editorViewOptionsCtx,
   rootCtx,
+  serializerCtx,
 } from '@milkdown/kit/core'
 import { type Ctx } from '@milkdown/kit/ctx'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
@@ -202,6 +203,12 @@ function NotesMarkdownEditorContent({
               const nextState = currentState.apply(transaction)
 
               view.updateState(nextState)
+
+              if (transaction.docChanged) {
+                const serializer = ctx.get(serializerCtx)
+                const nextMarkdown = serializer(nextState.doc)
+                publishMarkdown(nextMarkdown)
+              }
 
               if (transaction.docChanged || selectionChanged || transaction.storedMarksSet) {
                 syncToolbarState(ctx, nextState)
