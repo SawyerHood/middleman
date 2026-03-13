@@ -1,0 +1,265 @@
+.notes-lexical-shell {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 2.75rem 1.25rem 2rem;
+}
+
+.notes-lexical-root,
+.notes-lexical-editor {
+  min-height: 100%;
+}
+
+.notes-lexical-editor {
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.98rem;
+  line-height: 1.7;
+  caret-color: var(--primary);
+}
+
+@media (min-width: 768px) {
+  .notes-lexical-shell {
+    padding-inline: 2rem;
+    padding-top: 3.25rem;
+  }
+}
+
+.notes-lexical-placeholder {
+  position: absolute;
+  top: 2.75rem;
+  left: 1.25rem;
+  right: 1.25rem;
+  color: color-mix(in srgb, var(--muted-foreground) 88%, transparent);
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (min-width: 768px) {
+  .notes-lexical-placeholder {
+    left: 2rem;
+    right: 2rem;
+    top: 3.25rem;
+  }
+}
+
+.notes-lexical-paragraph {
+  margin: 0 0 1.05rem;
+}
+
+.notes-lexical-heading {
+  margin: 0 0 1rem;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.notes-lexical-heading-h1 {
+  font-size: 2.05rem;
+  font-weight: 700;
+}
+
+.notes-lexical-heading-h2 {
+  font-size: 1.55rem;
+  font-weight: 650;
+}
+
+.notes-lexical-heading-h3 {
+  font-size: 1.22rem;
+  font-weight: 620;
+}
+
+.notes-lexical-quote {
+  margin: 0 0 1.15rem;
+  border-left: 3px solid color-mix(in srgb, var(--primary) 60%, var(--border));
+  padding-left: 1rem;
+  color: color-mix(in srgb, var(--foreground) 82%, var(--muted-foreground));
+}
+
+.notes-lexical-code {
+  margin: 0 0 1.15rem;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: calc(var(--radius) + 2px);
+  background: color-mix(in srgb, var(--card) 84%, var(--background));
+  padding: 0.95rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+.notes-lexical-link {
+  color: color-mix(in srgb, var(--primary) 88%, white);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--primary) 54%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+.notes-lexical-text-bold {
+  font-weight: 650;
+}
+
+.notes-lexical-text-italic {
+  font-style: italic;
+}
+
+.notes-lexical-text-strikethrough {
+  text-decoration: line-through;
+}
+
+.notes-lexical-text-code {
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--muted) 74%, var(--background));
+  padding: 0.08rem 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.notes-lexical-list {
+  margin: 0 0 1.05rem;
+  padding-left: 1.6rem;
+}
+
+.notes-lexical-list-nested {
+  margin-top: 0.6rem;
+}
+
+.notes-lexical-list-item {
+  margin: 0.35rem 0;
+}
+
+.notes-lexical-list-checklist {
+  list-style: none;
+  padding-left: 0;
+}
+
+.notes-lexical-list-item-checked,
+.notes-lexical-list-item-unchecked {
+  position: relative;
+  list-style: none;
+  padding-left: 2rem;
+}
+
+.notes-lexical-list-item-checked::before,
+.notes-lexical-list-item-unchecked::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.42rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, var(--foreground) 10%);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--background) 92%, var(--muted));
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.notes-lexical-list-item-checked::before {
+  border-color: color-mix(in srgb, var(--primary) 76%, transparent);
+  background: color-mix(in srgb, var(--primary) 82%, var(--background));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-foreground) 14%, transparent);
+}
+
+.notes-lexical-list-item-checked::after {
+  content: '';
+  position: absolute;
+  left: 0.33rem;
+  top: 0.72rem;
+  width: 0.42rem;
+  height: 0.2rem;
+  border-left: 2px solid var(--primary-foreground);
+  border-bottom: 2px solid var(--primary-foreground);
+  transform: rotate(-45deg);
+}
+
+.notes-lexical-image-node {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.notes-lexical-image {
+  display: inline-flex;
+  max-width: min(100%, 640px);
+  margin: 0.2rem 0.15rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: calc(var(--radius) + 2px);
+  background: color-mix(in srgb, var(--card) 90%, var(--background));
+  overflow: hidden;
+  box-shadow: 0 12px 30px color-mix(in srgb, black 16%, transparent);
+}
+
+.notes-lexical-image img {
+  display: block;
+  max-width: min(100%, 640px);
+  height: auto;
+}
+
+.notes-lexical-image-selected {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 65%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent),
+    0 12px 30px color-mix(in srgb, black 16%, transparent);
+}
+
+.notes-lexical-toolbar-shell {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background) 36%, transparent),
+      color-mix(in srgb, var(--background) 88%, transparent) 18%,
+      color-mix(in srgb, var(--background) 95%, transparent)
+    );
+  backdrop-filter: blur(14px);
+}
+
+.notes-lexical-toolbar-track {
+  overflow-x: auto;
+  padding: 0.95rem 1rem 1.15rem;
+}
+
+.notes-lexical-toolbar {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  margin: 0 auto;
+  padding: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 74%, var(--background));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    0 14px 40px color-mix(in srgb, black 18%, transparent);
+}
+
+.notes-lexical-toolbar-button {
+  color: color-mix(in srgb, var(--foreground) 84%, transparent);
+}
+
+.notes-lexical-toolbar-button-active {
+  background: color-mix(in srgb, var(--primary) 16%, var(--background));
+  color: color-mix(in srgb, var(--primary) 78%, white);
+}
+
+.notes-lexical-scroll-area::-webkit-scrollbar {
+  width: 12px;
+}
+
+.notes-lexical-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.notes-lexical-scroll-area::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 72%, transparent);
+  background-clip: padding-box;
+}
