@@ -141,7 +141,15 @@ const notesImageView = (wsUrl: string) =>
     }
   })
 
-export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
+export const NotesMarkdownEditor = memo(function NotesMarkdownEditor(props: NotesMarkdownEditorProps) {
+  return (
+    <MilkdownProvider>
+      <NotesMarkdownEditorContent {...props} />
+    </MilkdownProvider>
+  )
+})
+
+function NotesMarkdownEditorContent({
   editorId,
   wsUrl,
   markdown,
@@ -222,6 +230,10 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
   )
 
   const withEditor = <T,>(action: (ctx: Ctx, view: EditorView) => T): T | undefined => {
+    if (loading) {
+      return undefined
+    }
+
     const editor = getEditor()
     if (!editor) {
       return undefined
@@ -443,88 +455,86 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
     : uploadError
 
   return (
-    <MilkdownProvider>
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-        {isUploading || uploadError ? (
-          <div
-            className={cn(
-              IMAGE_UPLOAD_STATUS_CONTAINER_CLASS_NAME,
-              isUploading
-                ? 'border-border/70 bg-background/95 text-foreground'
-                : 'border-destructive/20 bg-destructive/10 text-destructive',
-            )}
-          >
-            {isUploading ? <Loader2 className="size-3.5 animate-spin" /> : null}
-            <span>{statusText}</span>
-          </div>
-        ) : null}
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="notes-milkdown-shell mx-auto min-h-full w-full max-w-[860px]">
-            {isEmpty ? (
-              <div className="notes-milkdown-placeholder" aria-hidden="true">
-                {placeholder}
-              </div>
-            ) : null}
-            <Milkdown />
-            {loading ? (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/65 backdrop-blur-[2px]">
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : null}
-          </div>
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      {isUploading || uploadError ? (
+        <div
+          className={cn(
+            IMAGE_UPLOAD_STATUS_CONTAINER_CLASS_NAME,
+            isUploading
+              ? 'border-border/70 bg-background/95 text-foreground'
+              : 'border-destructive/20 bg-destructive/10 text-destructive',
+          )}
+        >
+          {isUploading ? <Loader2 className="size-3.5 animate-spin" /> : null}
+          <span>{statusText}</span>
         </div>
+      ) : null}
 
-        <div className="border-t border-border/50 bg-card/95 px-3 py-1.5 backdrop-blur-sm md:px-4">
-          <div className="mx-auto flex max-w-[860px] flex-wrap items-center gap-0.5">
-            <ToolbarButton active={toolbarState.isBold} label="Bold" onClick={toggleBold}>
-              <Bold className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.isItalic} label="Italic" onClick={toggleItalic}>
-              <Italic className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.isStrikethrough} label="Strikethrough" onClick={toggleStrikethrough}>
-              <Strikethrough className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.isCode} label="Inline code" onClick={toggleInlineCode}>
-              <Code className="size-3.5" />
-            </ToolbarButton>
-            <Separator className="mx-1.5 hidden h-4 sm:block" orientation="vertical" />
-            <ToolbarButton active={toolbarState.blockType === 'h1'} label="Heading 1" onClick={() => toggleHeading(1)}>
-              <Heading1 className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.blockType === 'h2'} label="Heading 2" onClick={() => toggleHeading(2)}>
-              <Heading2 className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.blockType === 'h3'} label="Heading 3" onClick={() => toggleHeading(3)}>
-              <Heading3 className="size-3.5" />
-            </ToolbarButton>
-            <Separator className="mx-1.5 hidden h-4 sm:block" orientation="vertical" />
-            <ToolbarButton active={toolbarState.listType === 'bullet'} label="Bulleted list" onClick={toggleBulletList}>
-              <List className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.listType === 'number'} label="Numbered list" onClick={toggleOrderedList}>
-              <ListOrdered className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.listType === 'check'} label="Checklist" onClick={toggleTaskList}>
-              <ListTodo className="size-3.5" />
-            </ToolbarButton>
-            <Separator className="mx-1.5 hidden h-4 sm:block" orientation="vertical" />
-            <ToolbarButton active={toolbarState.blockType === 'code'} label="Code block" onClick={toggleCodeBlock}>
-              <SquareCode className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.blockType === 'quote'} label="Quote" onClick={toggleBlockquote}>
-              <TextQuote className="size-3.5" />
-            </ToolbarButton>
-            <ToolbarButton active={toolbarState.isLink} label="Link" onClick={toggleLink}>
-              <Link2 className="size-3.5" />
-            </ToolbarButton>
-          </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="notes-milkdown-shell mx-auto min-h-full w-full max-w-[860px]">
+          {isEmpty ? (
+            <div className="notes-milkdown-placeholder" aria-hidden="true">
+              {placeholder}
+            </div>
+          ) : null}
+          <Milkdown />
+          {loading ? (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/65 backdrop-blur-[2px]">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : null}
         </div>
       </div>
-    </MilkdownProvider>
+
+      <div className="border-t border-border/50 bg-card/95 px-3 py-1.5 backdrop-blur-sm md:px-4">
+        <div className="mx-auto flex max-w-[860px] flex-wrap items-center gap-0.5">
+          <ToolbarButton active={toolbarState.isBold} label="Bold" onClick={toggleBold}>
+            <Bold className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.isItalic} label="Italic" onClick={toggleItalic}>
+            <Italic className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.isStrikethrough} label="Strikethrough" onClick={toggleStrikethrough}>
+            <Strikethrough className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.isCode} label="Inline code" onClick={toggleInlineCode}>
+            <Code className="size-3.5" />
+          </ToolbarButton>
+          <Separator className="mx-1.5 hidden h-4 sm:block" orientation="vertical" />
+          <ToolbarButton active={toolbarState.blockType === 'h1'} label="Heading 1" onClick={() => toggleHeading(1)}>
+            <Heading1 className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.blockType === 'h2'} label="Heading 2" onClick={() => toggleHeading(2)}>
+            <Heading2 className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.blockType === 'h3'} label="Heading 3" onClick={() => toggleHeading(3)}>
+            <Heading3 className="size-3.5" />
+          </ToolbarButton>
+          <Separator className="mx-1.5 hidden h-4 sm:block" orientation="vertical" />
+          <ToolbarButton active={toolbarState.listType === 'bullet'} label="Bulleted list" onClick={toggleBulletList}>
+            <List className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.listType === 'number'} label="Numbered list" onClick={toggleOrderedList}>
+            <ListOrdered className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.listType === 'check'} label="Checklist" onClick={toggleTaskList}>
+            <ListTodo className="size-3.5" />
+          </ToolbarButton>
+          <Separator className="mx-1.5 hidden h-4 sm:block" orientation="vertical" />
+          <ToolbarButton active={toolbarState.blockType === 'code'} label="Code block" onClick={toggleCodeBlock}>
+            <SquareCode className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.blockType === 'quote'} label="Quote" onClick={toggleBlockquote}>
+            <TextQuote className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton active={toolbarState.isLink} label="Link" onClick={toggleLink}>
+            <Link2 className="size-3.5" />
+          </ToolbarButton>
+        </div>
+      </div>
+    </div>
   )
-})
+}
 
 function ToolbarButton({
   active = false,
