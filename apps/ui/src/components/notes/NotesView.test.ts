@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { fireEvent, getByText, queryByText, waitFor } from '@testing-library/dom'
+import { fireEvent, getByRole, getByText, queryByText, waitFor } from '@testing-library/dom'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
@@ -303,7 +303,7 @@ describe('NotesView', () => {
     fireEvent.input(input, { target: { value: 'road' } })
 
     await waitFor(() => {
-      expect(getByText(document.body, 'projects/roadmap.md')).toBeTruthy()
+      expect(getByRole(document.body, 'button', { name: /projects\/roadmap/i })).toBeTruthy()
     })
 
     fireEvent.keyDown(input, { key: 'Enter', bubbles: true })
