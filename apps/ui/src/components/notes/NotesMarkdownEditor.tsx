@@ -1,65 +1,75 @@
-import { $convertFromMarkdownString, $convertToMarkdownString } from '@lexical/markdown'
-import { LexicalComposer } from '@lexical/react/LexicalComposer'
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { CheckListPlugin } from '@lexical/react/LexicalCheckListPlugin'
-import { ContentEditable } from '@lexical/react/LexicalContentEditable'
-import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
-import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
-import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
-import { ListPlugin } from '@lexical/react/LexicalListPlugin'
-import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin'
-import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
-import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
 import {
-  $createParagraphNode,
-  $insertNodes,
-  COMMAND_PRIORITY_LOW,
-  DRAGOVER_COMMAND,
-  DROP_COMMAND,
-  PASTE_COMMAND,
-  mergeRegister,
-} from 'lexical'
-import { Loader2 } from 'lucide-react'
-import { memo, useEffect, useEffectEvent, useMemo, useState } from 'react'
+  Editor,
+  defaultValueCtx,
+  editorViewCtx,
+  editorViewOptionsCtx,
+  rootCtx,
+  serializerCtx,
+} from '@milkdown/kit/core'
+import { type Ctx } from '@milkdown/kit/ctx'
+import { clipboard } from '@milkdown/kit/plugin/clipboard'
+import { cursor } from '@milkdown/kit/plugin/cursor'
+import { history } from '@milkdown/kit/plugin/history'
+import { indent } from '@milkdown/kit/plugin/indent'
+import { listener } from '@milkdown/kit/plugin/listener'
+import { trailing } from '@milkdown/kit/plugin/trailing'
+import {
+  blockquoteSchema,
+  bulletListSchema,
+  codeBlockSchema,
+  commonmark,
+  emphasisSchema,
+  headingSchema,
+  imageSchema,
+  inlineCodeSchema,
+  linkSchema,
+  listItemSchema,
+  orderedListSchema,
+  strongSchema,
+  toggleEmphasisCommand,
+  toggleInlineCodeCommand,
+  toggleLinkCommand,
+  toggleStrongCommand,
+  turnIntoTextCommand,
+  wrapInHeadingCommand,
+} from '@milkdown/kit/preset/commonmark'
+import { gfm, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm'
+import { type Node as ProseNode, type NodeType } from '@milkdown/kit/prose/model'
+import { lift, setBlockType, wrapIn } from '@milkdown/kit/prose/commands'
+import { type EditorState } from '@milkdown/kit/prose/state'
+import { type EditorView } from '@milkdown/kit/prose/view'
+import { liftListItem, wrapInList } from '@milkdown/kit/prose/schema-list'
+import { $view, callCommand, insert } from '@milkdown/kit/utils'
+import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
+import { nord } from '@milkdown/theme-nord'
+import {
+  Bold,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
+  ListTodo,
+  Loader2,
+  SquareCode,
+  Strikethrough,
+  TextQuote,
+} from 'lucide-react'
+import { memo, startTransition, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react'
 
-import { $createImageNode, NotesImageContext } from './ImageNode'
-import { FloatingToolbar } from './FloatingToolbar'
-import { uploadNoteAttachment } from './notes-api'
-import { NOTES_EDITOR_NODES, NOTES_MARKDOWN_TRANSFORMERS } from './notes-markdown'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
-const editorTheme = {
-  paragraph: 'mb-4 leading-[1.72] text-foreground/95 last:mb-0',
-  heading: {
-    h1: 'mb-6 mt-4 text-[2.3rem] font-bold leading-tight tracking-[-0.04em] text-foreground first:mt-0 md:text-[2.75rem]',
-    h2: 'mb-4 mt-12 text-[1.75rem] font-semibold leading-tight tracking-[-0.03em] text-foreground first:mt-0 md:text-[2rem]',
-    h3: 'mb-3 mt-10 text-[1.35rem] font-semibold leading-tight tracking-[-0.02em] text-foreground first:mt-0 md:text-[1.55rem]',
-    h4: 'mb-3 mt-8 text-lg font-semibold tracking-tight text-foreground first:mt-0 md:text-[1.15rem]',
-    h5: 'mb-2 mt-6 text-base font-semibold tracking-tight text-foreground first:mt-0',
-    h6: 'mb-2 mt-6 text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground first:mt-0',
-  },
-  list: {
-    ul: 'mb-6 ml-6 list-disc space-y-2',
-    ol: 'mb-6 ml-6 list-decimal space-y-2',
-    checklist: 'mb-6 ml-0 space-y-2 pl-0',
-    listitem: 'leading-[1.72] marker:text-muted-foreground/65',
-    listitemChecked:
-      "relative list-none pl-9 text-muted-foreground/80 before:absolute before:left-0 before:top-[0.42rem] before:h-5 before:w-5 before:rounded-md before:border before:border-primary/30 before:bg-primary/15 before:content-[''] after:pointer-events-none after:absolute after:left-[0.43rem] after:top-[0.7rem] after:h-2.5 after:w-1.5 after:rotate-45 after:border-b-2 after:border-r-2 after:border-primary after:content-['']",
-    listitemUnchecked:
-      "relative list-none pl-9 before:absolute before:left-0 before:top-[0.42rem] before:h-5 before:w-5 before:rounded-md before:border before:border-border before:bg-background/80 before:content-['']",
-    nested: {
-      list: 'mt-2',
-      listitem: 'mt-2',
-    },
-  },
-  quote: 'mb-6 border-l border-border pl-4 italic text-muted-foreground',
-  code: 'mb-6 block rounded-xl border border-border/70 bg-muted/45 px-4 py-3 font-mono text-[13px] leading-6 text-foreground',
-  link: 'text-primary/90 underline decoration-transparent underline-offset-4 transition-colors hover:text-primary hover:decoration-primary/60',
-  text: {
-    bold: 'font-semibold',
-    italic: 'italic',
-    code: 'rounded-md bg-muted/70 px-1.5 py-0.5 font-mono text-[0.92em] text-foreground',
-  },
-}
+import { resolveNoteImageUrl, uploadNoteAttachment } from './notes-api'
+
+import './notes-milkdown.css'
+
+type BlockType = 'paragraph' | 'h1' | 'h2' | 'h3' | 'quote' | 'code'
+type ListType = 'bullet' | 'number' | 'check' | null
 
 interface NotesMarkdownEditorProps {
   editorId: string
@@ -69,10 +79,67 @@ interface NotesMarkdownEditorProps {
   placeholder?: string
 }
 
+interface ToolbarState {
+  blockType: BlockType
+  isBold: boolean
+  isCode: boolean
+  isItalic: boolean
+  isLink: boolean
+  isStrikethrough: boolean
+  listType: ListType
+}
+
 interface UploadedImage {
   altText: string
   src: string
 }
+
+interface AncestorMatch {
+  node: ProseNode
+  pos: number
+}
+
+interface PositionedNode {
+  node: ProseNode
+  pos: number
+}
+
+const INITIAL_TOOLBAR_STATE: ToolbarState = {
+  blockType: 'paragraph',
+  isBold: false,
+  isCode: false,
+  isItalic: false,
+  isLink: false,
+  isStrikethrough: false,
+  listType: null,
+}
+
+const IMAGE_UPLOAD_STATUS_CONTAINER_CLASS_NAME =
+  'pointer-events-none absolute right-4 top-4 z-10 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-full border px-3 py-1.5 text-xs shadow-sm backdrop-blur'
+
+const notesImageView = (wsUrl: string) =>
+  $view(imageSchema.node, (ctx) => {
+    const imageType = imageSchema.type(ctx)
+
+    return (initialNode: ProseNode) => {
+      const dom = document.createElement('img')
+      dom.className = 'notes-milkdown-image'
+      dom.loading = 'lazy'
+      applyImageNodeAttributes(dom, initialNode, wsUrl)
+
+      return {
+        dom,
+        update(updatedNode: ProseNode) {
+          if (updatedNode.type !== imageType) {
+            return false
+          }
+
+          applyImageNodeAttributes(dom, updatedNode, wsUrl)
+          return true
+        },
+      }
+    }
+  })
 
 export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
   editorId,
@@ -81,69 +148,87 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
   onChange,
   placeholder = 'Start writing...',
 }: NotesMarkdownEditorProps) {
-  const initialConfig = useMemo(
-    () => ({
-      namespace: `middleman-notes-${editorId}`,
-      theme: editorTheme,
-      nodes: NOTES_EDITOR_NODES,
-      onError(error: Error) {
-        throw error
-      },
-      editorState() {
-        if (!markdown.trim()) {
-          return
-        }
-
-        $convertFromMarkdownString(markdown, NOTES_MARKDOWN_TRANSFORMERS)
-      },
-    }),
-    [editorId, markdown],
-  )
-
-  return (
-    <LexicalComposer initialConfig={initialConfig}>
-      <NotesImageContext.Provider value={wsUrl}>
-        <div className="relative min-h-0 flex-1 overflow-y-auto bg-background">
-          <ImagePlugin wsUrl={wsUrl} />
-          <RichTextPlugin
-            contentEditable={
-              <ContentEditable
-                aria-label="Note editor"
-                className="mx-auto block min-h-full w-full max-w-[720px] px-5 py-8 text-[16px] leading-[1.72] text-foreground outline-none md:px-10 md:py-14"
-                spellCheck
-              />
-            }
-            placeholder={
-              <div className="pointer-events-none absolute inset-x-0 top-8 px-5 text-[16px] leading-[1.72] text-muted-foreground/40 md:top-14 md:px-10">
-                <div className="mx-auto max-w-[720px]">{placeholder}</div>
-              </div>
-            }
-            ErrorBoundary={LexicalErrorBoundary}
-          />
-        </div>
-        <HistoryPlugin />
-        <ListPlugin />
-        <CheckListPlugin />
-        <LinkPlugin />
-        <FloatingToolbar />
-        <MarkdownShortcutPlugin transformers={NOTES_MARKDOWN_TRANSFORMERS} />
-        <OnChangePlugin
-          ignoreSelectionChange
-          onChange={(editorState) => {
-            editorState.read(() => {
-              onChange($convertToMarkdownString(NOTES_MARKDOWN_TRANSFORMERS))
-            })
-          }}
-        />
-      </NotesImageContext.Provider>
-    </LexicalComposer>
-  )
-})
-
-function ImagePlugin({ wsUrl }: { wsUrl: string }) {
-  const [editor] = useLexicalComposerContext()
+  const initialMarkdown = useRef(markdown).current
+  const lastSerializedMarkdownRef = useRef(initialMarkdown)
+  const onChangeRef = useRef(onChange)
+  const imageViewPlugin = useMemo(() => notesImageView(wsUrl), [wsUrl])
+  const [toolbarState, setToolbarState] = useState(INITIAL_TOOLBAR_STATE)
+  const [isEmpty, setIsEmpty] = useState(() => initialMarkdown.trim().length === 0)
   const [uploadCount, setUploadCount] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
+
+  onChangeRef.current = onChange
+
+  const syncToolbarState = useEffectEvent((ctx: Ctx, state: EditorState) => {
+    const nextToolbarState = readToolbarState(ctx, state)
+
+    startTransition(() => {
+      setToolbarState((current) =>
+        areToolbarStatesEqual(current, nextToolbarState) ? current : nextToolbarState,
+      )
+    })
+  })
+
+  const publishMarkdown = useEffectEvent((nextMarkdown: string) => {
+    lastSerializedMarkdownRef.current = nextMarkdown
+    setIsEmpty(nextMarkdown.trim().length === 0)
+    onChangeRef.current(nextMarkdown)
+  })
+
+  const { get: getEditor, loading } = useEditor(
+    (root) =>
+      Editor.make()
+        .config((ctx) => {
+          ctx.set(rootCtx, root)
+          ctx.set(defaultValueCtx, initialMarkdown)
+          nord(ctx)
+          ctx.update(editorViewOptionsCtx, (options) => ({
+            ...options,
+            dispatchTransaction: (transaction) => {
+              const view = ctx.get(editorViewCtx)
+              const currentState = view.state
+              const selectionChanged = !transaction.selection.eq(currentState.selection)
+              const nextState = currentState.apply(transaction)
+
+              view.updateState(nextState)
+
+              if (transaction.docChanged || selectionChanged || transaction.storedMarksSet) {
+                syncToolbarState(ctx, nextState)
+              }
+
+              if (!transaction.docChanged) {
+                return
+              }
+
+              const nextMarkdown = ctx.get(serializerCtx)(nextState.doc)
+              if (nextMarkdown === lastSerializedMarkdownRef.current) {
+                return
+              }
+
+              publishMarkdown(nextMarkdown)
+            },
+          }))
+        })
+        .use(commonmark)
+        .use(gfm)
+        .use(history)
+        .use(clipboard)
+        .use(cursor)
+        .use(trailing)
+        .use(indent)
+        .use(listener)
+        .use(imageViewPlugin),
+    [editorId, imageViewPlugin, initialMarkdown],
+  )
+
+  const withEditor = <T,>(action: (ctx: Ctx, view: EditorView) => T): T | undefined => {
+    const editor = getEditor()
+    if (!editor) {
+      return undefined
+    }
+
+    return editor.action((ctx) => action(ctx, ctx.get(editorViewCtx)))
+  }
 
   const uploadImages = useEffectEvent(async (files: File[]) => {
     if (files.length === 0) {
@@ -164,12 +249,16 @@ function ImagePlugin({ wsUrl }: { wsUrl: string }) {
         })
       }
 
-      editor.update(
-        () => {
-          insertUploadedImages(uploadedImages)
-        },
-        { discrete: true },
-      )
+      const snippet = uploadedImages.map(({ altText, src }) => formatImageMarkdown(altText, src)).join('\n\n')
+
+      withEditor((ctx, view) => {
+        view.focus()
+        const selection = view.state.selection
+        const needsLeadingLineBreak = selection.$from.parent.textContent.trim().length > 0
+        const markdownToInsert = needsLeadingLineBreak ? `\n\n${snippet}\n\n` : `${snippet}\n\n`
+        const inserted = insert(markdownToInsert)
+        inserted(ctx)
+      })
     } catch (error) {
       setUploadError(toErrorMessage(error))
     } finally {
@@ -178,56 +267,174 @@ function ImagePlugin({ wsUrl }: { wsUrl: string }) {
   })
 
   useEffect(() => {
-    return mergeRegister(
-      editor.registerCommand(
-        PASTE_COMMAND,
-        (event) => {
-          const imageFiles = extractImageFilesFromPasteEvent(event)
-          if (imageFiles.length === 0) {
-            return false
-          }
+    if (loading) {
+      return
+    }
 
-          event.preventDefault()
-          void uploadImages(imageFiles)
-          return true
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
-      editor.registerCommand(
-        DRAGOVER_COMMAND,
-        (event) => {
-          const imageFiles = extractImageFilesFromDataTransfer(event.dataTransfer)
-          if (imageFiles.length === 0) {
-            return false
-          }
+    withEditor((ctx, view) => {
+      syncToolbarState(ctx, view.state)
+    })
+  }, [loading, syncToolbarState])
 
-          event.preventDefault()
-          if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = 'copy'
-          }
-          return true
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
-      editor.registerCommand(
-        DROP_COMMAND,
-        (event) => {
-          const imageFiles = extractImageFilesFromDataTransfer(event.dataTransfer)
-          if (imageFiles.length === 0) {
-            return false
-          }
+  useEffect(() => {
+    if (loading) {
+      return
+    }
 
-          event.preventDefault()
-          void uploadImages(imageFiles)
-          return true
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
-    )
-  }, [editor, uploadImages])
+    return withEditor((_ctx, view) => {
+      const handlePaste = (event: ClipboardEvent) => {
+        const imageFiles = extractImageFilesFromPasteEvent(event)
+        if (imageFiles.length === 0) {
+          return
+        }
 
-  if (uploadCount === 0 && uploadError === null) {
-    return null
+        event.preventDefault()
+        void uploadImages(imageFiles)
+      }
+
+      const handleDragOver = (event: DragEvent) => {
+        const imageFiles = extractImageFilesFromDataTransfer(event.dataTransfer)
+        if (imageFiles.length === 0) {
+          return
+        }
+
+        event.preventDefault()
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = 'copy'
+        }
+      }
+
+      const handleDrop = (event: DragEvent) => {
+        const imageFiles = extractImageFilesFromDataTransfer(event.dataTransfer)
+        if (imageFiles.length === 0) {
+          return
+        }
+
+        event.preventDefault()
+        view.focus()
+        void uploadImages(imageFiles)
+      }
+
+      view.dom.addEventListener('paste', handlePaste)
+      view.dom.addEventListener('dragover', handleDragOver)
+      view.dom.addEventListener('drop', handleDrop)
+
+      return () => {
+        view.dom.removeEventListener('paste', handlePaste)
+        view.dom.removeEventListener('dragover', handleDragOver)
+        view.dom.removeEventListener('drop', handleDrop)
+      }
+    })
+  }, [loading, uploadImages])
+
+  const toggleHeading = (level: 1 | 2 | 3) => {
+    withEditor((ctx, view) => {
+      view.focus()
+
+      if (toolbarState.blockType === `h${level}`) {
+        return callCommand(turnIntoTextCommand.key)(ctx)
+      }
+
+      return callCommand(wrapInHeadingCommand.key, level)(ctx)
+    })
+  }
+
+  const toggleBold = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+      return callCommand(toggleStrongCommand.key)(ctx)
+    })
+  }
+
+  const toggleItalic = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+      return callCommand(toggleEmphasisCommand.key)(ctx)
+    })
+  }
+
+  const toggleStrikethrough = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+      return callCommand(toggleStrikethroughCommand.key)(ctx)
+    })
+  }
+
+  const toggleInlineCode = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+      return callCommand(toggleInlineCodeCommand.key)(ctx)
+    })
+  }
+
+  const toggleBlockquote = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+
+      const blockquoteType = blockquoteSchema.type(ctx)
+      const activeBlockquote = findAncestorNode(view.state.selection.$from, (node) => node.type === blockquoteType)
+      if (activeBlockquote) {
+        return lift(view.state, view.dispatch)
+      }
+
+      return wrapIn(blockquoteType)(view.state, view.dispatch)
+    })
+  }
+
+  const toggleCodeBlock = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+
+      const codeBlockType = codeBlockSchema.type(ctx)
+      if (toolbarState.blockType === 'code') {
+        return callCommand(turnIntoTextCommand.key)(ctx)
+      }
+
+      return wrapInOrSetBlockType(view, codeBlockType)
+    })
+  }
+
+  const toggleBulletList = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+      return toggleList(view, ctx, 'bullet', toolbarState.listType)
+    })
+  }
+
+  const toggleOrderedList = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+      return toggleList(view, ctx, 'number', toolbarState.listType)
+    })
+  }
+
+  const toggleTaskList = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+      return toggleChecklist(view, ctx, toolbarState.listType)
+    })
+  }
+
+  const toggleLink = () => {
+    withEditor((ctx, view) => {
+      view.focus()
+
+      if (toolbarState.isLink) {
+        return callCommand(toggleLinkCommand.key)(ctx)
+      }
+
+      const nextUrl = window.prompt('Enter a URL', 'https://')
+      if (nextUrl === null) {
+        return false
+      }
+
+      const normalizedUrl = nextUrl.trim()
+      if (normalizedUrl.length === 0) {
+        return false
+      }
+
+      return callCommand(toggleLinkCommand.key, { href: normalizedUrl })(ctx)
+    })
   }
 
   const isUploading = uploadCount > 0
@@ -236,48 +443,402 @@ function ImagePlugin({ wsUrl }: { wsUrl: string }) {
     : uploadError
 
   return (
-    <div
-      className={`pointer-events-none absolute right-4 top-4 z-10 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-full border px-3 py-1.5 text-xs shadow-sm backdrop-blur ${
-        isUploading
-          ? 'border-border/70 bg-background/95 text-foreground'
-          : 'border-destructive/20 bg-destructive/10 text-destructive'
-      }`}
+    <MilkdownProvider>
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+        {isUploading || uploadError ? (
+          <div
+            className={cn(
+              IMAGE_UPLOAD_STATUS_CONTAINER_CLASS_NAME,
+              isUploading
+                ? 'border-border/70 bg-background/95 text-foreground'
+                : 'border-destructive/20 bg-destructive/10 text-destructive',
+            )}
+          >
+            {isUploading ? <Loader2 className="size-3.5 animate-spin" /> : null}
+            <span>{statusText}</span>
+          </div>
+        ) : null}
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="notes-milkdown-shell mx-auto min-h-full w-full max-w-[860px]">
+            {isEmpty ? (
+              <div className="notes-milkdown-placeholder" aria-hidden="true">
+                {placeholder}
+              </div>
+            ) : null}
+            <Milkdown />
+            {loading ? (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/65 backdrop-blur-[2px]">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="border-t border-border/70 bg-[color-mix(in_srgb,var(--background)_18%,#0f172a)]/95 px-3 py-2 shadow-[0_-12px_30px_rgba(2,6,23,0.08)] backdrop-blur md:px-4">
+          <div className="mx-auto flex max-w-[860px] flex-wrap items-center gap-1.5">
+            <ToolbarButton active={toolbarState.isBold} label="Bold" onClick={toggleBold}>
+              <Bold className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.isItalic} label="Italic" onClick={toggleItalic}>
+              <Italic className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.isStrikethrough} label="Strikethrough" onClick={toggleStrikethrough}>
+              <Strikethrough className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.isCode} label="Inline code" onClick={toggleInlineCode}>
+              <Code className="size-4" />
+            </ToolbarButton>
+            <Separator className="mx-1 hidden h-6 sm:block" orientation="vertical" />
+            <ToolbarButton active={toolbarState.blockType === 'h1'} label="Heading 1" onClick={() => toggleHeading(1)}>
+              <Heading1 className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.blockType === 'h2'} label="Heading 2" onClick={() => toggleHeading(2)}>
+              <Heading2 className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.blockType === 'h3'} label="Heading 3" onClick={() => toggleHeading(3)}>
+              <Heading3 className="size-4" />
+            </ToolbarButton>
+            <Separator className="mx-1 hidden h-6 sm:block" orientation="vertical" />
+            <ToolbarButton active={toolbarState.listType === 'bullet'} label="Bulleted list" onClick={toggleBulletList}>
+              <List className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.listType === 'number'} label="Numbered list" onClick={toggleOrderedList}>
+              <ListOrdered className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.listType === 'check'} label="Checklist" onClick={toggleTaskList}>
+              <ListTodo className="size-4" />
+            </ToolbarButton>
+            <Separator className="mx-1 hidden h-6 sm:block" orientation="vertical" />
+            <ToolbarButton active={toolbarState.blockType === 'code'} label="Code block" onClick={toggleCodeBlock}>
+              <SquareCode className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.blockType === 'quote'} label="Quote" onClick={toggleBlockquote}>
+              <TextQuote className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton active={toolbarState.isLink} label="Link" onClick={toggleLink}>
+              <Link2 className="size-4" />
+            </ToolbarButton>
+          </div>
+        </div>
+      </div>
+    </MilkdownProvider>
+  )
+})
+
+function ToolbarButton({
+  active = false,
+  children,
+  label,
+  onClick,
+}: {
+  active?: boolean
+  children: ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <Button
+      aria-label={label}
+      aria-pressed={active}
+      className={cn(
+        'rounded-full border border-transparent bg-transparent text-secondary-foreground/72 shadow-none hover:border-border/60 hover:bg-accent/70 hover:text-secondary-foreground focus-visible:ring-1 focus-visible:ring-ring/60',
+        active && 'border-primary/35 bg-primary/16 text-primary',
+      )}
+      onClick={onClick}
+      size="icon-sm"
+      title={label}
+      type="button"
+      variant="ghost"
     >
-      {isUploading ? <Loader2 className="size-3.5 animate-spin" /> : null}
-      <span>{statusText}</span>
-    </div>
+      {children}
+    </Button>
   )
 }
 
-function insertUploadedImages(images: UploadedImage[]): void {
-  if (images.length === 0) {
-    return
+function applyImageNodeAttributes(dom: HTMLImageElement, node: ProseNode, wsUrl: string): void {
+  const src = typeof node.attrs.src === 'string' ? node.attrs.src : ''
+  const alt = typeof node.attrs.alt === 'string' ? node.attrs.alt : ''
+  const title = typeof node.attrs.title === 'string' ? node.attrs.title : ''
+
+  dom.alt = alt
+  dom.src = resolveNoteImageUrl(wsUrl, src)
+
+  if (title.length > 0) {
+    dom.title = title
+  } else {
+    dom.removeAttribute('title')
   }
-
-  const nodes = images.map(({ altText, src }) => $createImageNode({ altText, src }))
-  $insertNodes(nodes)
-
-  const lastNode = nodes.at(-1)
-  if (!lastNode) {
-    return
-  }
-
-  if (lastNode.getNextSibling() !== null) {
-    lastNode.selectNext()
-    return
-  }
-
-  const trailingParagraph = $createParagraphNode()
-  lastNode.insertAfter(trailingParagraph)
-  trailingParagraph.select()
 }
 
-function extractImageFilesFromPasteEvent(event: Event): File[] {
-  if (!('clipboardData' in event)) {
+function readToolbarState(ctx: Ctx, state: EditorState): ToolbarState {
+  const strong = strongSchema.type(ctx)
+  const emphasis = emphasisSchema.type(ctx)
+  const inlineCode = inlineCodeSchema.type(ctx)
+  const link = linkSchema.type(ctx)
+
+  return {
+    blockType: readBlockType(ctx, state),
+    isBold: isMarkActive(state, strong),
+    isCode: isMarkActive(state, inlineCode),
+    isItalic: isMarkActive(state, emphasis),
+    isLink: isMarkActive(state, link),
+    isStrikethrough: isMarkActive(state, getStrikeThroughMarkType(state)),
+    listType: readListType(ctx, state),
+  }
+}
+
+function readBlockType(ctx: Ctx, state: EditorState): BlockType {
+  const { $from } = state.selection
+  const codeBlockType = codeBlockSchema.type(ctx)
+  const blockquoteType = blockquoteSchema.type(ctx)
+  const headingType = headingSchema.type(ctx)
+
+  if (findAncestorNode($from, (node) => node.type === codeBlockType)) {
+    return 'code'
+  }
+
+  if (findAncestorNode($from, (node) => node.type === blockquoteType)) {
+    return 'quote'
+  }
+
+  const activeHeading = findAncestorNode($from, (node) => node.type === headingType)
+  if (activeHeading) {
+    switch (activeHeading.node.attrs.level) {
+      case 1:
+        return 'h1'
+      case 2:
+        return 'h2'
+      case 3:
+        return 'h3'
+    }
+  }
+
+  return 'paragraph'
+}
+
+function readListType(ctx: Ctx, state: EditorState): ListType {
+  const listItemType = listItemSchema.type(ctx)
+  const bulletListType = bulletListSchema.type(ctx)
+  const orderedListType = orderedListSchema.type(ctx)
+  const listItem = findAncestorNode(state.selection.$from, (node) => node.type === listItemType)
+  const list = findAncestorNode(
+    state.selection.$from,
+    (node) => node.type === bulletListType || node.type === orderedListType,
+  )
+
+  if (!listItem || !list) {
+    return null
+  }
+
+  if (listItem.node.attrs.checked !== null && listItem.node.attrs.checked !== undefined) {
+    return 'check'
+  }
+
+  return list.node.type === orderedListType ? 'number' : 'bullet'
+}
+
+function areToolbarStatesEqual(left: ToolbarState, right: ToolbarState): boolean {
+  return (
+    left.blockType === right.blockType &&
+    left.isBold === right.isBold &&
+    left.isCode === right.isCode &&
+    left.isItalic === right.isItalic &&
+    left.isLink === right.isLink &&
+    left.isStrikethrough === right.isStrikethrough &&
+    left.listType === right.listType
+  )
+}
+
+function isMarkActive(state: EditorState, markType: ReturnType<typeof strongSchema.type>): boolean {
+  const { empty, from, to } = state.selection
+  if (empty) {
+    return Boolean(markType.isInSet(state.storedMarks ?? state.selection.$from.marks()))
+  }
+
+  return state.doc.rangeHasMark(from, to, markType)
+}
+
+function getStrikeThroughMarkType(state: EditorState) {
+  const schema = state.schema
+  const strikeThrough = schema.marks.strike_through ?? schema.marks.strikethrough
+  if (!strikeThrough) {
+    throw new Error('Milkdown strike-through mark is unavailable.')
+  }
+
+  return strikeThrough
+}
+
+function findAncestorNode(
+  $from: EditorState['selection']['$from'],
+  predicate: (node: ProseNode) => boolean,
+): AncestorMatch | null {
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth)
+    if (!predicate(node)) {
+      continue
+    }
+
+    return {
+      node,
+      pos: $from.before(depth),
+    }
+  }
+
+  return null
+}
+
+function collectSelectedListItems(state: EditorState, listItemType: NodeType): PositionedNode[] {
+  const items = new Map<number, PositionedNode>()
+  const from = state.selection.from
+  const to = state.selection.empty ? state.selection.to + 1 : state.selection.to
+
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (node.type === listItemType) {
+      items.set(pos, { node, pos })
+    }
+  })
+
+  if (items.size > 0) {
+    return [...items.values()]
+  }
+
+  const currentItem = findAncestorNode(state.selection.$from, (node) => node.type === listItemType)
+  if (!currentItem) {
     return []
   }
 
-  return extractImageFilesFromDataTransfer((event as ClipboardEvent).clipboardData)
+  return [{ node: currentItem.node, pos: currentItem.pos }]
+}
+
+function toggleList(
+  view: EditorView,
+  ctx: Ctx,
+  targetListType: Exclude<ListType, 'check' | null>,
+  activeListType: ListType,
+): boolean {
+  const bulletListType = bulletListSchema.type(ctx)
+  const orderedListType = ctx.get(editorViewCtx).state.schema.nodes.ordered_list
+  const listItemType = listItemSchema.type(ctx)
+  const targetNodeType = targetListType === 'number' ? orderedListType : bulletListType
+
+  if (!targetNodeType) {
+    return false
+  }
+
+  if (activeListType === targetListType) {
+    return liftListItem(listItemType)(view.state, view.dispatch)
+  }
+
+  if (activeListType === 'check') {
+    clearTaskState(view, ctx)
+  }
+
+  const listNode = findCurrentListNode(view, ctx)
+  if (listNode) {
+    const nextAttrs =
+      targetListType === 'number'
+        ? {
+            order: typeof listNode.node.attrs.order === 'number' ? listNode.node.attrs.order : 1,
+            spread: Boolean(listNode.node.attrs.spread),
+          }
+        : {
+            spread: Boolean(listNode.node.attrs.spread),
+          }
+
+    view.dispatch(view.state.tr.setNodeMarkup(listNode.pos, targetNodeType, nextAttrs).scrollIntoView())
+    return true
+  }
+
+  return wrapInList(targetNodeType)(view.state, view.dispatch)
+}
+
+function toggleChecklist(view: EditorView, ctx: Ctx, activeListType: ListType): boolean {
+  const bulletListType = bulletListSchema.type(ctx)
+  const listItemType = listItemSchema.type(ctx)
+
+  if (activeListType === 'check') {
+    return clearTaskState(view, ctx)
+  }
+
+  if (activeListType === 'number') {
+    const currentList = findCurrentListNode(view, ctx)
+    if (currentList) {
+      view.dispatch(
+        view.state.tr
+          .setNodeMarkup(currentList.pos, bulletListType, {
+            spread: Boolean(currentList.node.attrs.spread),
+          })
+          .scrollIntoView(),
+      )
+    }
+  } else if (activeListType === null) {
+    const wrapped = wrapInList(bulletListType)(view.state, view.dispatch)
+    if (!wrapped) {
+      return false
+    }
+  }
+
+  const selectedItems = collectSelectedListItems(view.state, listItemType)
+  if (selectedItems.length === 0) {
+    return false
+  }
+
+  let transaction = view.state.tr
+  for (const { node, pos } of selectedItems) {
+    transaction = transaction.setNodeMarkup(pos, undefined, {
+      ...node.attrs,
+      checked: false,
+    })
+  }
+
+  view.dispatch(transaction.scrollIntoView())
+  return true
+}
+
+function clearTaskState(view: EditorView, ctx: Ctx): boolean {
+  const listItemType = listItemSchema.type(ctx)
+  const selectedItems = collectSelectedListItems(view.state, listItemType)
+  if (selectedItems.length === 0) {
+    return false
+  }
+
+  let transaction = view.state.tr
+  for (const { node, pos } of selectedItems) {
+    transaction = transaction.setNodeMarkup(pos, undefined, {
+      ...node.attrs,
+      checked: null,
+    })
+  }
+
+  view.dispatch(transaction.scrollIntoView())
+  return true
+}
+
+function findCurrentListNode(view: EditorView, ctx: Ctx): AncestorMatch | null {
+  const bulletListType = bulletListSchema.type(ctx)
+  const orderedListType = ctx.get(editorViewCtx).state.schema.nodes.ordered_list
+
+  if (!orderedListType) {
+    return findAncestorNode(view.state.selection.$from, (node) => node.type === bulletListType)
+  }
+
+  return findAncestorNode(
+    view.state.selection.$from,
+    (node) => node.type === bulletListType || node.type === orderedListType,
+  )
+}
+
+function wrapInOrSetBlockType(view: EditorView, nodeType: NodeType): boolean {
+  return setBlockType(nodeType)(view.state, view.dispatch)
+}
+
+function formatImageMarkdown(altText: string, src: string): string {
+  return `![${altText.replace(/]/g, '\\]')}](${src})`
+}
+
+function extractImageFilesFromPasteEvent(event: ClipboardEvent): File[] {
+  return extractImageFilesFromDataTransfer(event.clipboardData)
 }
 
 function extractImageFilesFromDataTransfer(dataTransfer: DataTransfer | null | undefined): File[] {
