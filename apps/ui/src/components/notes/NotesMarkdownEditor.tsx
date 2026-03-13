@@ -41,7 +41,6 @@ import { type EditorView } from '@milkdown/kit/prose/view'
 import { liftListItem, wrapInList } from '@milkdown/kit/prose/schema-list'
 import { $view, callCommand, insert } from '@milkdown/kit/utils'
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
-import { nord } from '@milkdown/theme-nord'
 import {
   Bold,
   Code,
@@ -189,9 +188,9 @@ function NotesMarkdownEditorContent({
         .config((ctx) => {
           ctx.set(rootCtx, root)
           ctx.set(defaultValueCtx, initialMarkdown)
-          nord(ctx)
           ctx.update(editorViewOptionsCtx, (options) => ({
             ...options,
+            attributes: { class: 'editor' },
             dispatchTransaction: (transaction) => {
               const view = ctx.get(editorViewCtx)
               const currentState = view.state

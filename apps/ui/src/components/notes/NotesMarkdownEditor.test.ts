@@ -80,10 +80,6 @@ vi.mock('@milkdown/kit/utils', () => ({
   insert: () => () => undefined,
 }))
 
-vi.mock('@milkdown/theme-nord', () => ({
-  nord: () => undefined,
-}))
-
 vi.mock('@milkdown/react', async () => {
   const React = await import('react')
   const EditorContext = React.createContext<Record<string, unknown>>({})

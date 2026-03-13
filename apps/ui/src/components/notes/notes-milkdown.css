@@ -1,34 +1,3 @@
-/* ─── Reset Nord theme bleed ──────────────────────────────────────────────────
- * The @milkdown/theme-nord stylesheet uses `prefers-color-scheme: dark` media
- * queries, but our app uses class-based `.dark` theming. Override every Nord
- * rule that paints a colour so our CSS-variable-based palette always wins.
- * We also neutralise the Nord `list-style: none` base-layer reset.
- */
-
-.notes-milkdown-shell .milkdown-theme-nord pre,
-.notes-milkdown-shell .milkdown-theme-nord code,
-.notes-milkdown-shell .milkdown-theme-nord pre code,
-.notes-milkdown-shell .milkdown-theme-nord blockquote,
-.notes-milkdown-shell .milkdown-theme-nord h1,
-.notes-milkdown-shell .milkdown-theme-nord h2,
-.notes-milkdown-shell .milkdown-theme-nord h3,
-.notes-milkdown-shell .milkdown-theme-nord h4,
-.notes-milkdown-shell .milkdown-theme-nord h5,
-.notes-milkdown-shell .milkdown-theme-nord h6,
-.notes-milkdown-shell .milkdown-theme-nord p,
-.notes-milkdown-shell .milkdown-theme-nord a,
-.notes-milkdown-shell .milkdown-theme-nord img,
-.notes-milkdown-shell .milkdown-theme-nord hr,
-.notes-milkdown-shell .milkdown-theme-nord table,
-.notes-milkdown-shell .milkdown-theme-nord th,
-.notes-milkdown-shell .milkdown-theme-nord td,
-.notes-milkdown-shell .milkdown-theme-nord tr,
-.notes-milkdown-shell .milkdown-theme-nord ul,
-.notes-milkdown-shell .milkdown-theme-nord ol,
-.notes-milkdown-shell .milkdown-theme-nord li {
-  all: revert-layer;
-}
-
 /* ─── Shell ───────────────────────────────────────────────────────────────── */
 
 .notes-milkdown-shell {
