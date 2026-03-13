@@ -1,0 +1,359 @@
+/* ─── Reset Nord theme bleed ──────────────────────────────────────────────────
+ * The @milkdown/theme-nord stylesheet uses `prefers-color-scheme: dark` media
+ * queries, but our app uses class-based `.dark` theming. Override every Nord
+ * rule that paints a colour so our CSS-variable-based palette always wins.
+ * We also neutralise the Nord `list-style: none` base-layer reset.
+ */
+
+.notes-milkdown-shell .milkdown-theme-nord pre,
+.notes-milkdown-shell .milkdown-theme-nord code,
+.notes-milkdown-shell .milkdown-theme-nord pre code,
+.notes-milkdown-shell .milkdown-theme-nord blockquote,
+.notes-milkdown-shell .milkdown-theme-nord h1,
+.notes-milkdown-shell .milkdown-theme-nord h2,
+.notes-milkdown-shell .milkdown-theme-nord h3,
+.notes-milkdown-shell .milkdown-theme-nord h4,
+.notes-milkdown-shell .milkdown-theme-nord h5,
+.notes-milkdown-shell .milkdown-theme-nord h6,
+.notes-milkdown-shell .milkdown-theme-nord p,
+.notes-milkdown-shell .milkdown-theme-nord a,
+.notes-milkdown-shell .milkdown-theme-nord img,
+.notes-milkdown-shell .milkdown-theme-nord hr,
+.notes-milkdown-shell .milkdown-theme-nord table,
+.notes-milkdown-shell .milkdown-theme-nord th,
+.notes-milkdown-shell .milkdown-theme-nord td,
+.notes-milkdown-shell .milkdown-theme-nord tr,
+.notes-milkdown-shell .milkdown-theme-nord ul,
+.notes-milkdown-shell .milkdown-theme-nord ol,
+.notes-milkdown-shell .milkdown-theme-nord li {
+  all: revert-layer;
+}
+
+/* ─── Shell ───────────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell {
+  position: relative;
+  min-height: 100%;
+}
+
+.notes-milkdown-shell [data-milkdown-root],
+.notes-milkdown-shell .milkdown,
+.notes-milkdown-shell .editor {
+  min-height: 100%;
+}
+
+/* ─── Editor root ─────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 8rem;
+  color: var(--foreground);
+  font-size: 16px;
+  line-height: 1.72;
+  outline: none;
+  caret-color: var(--primary);
+}
+
+@media (min-width: 768px) {
+  .notes-milkdown-shell .editor {
+    padding: 3.5rem 2.5rem 8.5rem;
+  }
+}
+
+.notes-milkdown-shell .editor > :first-child {
+  margin-top: 0;
+}
+
+/* ─── Paragraphs ──────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor p {
+  margin: 0 0 1rem;
+}
+
+/* ─── Headings ────────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor h1,
+.notes-milkdown-shell .editor h2,
+.notes-milkdown-shell .editor h3,
+.notes-milkdown-shell .editor h4,
+.notes-milkdown-shell .editor h5,
+.notes-milkdown-shell .editor h6 {
+  color: var(--foreground);
+}
+
+.notes-milkdown-shell .editor h1 {
+  margin: 0 0 1.5rem;
+  font-size: clamp(2.3rem, 4vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.04em;
+}
+
+.notes-milkdown-shell .editor h2 {
+  margin: 3rem 0 1rem;
+  font-size: clamp(1.75rem, 3vw, 2rem);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.notes-milkdown-shell .editor h3 {
+  margin: 2.5rem 0 0.75rem;
+  font-size: clamp(1.35rem, 2.2vw, 1.55rem);
+  font-weight: 600;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+}
+
+.notes-milkdown-shell .editor h4 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.notes-milkdown-shell .editor h5 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.notes-milkdown-shell .editor h6 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--foreground) 62%, transparent);
+}
+
+/* ─── Lists ───────────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor ul,
+.notes-milkdown-shell .editor ol {
+  margin: 0 0 1.5rem 1.5rem;
+  padding: 0;
+}
+
+.notes-milkdown-shell .editor ul {
+  list-style: disc;
+}
+
+.notes-milkdown-shell .editor ol {
+  list-style: decimal;
+}
+
+.notes-milkdown-shell .editor li {
+  margin: 0.35rem 0;
+}
+
+.notes-milkdown-shell .editor li::marker {
+  color: color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+
+/* ─── Task-list checkboxes ────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor li[data-item-type='task'] {
+  position: relative;
+  margin-left: -1.5rem;
+  padding-left: 2.2rem;
+  list-style: none;
+  cursor: pointer;
+}
+
+.notes-milkdown-shell .editor li[data-item-type='task']::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.34rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 0.4rem;
+  border: 1.5px solid color-mix(in srgb, var(--border) 92%, transparent);
+  background: color-mix(in srgb, var(--background) 84%, var(--muted));
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.notes-milkdown-shell .editor li[data-item-type='task']:hover::before {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+}
+
+.notes-milkdown-shell .editor li[data-item-type='task'][data-checked='true']::before {
+  border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+  background: color-mix(in srgb, var(--primary) 18%, var(--background));
+}
+
+.notes-milkdown-shell .editor li[data-item-type='task'][data-checked='true']::after {
+  content: "";
+  position: absolute;
+  left: 0.43rem;
+  top: 0.58rem;
+  width: 0.32rem;
+  height: 0.64rem;
+  border-right: 2px solid var(--primary);
+  border-bottom: 2px solid var(--primary);
+  transform: rotate(45deg);
+}
+
+.notes-milkdown-shell .editor li[data-item-type='task'][data-checked='true'] > * {
+  opacity: 0.55;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--foreground) 26%, transparent);
+}
+
+/* ─── Blockquotes ─────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor blockquote {
+  margin: 0 0 1.5rem;
+  padding-left: 1.15rem;
+  border-left: 2px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  color: color-mix(in srgb, var(--foreground) 64%, transparent);
+  font-style: italic;
+}
+
+/* ─── Code blocks ─────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor pre {
+  margin: 0 0 1.5rem;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--muted) 52%, var(--background));
+  padding: 1rem 1.15rem;
+}
+
+.notes-milkdown-shell .editor pre code {
+  display: block;
+  background: transparent !important;
+  padding: 0;
+  color: var(--foreground);
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  border-radius: 0;
+}
+
+/* ─── Inline code ─────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor code {
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--muted) 82%, var(--background));
+  padding: 0.12rem 0.4rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9em;
+  color: var(--foreground);
+}
+
+/* ─── Inline marks ────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor strong {
+  font-weight: 600;
+}
+
+.notes-milkdown-shell .editor em {
+  font-style: italic;
+}
+
+/* ─── Links ───────────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor a {
+  color: var(--primary);
+  text-decoration-line: underline;
+  text-underline-offset: 0.22rem;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--primary) 32%, transparent);
+  transition:
+    color 140ms ease,
+    text-decoration-color 140ms ease;
+}
+
+.notes-milkdown-shell .editor a:hover {
+  color: var(--primary);
+  text-decoration-color: var(--primary);
+}
+
+/* ─── Horizontal rules ────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor hr {
+  margin: 2.5rem 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+/* ─── Images ──────────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor img,
+.notes-milkdown-shell .notes-milkdown-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.5rem auto;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--muted) 32%, var(--background));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.notes-milkdown-shell .editor .ProseMirror-selectednode,
+.notes-milkdown-shell .editor img.ProseMirror-selectednode {
+  outline: 2px solid color-mix(in srgb, var(--primary) 46%, transparent);
+  outline-offset: 3px;
+}
+
+/* ─── Tables ──────────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor table {
+  width: 100%;
+  margin: 0 0 1.5rem;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.notes-milkdown-shell .editor th,
+.notes-milkdown-shell .editor td {
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.notes-milkdown-shell .editor th {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--muted) 50%, var(--background));
+}
+
+.notes-milkdown-shell .editor tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--muted) 22%, var(--background));
+}
+
+/* ─── Selection ───────────────────────────────────────────────────────────── */
+
+.notes-milkdown-shell .editor ::selection {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+/* ─── Placeholder ─────────────────────────────────────────────────────────── */
+
+.notes-milkdown-placeholder {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 2rem;
+  width: min(100% - 2.5rem, 720px);
+  transform: translateX(-50%);
+  color: color-mix(in srgb, var(--foreground) 28%, transparent);
+  font-size: 16px;
+  font-style: italic;
+  line-height: 1.72;
+}
+
+@media (min-width: 768px) {
+  .notes-milkdown-placeholder {
+    top: 3.5rem;
+    width: min(100% - 5rem, 720px);
+  }
+}
