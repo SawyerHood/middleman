@@ -122,6 +122,14 @@
   padding-left: 1.6rem;
 }
 
+.notes-lexical-list-bullet {
+  list-style-type: disc;
+}
+
+.notes-lexical-list-ordered {
+  list-style-type: decimal;
+}
+
 .notes-lexical-list-nested {
   margin-top: 0.6rem;
 }
@@ -142,12 +150,19 @@
   padding-left: 2rem;
 }
 
+.notes-lexical-list-item-checked input[type='checkbox'],
+.notes-lexical-list-item-unchecked input[type='checkbox'] {
+  outline: none;
+  box-shadow: none;
+}
+
 .notes-lexical-list-item-checked::before,
 .notes-lexical-list-item-unchecked::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 0.42rem;
+  top: 50%;
+  transform: translateY(-50%);
   width: 1.05rem;
   height: 1.05rem;
   border: 1px solid color-mix(in srgb, var(--border) 82%, var(--foreground) 10%);
@@ -166,7 +181,8 @@
   content: '';
   position: absolute;
   left: 0.33rem;
-  top: 0.72rem;
+  top: 50%;
+  margin-top: -0.04rem;
   width: 0.42rem;
   height: 0.2rem;
   border-left: 2px solid var(--primary-foreground);
@@ -207,13 +223,12 @@
   position: sticky;
   bottom: 0;
   z-index: 10;
-  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--background) 36%, transparent),
-      color-mix(in srgb, var(--background) 88%, transparent) 18%,
-      color-mix(in srgb, var(--background) 95%, transparent)
+      transparent,
+      color-mix(in srgb, var(--background) 82%, transparent) 30%,
+      var(--background)
     );
   backdrop-filter: blur(14px);
 }
@@ -234,9 +249,9 @@
   padding: 0.4rem;
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--card) 74%, var(--background));
+  background: color-mix(in srgb, var(--background) 80%, var(--card));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 4%, transparent),
     0 14px 40px color-mix(in srgb, black 18%, transparent);
 }
 

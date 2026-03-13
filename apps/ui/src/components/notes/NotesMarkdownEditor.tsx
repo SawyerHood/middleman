@@ -227,7 +227,7 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
         initialConfig={{
           editable: true,
           editorState: () => {
-            $convertFromMarkdownString(normalizedMarkdown, NOTES_EDITOR_TRANSFORMERS)
+            $convertFromMarkdownString(preprocessMarkdownForImport(normalizedMarkdown), NOTES_EDITOR_TRANSFORMERS)
           },
           namespace: `notes:${editorId}`,
           nodes: NOTES_EDITOR_NODES,
@@ -318,7 +318,7 @@ function NotesMarkdownSyncPlugin({
     lastPublishedMarkdownRef.current = markdown
     editor.update(
       () => {
-        $convertFromMarkdownString(markdown, NOTES_EDITOR_TRANSFORMERS)
+        $convertFromMarkdownString(preprocessMarkdownForImport(markdown), NOTES_EDITOR_TRANSFORMERS)
       },
       { tag: NOTES_SYNC_TAG },
     )
@@ -776,6 +776,71 @@ function normalizeEditorMarkdown(markdown: string): string {
   }
 
   return `${normalized.replace(/\n+$/, '')}\n`
+}
+
+/**
+ * Pre-process markdown before Lexical import to handle features Lexical
+ * doesn't natively support:
+ * - Strip `<br />` / `<br>` / `<br/>` HTML tags → newlines
+ * - Convert indented code blocks (4-space / 1-tab indent) → fenced code blocks
+ */
+function preprocessMarkdownForImport(markdown: string): string {
+  // 1. Replace <br /> variants with newlines
+  let result = markdown.replace(/<br\s*\/?>/gi, '\n')
+
+  // 2. Convert indented code blocks to fenced code blocks
+  // An indented code block is a consecutive run of lines each indented by
+  // 4+ spaces or 1+ tab, preceded and followed by a blank line (or
+  // start/end of string). We must not convert indented lines inside list items.
+  const lines = result.split('\n')
+  const output: string[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]!
+    const isIndentedCode = /^(?:    |\t)/.test(line) && line.trim().length > 0
+
+    // Only treat as indented code block if preceded by blank line or start of string
+    const prevLineBlank = i === 0 || (lines[i - 1] ?? '').trim().length === 0
+
+    if (isIndentedCode && prevLineBlank) {
+      // Collect consecutive indented (or blank) lines
+      const codeLines: string[] = []
+      while (i < lines.length) {
+        const cl = lines[i]!
+        const isIndented = /^(?:    |\t)/.test(cl)
+        const isBlank = cl.trim().length === 0
+
+        if (isIndented) {
+          // Strip exactly 4 spaces or 1 tab of leading indent
+          codeLines.push(cl.replace(/^(?:    |\t)/, ''))
+          i++
+        } else if (isBlank && i + 1 < lines.length && /^(?:    |\t)/.test(lines[i + 1] ?? '')) {
+          // Blank line between indented lines — keep it
+          codeLines.push('')
+          i++
+        } else {
+          break
+        }
+      }
+
+      // Trim trailing blank lines from the code block
+      while (codeLines.length > 0 && codeLines[codeLines.length - 1]!.trim().length === 0) {
+        codeLines.pop()
+      }
+
+      if (codeLines.length > 0) {
+        output.push('```')
+        output.push(...codeLines)
+        output.push('```')
+      }
+    } else {
+      output.push(line)
+      i++
+    }
+  }
+
+  return output.join('\n')
 }
 
 function escapeImageAltText(altText: string): string {
