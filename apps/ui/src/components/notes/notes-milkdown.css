@@ -22,6 +22,8 @@
   color: var(--foreground);
   font-size: 16px;
   line-height: 1.72;
+  white-space: pre-wrap;
+  word-wrap: break-word;
   outline: none;
   caret-color: var(--primary);
 }

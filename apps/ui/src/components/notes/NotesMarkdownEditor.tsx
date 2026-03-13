@@ -4,7 +4,6 @@ import {
   editorViewCtx,
   editorViewOptionsCtx,
   rootCtx,
-  serializerCtx,
 } from '@milkdown/kit/core'
 import { type Ctx } from '@milkdown/kit/ctx'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
@@ -36,10 +35,10 @@ import {
 import { gfm, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm'
 import { type Node as ProseNode, type NodeType } from '@milkdown/kit/prose/model'
 import { lift, setBlockType, wrapIn } from '@milkdown/kit/prose/commands'
-import { type EditorState } from '@milkdown/kit/prose/state'
+import { type EditorState, Plugin, PluginKey } from '@milkdown/kit/prose/state'
 import { type EditorView } from '@milkdown/kit/prose/view'
 import { liftListItem, wrapInList } from '@milkdown/kit/prose/schema-list'
-import { $view, callCommand, insert } from '@milkdown/kit/utils'
+import { $prose, $view, callCommand, insert } from '@milkdown/kit/utils'
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import {
   Bold,
@@ -113,6 +112,9 @@ const INITIAL_TOOLBAR_STATE: ToolbarState = {
   listType: null,
 }
 
+
+const toolbarSyncPluginKey = new PluginKey('toolbar-sync')
+
 const IMAGE_UPLOAD_STATUS_CONTAINER_CLASS_NAME =
   'pointer-events-none absolute right-4 top-4 z-10 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-full border px-3 py-1.5 text-xs shadow-sm backdrop-blur'
 
@@ -182,6 +184,21 @@ function NotesMarkdownEditorContent({
     onChangeRef.current(nextMarkdown)
   })
 
+  const toolbarSyncPlugin = useMemo(
+    () =>
+      $prose((ctx) => {
+        return new Plugin({
+          key: toolbarSyncPluginKey,
+          view: () => ({
+            update: (view) => {
+              syncToolbarState(ctx, view.state)
+            },
+          }),
+        })
+      }),
+    [syncToolbarState],
+  )
+
   const { get: getEditor, loading } = useEditor(
     (root) =>
       Editor.make()
@@ -196,24 +213,6 @@ function NotesMarkdownEditorContent({
           ctx.update(editorViewOptionsCtx, (options) => ({
             ...options,
             attributes: { class: 'editor' },
-            dispatchTransaction: (transaction) => {
-              const view = ctx.get(editorViewCtx)
-              const currentState = view.state
-              const selectionChanged = !transaction.selection.eq(currentState.selection)
-              const nextState = currentState.apply(transaction)
-
-              view.updateState(nextState)
-
-              if (transaction.docChanged) {
-                const serializer = ctx.get(serializerCtx)
-                const nextMarkdown = serializer(nextState.doc)
-                publishMarkdown(nextMarkdown)
-              }
-
-              if (transaction.docChanged || selectionChanged || transaction.storedMarksSet) {
-                syncToolbarState(ctx, nextState)
-              }
-            },
           }))
         })
         .use(commonmark)
@@ -224,8 +223,9 @@ function NotesMarkdownEditorContent({
         .use(trailing)
         .use(indent)
         .use(listener)
+        .use(toolbarSyncPlugin)
         .use(imageViewPlugin),
-    [editorId, imageViewPlugin, initialMarkdown],
+    [editorId, imageViewPlugin, initialMarkdown, toolbarSyncPlugin],
   )
 
   const withEditor = <T,>(action: (ctx: Ctx, view: EditorView) => T): T | undefined => {
