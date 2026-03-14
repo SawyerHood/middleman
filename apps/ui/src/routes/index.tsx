@@ -199,6 +199,8 @@ export function IndexPage() {
   // back to localStorage and for the desktop-layout restore effect.
   const [initialSidebarWidth] = useState(readStoredSidebarWidth)
   const storedSidebarWidthRef = useRef(initialSidebarWidth)
+  const sidebarRestoreFrameRef = useRef<number | null>(null)
+  const isRestoringSidebarWidthRef = useRef(true)
   const navigate = useOptionalNavigate()
   const location = useOptionalLocation()
   const pruneMessageDrafts = useSetAtom(pruneMessageDraftsAtom)
@@ -449,28 +451,71 @@ export function IndexPage() {
     }
   }, [isDesktopSidebarLayout])
 
-  // Synchronise the sidebar size when the desktop/mobile media query flips.
-  // useLayoutEffect (not useEffect) so the resize is applied before the
-  // browser paints — avoids a brief flash of the wrong width.
-  useLayoutEffect(() => {
-    const sidebarPanel = sidebarPanelRef.current
-    if (!sidebarPanel) {
+  const cancelSidebarRestoreFrame = useCallback(() => {
+    if (typeof window === 'undefined' || sidebarRestoreFrameRef.current === null) {
       return
     }
 
-    const nextWidth = isDesktopSidebarLayout ? storedSidebarWidthRef.current : 0
-    try {
-      const currentWidth = Math.round(sidebarPanel.getSize().inPixels)
-      if (currentWidth === Math.round(nextWidth)) {
+    window.cancelAnimationFrame(sidebarRestoreFrameRef.current)
+    sidebarRestoreFrameRef.current = null
+  }, [])
+
+  useEffect(() => {
+    return cancelSidebarRestoreFrame
+  }, [cancelSidebarRestoreFrame])
+
+  // Restore the stored width once the panel API is actually ready.
+  // On a hard reload, the route shell can mount before the resizable panel
+  // finishes hydrating, so a one-shot resize attempt gets skipped and the
+  // library falls back to its constrained default layout instead.
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    cancelSidebarRestoreFrame()
+    isRestoringSidebarWidthRef.current = true
+
+    const targetWidth = isDesktopSidebarLayout
+      ? clampSidebarWidth(storedSidebarWidthRef.current)
+      : 0
+
+    const restoreSidebarWidth = () => {
+      const sidebarPanel = sidebarPanelRef.current
+      if (!sidebarPanel) {
+        sidebarRestoreFrameRef.current = window.requestAnimationFrame(
+          restoreSidebarWidth,
+        )
         return
       }
 
-      sidebarPanel.resize(nextWidth)
-    } catch {
-      // The panel group may not be ready yet during initial test mounts.
-      return
+      try {
+        const currentWidth = Math.round(sidebarPanel.getSize().inPixels)
+        if (currentWidth !== Math.round(targetWidth)) {
+          sidebarPanel.resize(targetWidth)
+          sidebarRestoreFrameRef.current = window.requestAnimationFrame(
+            restoreSidebarWidth,
+          )
+          return
+        }
+
+        sidebarRestoreFrameRef.current = null
+        if (isDesktopSidebarLayout) {
+          storedSidebarWidthRef.current = targetWidth
+          writeStoredSidebarWidth(targetWidth)
+        }
+        isRestoringSidebarWidthRef.current = false
+      } catch {
+        sidebarRestoreFrameRef.current = window.requestAnimationFrame(
+          restoreSidebarWidth,
+        )
+      }
     }
-  }, [isDesktopSidebarLayout, sidebarPanelRef])
+
+    restoreSidebarWidth()
+
+    return cancelSidebarRestoreFrame
+  }, [cancelSidebarRestoreFrame, isDesktopSidebarLayout, sidebarPanelRef])
 
   const handleSend = (text: string, attachments?: ConversationAttachment[]) => {
     if (!activeAgentId) {
@@ -588,7 +633,7 @@ export function IndexPage() {
   ) : null
 
   const handleSidebarLayoutChanged = useCallback(() => {
-    if (!isDesktopSidebarLayout) {
+    if (!isDesktopSidebarLayout || isRestoringSidebarWidthRef.current) {
       return
     }
 
