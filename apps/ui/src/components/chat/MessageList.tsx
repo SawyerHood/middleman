@@ -511,6 +511,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
         )}
       >
         <div className="p-2 md:p-3">
+          {/* Keep rows fully laid out so bottom scroll calculations stay accurate across thread switches. */}
           {displayEntries.map((entry, index) => {
             const previousEntry = index > 0 ? displayEntries[index - 1] : undefined
             const rowSpacingClass = getDisplayEntrySpacingClass(
@@ -523,7 +524,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
               return (
                 <div
                   key={entry.id}
-                  className={cn(rowSpacingClass, '[content-visibility:auto] [contain-intrinsic-size:auto_96px]')}
+                  className={rowSpacingClass}
                 >
                   <ConversationMessageRow
                     message={entry.message}
@@ -538,7 +539,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
               return (
                 <div
                   key={entry.id}
-                  className={cn(rowSpacingClass, '[content-visibility:auto] [contain-intrinsic-size:auto_96px]')}
+                  className={rowSpacingClass}
                 >
                   <EscalationMessageRow
                     escalation={escalationById.get(entry.message.escalation.id) ?? entry.message.escalation}
@@ -553,7 +554,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
               return (
                 <div
                   key={entry.id}
-                  className={cn(rowSpacingClass, '[content-visibility:auto] [contain-intrinsic-size:auto_84px]')}
+                  className={rowSpacingClass}
                 >
                   <AgentMessageRow message={entry.message} />
                 </div>
@@ -563,7 +564,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
             return (
               <div
                 key={entry.id}
-                className={cn(rowSpacingClass, '[content-visibility:auto] [contain-intrinsic-size:auto_84px]')}
+                className={rowSpacingClass}
               >
                 <ToolLogRow
                   type={entry.type}
