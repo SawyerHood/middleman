@@ -104,7 +104,11 @@ function createEmptyArchetypePromptRegistry(): ArchetypePromptRegistry {
   };
 }
 
-function normalizeContextUsage(value: unknown): AgentContextUsage | undefined {
+function normalizeContextUsage(value: unknown): AgentContextUsage | null | undefined {
+  if (value === null) {
+    return null;
+  }
+
   const usage = readObject(value);
   const tokens = usage?.tokens;
   const contextWindow = usage?.contextWindow;
@@ -1141,15 +1145,16 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     agentId: string,
     status: AgentStatus,
     pendingCount: number,
-    contextUsage?: AgentContextUsage,
+    contextUsage?: AgentContextUsage | null,
   ): void {
-    const resolvedContextUsage = contextUsage ?? this.getAgent(agentId)?.contextUsage;
+    const resolvedContextUsage =
+      contextUsage === undefined ? this.getAgent(agentId)?.contextUsage ?? null : contextUsage;
     this.emit("agent_status", {
       type: "agent_status",
       agentId,
       status,
       pendingCount,
-      ...(resolvedContextUsage ? { contextUsage: resolvedContextUsage } : {}),
+      contextUsage: resolvedContextUsage,
     });
   }
 

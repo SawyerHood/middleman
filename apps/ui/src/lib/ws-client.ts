@@ -570,13 +570,12 @@ export class ManagerWsClient {
         break
 
       case 'agent_status': {
-        const previous = this.state.statuses[event.agentId]
         const statuses = {
           ...this.state.statuses,
           [event.agentId]: {
             status: event.status,
             pendingCount: event.pendingCount,
-            contextUsage: event.contextUsage ?? previous?.contextUsage,
+            contextUsage: event.contextUsage ?? undefined,
           },
         }
         this.updateState({
@@ -670,14 +669,17 @@ export class ManagerWsClient {
 
     const statuses = Object.fromEntries(
       orderedAgents.map((agent) => {
-        const previous = this.state.statuses[agent.agentId]
         const status = agent.status
         return [
           agent.agentId,
           {
             status,
-            pendingCount: previous && previous.status === status ? previous.pendingCount : 0,
-            contextUsage: agent.contextUsage ?? previous?.contextUsage,
+            pendingCount:
+              this.state.statuses[agent.agentId] &&
+              this.state.statuses[agent.agentId]?.status === status
+                ? this.state.statuses[agent.agentId]?.pendingCount ?? 0
+                : 0,
+            contextUsage: agent.contextUsage ?? undefined,
           },
         ]
       }),

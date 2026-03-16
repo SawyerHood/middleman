@@ -248,7 +248,7 @@ export interface AgentStatusEvent {
   agentId: string;
   status: AgentStatus;
   pendingCount: number;
-  contextUsage?: AgentContextUsage;
+  contextUsage?: AgentContextUsage | null;
 }
 
 export interface AgentsSnapshotEvent {

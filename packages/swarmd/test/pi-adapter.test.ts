@@ -371,6 +371,127 @@ describe("PiSessionHost", () => {
       code: "PROMPT_DISPATCH_FAILED",
       message: "Pi runtime failed.",
       retryable: true,
-    }, undefined);
+    }, null);
+  });
+
+  it("uses Pi session context usage snapshots and clears stale usage after compaction", async () => {
+    let listener: ((event: PiSessionEvent) => void) | null = null;
+    const sessionManager = {
+      appendMessage: vi.fn(),
+      branch: vi.fn(),
+      getSessionFile: vi.fn().mockReturnValue("/tmp/pi-session.jsonl"),
+      getSessionDir: vi.fn().mockReturnValue("/tmp"),
+      getCwd: vi.fn().mockReturnValue("/tmp"),
+      _rewriteFile: vi.fn(),
+    };
+
+    const getContextUsage = vi
+      .fn()
+      .mockReturnValueOnce({
+        tokens: 120_000,
+        contextWindow: 262_144,
+        percent: 45.7763671875,
+      })
+      .mockReturnValueOnce({
+        tokens: 130_000,
+        contextWindow: 262_144,
+        percent: 49.591064453125,
+      })
+      .mockReturnValueOnce({
+        tokens: null,
+        contextWindow: 262_144,
+        percent: null,
+      });
+
+    const session = {
+      isStreaming: false,
+      sessionManager,
+      prompt: vi.fn(),
+      steer: vi.fn(),
+      followUp: vi.fn(),
+      abort: vi.fn(),
+      compact: vi.fn(),
+      getContextUsage,
+      subscribe: vi.fn().mockImplementation((nextListener: (event: PiSessionEvent) => void) => {
+        listener = nextListener;
+        return () => {
+          listener = null;
+        };
+      }),
+      dispose: vi.fn(),
+    };
+
+    const callbacks = createCallbacks();
+    const host = new PiSessionHost(callbacks, {
+      sessionId: "ses_pi",
+      threadId: "thr_pi",
+      loadModule: async () => ({
+        createAgentSession: vi.fn().mockResolvedValue({ session }),
+        SessionManager: {
+          create: vi.fn().mockReturnValue(sessionManager),
+          open: vi.fn().mockReturnValue(sessionManager),
+          forkFrom: vi.fn().mockReturnValue(sessionManager),
+        },
+      }),
+    });
+
+    await host.bootstrap({
+      backend: "pi",
+      cwd: "/tmp/project",
+      model: "openai-codex/gpt-5.4",
+      backendConfig: {
+        authFile: "/tmp/auth.json",
+        modelProvider: "openai-codex",
+        modelId: "gpt-5.4",
+      },
+    });
+
+    expect(callbacks.emitStatusChange).toHaveBeenCalledWith("idle", undefined, {
+      tokens: 120_000,
+      contextWindow: 262_144,
+      percent: 45.7763671875,
+    });
+
+    listener?.({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Done" }],
+        provider: "openai-codex",
+        model: "gpt-5.4",
+        api: "openai-responses",
+        usage: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2,
+          cost: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            total: 0,
+          },
+        },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      },
+    });
+
+    expect(callbacks.emitStatusChange).toHaveBeenCalledWith("idle", undefined, {
+      tokens: 130_000,
+      contextWindow: 262_144,
+      percent: 49.591064453125,
+    });
+
+    listener?.({
+      type: "auto_compaction_end",
+      result: undefined,
+      aborted: false,
+      willRetry: false,
+    });
+
+    expect(callbacks.emitStatusChange).toHaveBeenCalledWith("idle", undefined, null);
   });
 });

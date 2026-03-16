@@ -116,18 +116,24 @@ function flush(): Promise<void> {
 function createCallbacks() {
   const events: Array<Omit<EventEnvelope, "cursor">> = [];
   const statuses: SessionStatus[] = [];
+  const statusChanges: Array<{
+    status: SessionStatus;
+    contextUsage: unknown;
+  }> = [];
   const checkpoints: unknown[] = [];
 
   return {
     events,
     statuses,
+    statusChanges,
     checkpoints,
     callbacks: {
       emitEvent(event: Omit<EventEnvelope, "cursor">) {
         events.push(event);
       },
-      emitStatusChange(status: SessionStatus) {
+      emitStatusChange(status: SessionStatus, _error?: unknown, contextUsage?: unknown) {
         statuses.push(status);
+        statusChanges.push({ status, contextUsage });
       },
       emitCheckpoint(checkpoint: unknown) {
         checkpoints.push(checkpoint);
@@ -526,6 +532,82 @@ describe("ClaudeQuerySession", () => {
         role: "user",
       },
     ]);
+
+    await session.dispose();
+  });
+
+  it("derives context usage from the configured Claude model and includes cached input tokens", async () => {
+    const callbacks = createCallbacks();
+    const handle = new FakeClaudeQueryHandle();
+    const sdk: Pick<ClaudeSdkModule, "query"> = {
+      query: vi.fn(({ prompt }) => {
+        handle.attachPrompt(prompt);
+        return handle;
+      }),
+    };
+
+    const session = new ClaudeQuerySession({
+      sdk,
+      callbacks: callbacks.callbacks,
+      config: createConfig(),
+      sessionId: "ses_runtime",
+      threadId: "thr_runtime",
+    });
+
+    const startPromise = session.start();
+    handle.pushEvent({
+      type: "system:init",
+      session_id: "claude-session-live",
+    });
+
+    await startPromise;
+    expect(callbacks.statusChanges[0]).toEqual({
+      status: "idle",
+      contextUsage: null,
+    });
+
+    await session.sendInput(createUserInput("turn-1", "First message"), "auto");
+    await flush();
+
+    handle.pushEvent({
+      type: "result",
+      session_id: "claude-session-live",
+      subtype: "success",
+      stop_reason: "end_turn",
+      modelUsage: {
+        "claude-haiku-4": {
+          inputTokens: 90,
+          outputTokens: 10,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+          webSearchRequests: 0,
+          costUSD: 0,
+          contextWindow: 200_000,
+          maxOutputTokens: 8_192,
+        },
+        "claude-sonnet-4": {
+          inputTokens: 1_000,
+          outputTokens: 400,
+          cacheReadInputTokens: 200,
+          cacheCreationInputTokens: 300,
+          webSearchRequests: 0,
+          costUSD: 0,
+          contextWindow: 200_000,
+          maxOutputTokens: 8_192,
+        },
+      },
+    });
+
+    await flush();
+
+    expect(callbacks.statusChanges.at(-1)).toEqual({
+      status: "idle",
+      contextUsage: {
+        tokens: 1_900,
+        contextWindow: 200_000,
+        percent: 0.95,
+      },
+    });
 
     await session.dispose();
   });

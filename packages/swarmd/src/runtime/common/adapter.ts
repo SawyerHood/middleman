@@ -20,7 +20,7 @@ export interface AdapterCallbacks {
   emitStatusChange(
     status: SessionStatus,
     error?: SessionErrorInfo,
-    contextUsage?: SessionContextUsage,
+    contextUsage?: SessionContextUsage | null,
   ): void;
   emitCheckpoint(checkpoint: BackendCheckpoint): void;
   emitBackendState?(state: Record<string, unknown>): void;

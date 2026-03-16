@@ -536,7 +536,7 @@ export class ClaudeQuerySession {
   }
 
   private async setStatus(next: SessionStatus, error?: SessionErrorInfo): Promise<void> {
-    const contextUsage = this.lastContextUsage ?? undefined;
+    const contextUsage = this.lastContextUsage;
     if (this.state === next && error === undefined) {
       if (isIdleLike(next)) {
         this.settleIdleWaiters();
@@ -561,7 +561,7 @@ export class ClaudeQuerySession {
   }
 
   private captureContextUsage(event: ClaudeSdkMessage): void {
-    const nextUsage = extractClaudeContextUsage(event);
+    const nextUsage = extractClaudeContextUsage(event, this.options.config.model);
     if (!nextUsage || areContextUsagesEqual(this.lastContextUsage, nextUsage)) {
       return;
     }
@@ -624,42 +624,98 @@ function toSessionErrorInfo(code: string, error: unknown, retryable: boolean): S
   };
 }
 
-function extractClaudeContextUsage(event: ClaudeSdkMessage): SessionContextUsage | null {
+function extractClaudeContextUsage(
+  event: ClaudeSdkMessage,
+  configuredModel?: string,
+): SessionContextUsage | null {
   const usageContainer = readObject(event.modelUsage) ?? readObject(event.usage);
   if (!usageContainer) {
     return null;
   }
 
-  const firstEntry =
-    usageContainer.inputTokens !== undefined ||
-    usageContainer.outputTokens !== undefined ||
-    usageContainer.contextWindow !== undefined
-      ? usageContainer
-      : (Object.values(usageContainer).find(
-          (value) => value && typeof value === "object" && !Array.isArray(value),
-        ) as Record<string, unknown> | undefined);
-  if (!firstEntry) {
+  const usageEntry = selectClaudeUsageEntry(usageContainer, configuredModel);
+  if (!usageEntry) {
     return null;
   }
 
-  const inputTokens = readFiniteNumber(firstEntry.inputTokens);
-  const outputTokens = readFiniteNumber(firstEntry.outputTokens);
-  const contextWindow = readFiniteNumber(firstEntry.contextWindow);
+  const inputTokens = readFiniteNumber(usageEntry.inputTokens) ?? readFiniteNumber(usageEntry.input_tokens) ?? 0;
+  const cacheReadInputTokens =
+    readFiniteNumber(usageEntry.cacheReadInputTokens) ??
+    readFiniteNumber(usageEntry.cache_read_input_tokens) ??
+    0;
+  const cacheCreationInputTokens =
+    readFiniteNumber(usageEntry.cacheCreationInputTokens) ??
+    readFiniteNumber(usageEntry.cache_creation_input_tokens) ??
+    0;
+  const outputTokens =
+    readFiniteNumber(usageEntry.outputTokens) ?? readFiniteNumber(usageEntry.output_tokens) ?? 0;
+  const contextWindow =
+    readFiniteNumber(usageEntry.contextWindow) ?? readFiniteNumber(usageEntry.context_window);
   if (
-    inputTokens === undefined ||
-    outputTokens === undefined ||
     contextWindow === undefined ||
     contextWindow <= 0
   ) {
     return null;
   }
 
-  const tokens = Math.max(0, inputTokens) + Math.max(0, outputTokens);
+  const tokens =
+    Math.max(0, inputTokens) +
+    Math.max(0, cacheReadInputTokens) +
+    Math.max(0, cacheCreationInputTokens) +
+    Math.max(0, outputTokens);
   return {
     tokens,
     contextWindow,
     percent: Math.max(0, Math.min(100, (tokens / contextWindow) * 100)),
   };
+}
+
+function selectClaudeUsageEntry(
+  usageContainer: Record<string, unknown>,
+  configuredModel?: string,
+): Record<string, unknown> | null {
+  if (isClaudeUsageEntry(usageContainer)) {
+    return usageContainer;
+  }
+
+  const entries = Object.entries(usageContainer).filter(([, value]) => isClaudeUsageEntry(value));
+  if (entries.length === 0) {
+    return null;
+  }
+
+  if (configuredModel) {
+    const normalizedConfiguredModel = normalizeModelKey(configuredModel);
+    const exactMatch = entries.find(([modelKey]) => normalizeModelKey(modelKey) === normalizedConfiguredModel);
+    if (exactMatch) {
+      return exactMatch[1] as Record<string, unknown>;
+    }
+  }
+
+  return (
+    entries
+      .map(([, value]) => value as Record<string, unknown>)
+      .sort((left, right) => totalClaudeUsageTokens(right) - totalClaudeUsageTokens(left))[0] ?? null
+  );
+}
+
+function isClaudeUsageEntry(value: unknown): value is Record<string, unknown> {
+  const entry = readObject(value);
+  return entry !== null && readFiniteNumber(entry.contextWindow ?? entry.context_window) !== undefined;
+}
+
+function totalClaudeUsageTokens(entry: Record<string, unknown>): number {
+  return (
+    (readFiniteNumber(entry.inputTokens) ?? readFiniteNumber(entry.input_tokens) ?? 0) +
+    (readFiniteNumber(entry.cacheReadInputTokens) ?? readFiniteNumber(entry.cache_read_input_tokens) ?? 0) +
+    (readFiniteNumber(entry.cacheCreationInputTokens) ??
+      readFiniteNumber(entry.cache_creation_input_tokens) ??
+      0) +
+    (readFiniteNumber(entry.outputTokens) ?? readFiniteNumber(entry.output_tokens) ?? 0)
+  );
+}
+
+function normalizeModelKey(model: string): string {
+  return model.trim().toLowerCase();
 }
 
 function readObject(value: unknown): Record<string, unknown> | null {

@@ -213,6 +213,25 @@ describe("SessionService", () => {
     expect(sessionRepo.getById(session.id)?.contextUsage).toEqual(updated.contextUsage);
   });
 
+  it("clears persisted context usage when a worker reports explicit null telemetry", () => {
+    const { sessionRepo, sessionService } = createTestContext(openDatabases);
+    const session = sessionService.create({
+      backend: "codex",
+      cwd: "/tmp/swarmd",
+    });
+
+    sessionService.applyRuntimeStatus(session.id, "idle", null, {
+      tokens: 13_700,
+      contextWindow: 200_000,
+      percent: 6.85,
+    });
+
+    const cleared = sessionService.applyRuntimeStatus(session.id, "busy", null, null);
+
+    expect(cleared.contextUsage).toBeNull();
+    expect(sessionRepo.getById(session.id)?.contextUsage).toBeNull();
+  });
+
   it("archives sessions without deleting them and excludes them from default listings", () => {
     const { sessionService } = createTestContext(openDatabases);
     const session = sessionService.create({
@@ -283,6 +302,7 @@ describe("SessionService", () => {
         payload: {
           status: "idle",
           previousStatus: "starting",
+          contextUsage: null,
         },
       }),
       expect.objectContaining({

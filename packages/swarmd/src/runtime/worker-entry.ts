@@ -86,7 +86,7 @@ async function main(): Promise<void> {
         type: "session_status",
         status,
         ...(error ? { error } : {}),
-        ...(contextUsage ? { contextUsage } : {}),
+        ...(contextUsage !== undefined ? { contextUsage } : {}),
       });
     },
     emitCheckpoint: (checkpoint) => {

@@ -17,6 +17,13 @@ const CONTEXT_WINDOW_BY_PRESET = {
   'claude-code': 200_000,
 } as const
 
+const TELEMETRY_BACKED_PRESETS = new Set<keyof typeof CONTEXT_WINDOW_BY_PRESET>([
+  'pi-opus',
+  'pi-codex',
+  'codex-app',
+  'claude-code',
+])
+
 function contextWindowForAgent(agent: AgentDescriptor | null): number | null {
   if (!agent) {
     return null
@@ -24,6 +31,15 @@ function contextWindowForAgent(agent: AgentDescriptor | null): number | null {
 
   const modelPreset = inferModelPreset(agent)
   return modelPreset ? CONTEXT_WINDOW_BY_PRESET[modelPreset] : null
+}
+
+function shouldUseHeuristicFallback(agent: AgentDescriptor | null): boolean {
+  if (!agent) {
+    return false
+  }
+
+  const modelPreset = inferModelPreset(agent)
+  return modelPreset ? !TELEMETRY_BACKED_PRESETS.has(modelPreset) : true
 }
 
 function isTextAttachmentWithContent(
@@ -76,6 +92,7 @@ export function useContextWindow({
   }, [activeAgent, activeAgentId, statuses])
 
   const fallbackContextWindow = useMemo(() => contextWindowForAgent(activeAgent), [activeAgent])
+  const allowHeuristicFallback = useMemo(() => shouldUseHeuristicFallback(activeAgent), [activeAgent])
 
   const contextWindowUsage = useMemo(() => {
     if (realContextUsage) {
@@ -85,7 +102,7 @@ export function useContextWindow({
       }
     }
 
-    if (!fallbackContextWindow) {
+    if (!allowHeuristicFallback || !fallbackContextWindow) {
       return null
     }
 
@@ -93,7 +110,7 @@ export function useContextWindow({
       usedTokens: estimateUsedTokens(messages),
       contextWindow: fallbackContextWindow,
     }
-  }, [fallbackContextWindow, messages, realContextUsage])
+  }, [allowHeuristicFallback, fallbackContextWindow, messages, realContextUsage])
 
   return {
     contextWindowUsage:

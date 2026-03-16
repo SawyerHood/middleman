@@ -31,6 +31,7 @@ export interface PiModelLike {
   provider: string;
   id: string;
   reasoning?: boolean;
+  contextWindow?: number;
 }
 
 export interface PiGetModelModule {
@@ -60,11 +61,17 @@ export interface PiAgentSessionLike {
   readonly isStreaming: boolean;
   readonly sessionManager: PiSessionManagerLike;
   readonly agent?: PiAgentLike;
+  readonly model?: PiModelLike;
   prompt(message: string, options?: { images?: PiImageContent[] }): Promise<void>;
   steer(message: string, images?: PiImageContent[]): Promise<void> | void;
   followUp(message: string, images?: PiImageContent[]): Promise<void> | void;
   abort(): Promise<void>;
   compact(customInstructions?: string): Promise<unknown>;
+  getContextUsage?(): {
+    tokens: number | null;
+    contextWindow: number;
+    percent: number | null;
+  } | undefined;
   subscribe(listener: (event: PiSessionEvent) => void): () => void;
   dispose(): void;
   _baseSystemPrompt?: string;
@@ -124,7 +131,7 @@ export interface PiSessionHostCallbacks {
   emitStatusChange(
     status: SessionStatus,
     error?: SessionErrorInfo,
-    contextUsage?: SessionContextUsage,
+    contextUsage?: SessionContextUsage | null,
   ): void;
   log(level: "debug" | "info" | "warn" | "error", message: string, details?: unknown): void;
 }
@@ -417,7 +424,8 @@ export class PiSessionHost implements PiSessionHostLike {
 
   async bootstrap(config: SessionRuntimeConfig, checkpoint?: PiCheckpoint): Promise<PiCheckpoint> {
     this.config = config;
-    this.contextWindow = resolvePiContextWindow(config);
+    this.lastContextUsage = null;
+    this.contextWindow = null;
     this.setStatus("starting");
 
     const targetCheckpoint = checkpoint ?? (await this.createThread());
@@ -588,6 +596,7 @@ export class PiSessionHost implements PiSessionHostLike {
     }
 
     const model = await resolveModel(config);
+    this.contextWindow = model?.contextWindow ?? null;
     if (model === undefined && parseConfiguredModel(config) !== null) {
       this.callbacks.log("warn", "Unable to resolve configured Pi model; falling back to Pi defaults.", {
         model: config.model,
@@ -681,6 +690,7 @@ export class PiSessionHost implements PiSessionHostLike {
       threadId: this.threadId,
     });
     this.session = session;
+    this.lastContextUsage = normalizePiSessionContextUsage(session.getContextUsage?.()) ?? null;
     this.unsubscribe = session.subscribe((event) => {
       this.handleSessionEvent(event);
     });
@@ -750,9 +760,9 @@ export class PiSessionHost implements PiSessionHostLike {
   private setStatus(
     status: SessionStatus,
     error?: SessionErrorInfo,
-    contextUsage?: SessionContextUsage,
+    contextUsage?: SessionContextUsage | null,
   ): void {
-    const resolvedContextUsage = contextUsage ?? this.lastContextUsage ?? undefined;
+    const resolvedContextUsage = contextUsage === undefined ? this.lastContextUsage : contextUsage;
     if (
       this.status === status &&
       error === undefined &&
@@ -766,8 +776,12 @@ export class PiSessionHost implements PiSessionHostLike {
   }
 
   private captureContextUsage(event: PiSessionEvent): void {
-    const nextUsage = extractPiContextUsage(event, this.contextWindow);
-    if (!nextUsage || areContextUsagesEqual(this.lastContextUsage, nextUsage)) {
+    const nextUsage = extractPiContextUsage(event, this.session, this.contextWindow);
+    if (nextUsage === undefined) {
+      return;
+    }
+
+    if (areContextUsagesEqual(this.lastContextUsage, nextUsage)) {
       return;
     }
 
@@ -829,10 +843,16 @@ function describePiRuntimeError(error: unknown): string {
 
 function extractPiContextUsage(
   event: PiSessionEvent,
+  session: PiAgentSessionLike | null,
   contextWindow: number | null,
-): SessionContextUsage | null {
+): SessionContextUsage | null | undefined {
+  const sessionUsage = normalizePiSessionContextUsage(session?.getContextUsage?.());
+  if (sessionUsage !== undefined) {
+    return sessionUsage;
+  }
+
   if (!contextWindow || contextWindow <= 0) {
-    return null;
+    return undefined;
   }
 
   const assistantMessage =
@@ -841,16 +861,57 @@ function extractPiContextUsage(
       : event.type === "turn_end"
         ? readPiAssistantMessage(event.message)
         : null;
-
   const totalTokens = assistantMessage?.usage?.totalTokens;
   if (typeof totalTokens !== "number" || !Number.isFinite(totalTokens) || totalTokens < 0) {
-    return null;
+    return undefined;
   }
 
   return {
     tokens: Math.round(totalTokens),
     contextWindow,
     percent: Math.max(0, Math.min(100, (totalTokens / contextWindow) * 100)),
+  };
+}
+
+function normalizePiSessionContextUsage(
+  usage:
+    | {
+        tokens: number | null;
+        contextWindow: number;
+        percent: number | null;
+      }
+    | undefined,
+): SessionContextUsage | null | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  if (
+    typeof usage.contextWindow !== "number" ||
+    !Number.isFinite(usage.contextWindow) ||
+    usage.contextWindow <= 0
+  ) {
+    return undefined;
+  }
+
+  if (usage.tokens === null || usage.percent === null) {
+    return null;
+  }
+
+  if (
+    typeof usage.tokens !== "number" ||
+    !Number.isFinite(usage.tokens) ||
+    usage.tokens < 0 ||
+    typeof usage.percent !== "number" ||
+    !Number.isFinite(usage.percent)
+  ) {
+    return undefined;
+  }
+
+  return {
+    tokens: Math.round(usage.tokens),
+    contextWindow: Math.round(usage.contextWindow),
+    percent: Math.max(0, Math.min(100, usage.percent)),
   };
 }
 
@@ -864,22 +925,6 @@ function readPiAssistantMessage(message: PiMessage): PiAssistantMessage | null {
     (message as { usage?: unknown }).usage !== null
   ) {
     return message as PiAssistantMessage;
-  }
-
-  return null;
-}
-
-function resolvePiContextWindow(config: SessionRuntimeConfig): number | null {
-  const backendConfig = getPiBackendConfig(config);
-  const provider = readString(backendConfig.modelProvider) ?? readString(config.model.split("/")[0]);
-  const modelId = readString(backendConfig.modelId) ?? readString(config.model.split("/").slice(1).join("/"));
-
-  if (provider === "openai-codex") {
-    return 1_048_576;
-  }
-
-  if (provider === "anthropic" && modelId === "claude-opus-4-6") {
-    return 200_000;
   }
 
   return null;

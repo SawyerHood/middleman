@@ -150,7 +150,7 @@ export type WorkerEvent =
       type: "session_status";
       status: SessionStatus;
       error?: SessionErrorInfo;
-      contextUsage?: SessionContextUsage;
+      contextUsage?: SessionContextUsage | null;
     }
   | { type: "checkpoint"; checkpoint: BackendCheckpoint }
   | { type: "backend_state"; state: Record<string, unknown> }
@@ -181,7 +181,7 @@ export const workerEventSchema = z.discriminatedUnion("type", [
     type: z.literal("session_status"),
     status: sessionStatusSchema,
     error: sessionErrorInfoSchema.optional(),
-    contextUsage: sessionContextUsageSchema.optional(),
+    contextUsage: sessionContextUsageSchema.nullable().optional(),
   }),
   z.object({
     type: z.literal("checkpoint"),

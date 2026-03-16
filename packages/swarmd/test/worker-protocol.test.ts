@@ -32,6 +32,16 @@ describe("worker protocol", () => {
     expect(decodeMessage(encodeMessage(event))).toEqual(event);
   });
 
+  it("round-trips explicit context-usage clears", () => {
+    const event: WorkerEvent = {
+      type: "session_status",
+      status: "idle",
+      contextUsage: null,
+    };
+
+    expect(decodeMessage(encodeMessage(event))).toEqual(event);
+  });
+
   it("reads complete lines from a chunked readable stream", async () => {
     const stream = new PassThrough();
     const reader = new LineReader(stream);

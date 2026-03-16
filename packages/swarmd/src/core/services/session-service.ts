@@ -456,7 +456,7 @@ export class SessionService {
       this.emitEvent("session.status.changed", sessionId, null, updated.updatedAt, {
         status,
         ...(previous.status !== status ? { previousStatus: previous.status } : {}),
-        ...(updated.contextUsage ? { contextUsage: updated.contextUsage } : {}),
+        contextUsage: updated.contextUsage,
       });
     }
 

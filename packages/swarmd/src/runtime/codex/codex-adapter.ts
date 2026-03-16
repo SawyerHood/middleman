@@ -675,9 +675,9 @@ export class CodexBackendAdapter implements BackendAdapter {
   #updateStatus(
     status: SessionStatus,
     error?: SessionErrorInfo,
-    contextUsage?: SessionContextUsage,
+    contextUsage?: SessionContextUsage | null,
   ): void {
-    const resolvedContextUsage = contextUsage ?? this.#lastContextUsage ?? undefined;
+    const resolvedContextUsage = contextUsage === undefined ? this.#lastContextUsage : contextUsage;
     if (
       this.#status === status &&
       error === undefined &&
@@ -941,22 +941,20 @@ function extractCodexContextUsage(params: unknown): SessionContextUsage | null {
     return null;
   }
 
-  const total = readObject(tokenUsage.total) ?? readObject(tokenUsage.total_token_usage);
   const last = readObject(tokenUsage.last) ?? readObject(tokenUsage.last_token_usage);
-  const usage = total ?? last;
   const contextWindow =
     readPositiveNumber(tokenUsage.modelContextWindow) ??
     readPositiveNumber(tokenUsage.model_context_window);
-  if (!usage || !contextWindow) {
+  if (!last || !contextWindow) {
     return null;
   }
 
   const tokens =
-    readNonNegativeNumber(usage.totalTokens) ??
-    readNonNegativeNumber(usage.total_tokens) ??
+    readNonNegativeNumber(last.totalTokens) ??
+    readNonNegativeNumber(last.total_tokens) ??
     (
-      (readNonNegativeNumber(usage.inputTokens) ?? readNonNegativeNumber(usage.input_tokens) ?? 0) +
-      (readNonNegativeNumber(usage.outputTokens) ?? readNonNegativeNumber(usage.output_tokens) ?? 0)
+      (readNonNegativeNumber(last.inputTokens) ?? readNonNegativeNumber(last.input_tokens) ?? 0) +
+      (readNonNegativeNumber(last.outputTokens) ?? readNonNegativeNumber(last.output_tokens) ?? 0)
     );
 
   return {
