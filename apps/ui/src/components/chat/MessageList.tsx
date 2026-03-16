@@ -224,7 +224,7 @@ function buildDisplayEntries(messages: ConversationEntry[]): DisplayEntry[] {
   const toolEntriesByCallId = new Map<string, ToolExecutionDisplayEntry>();
   const seenToolEventsByCallId = new Map<string, Set<string>>();
 
-  for (const [index, message] of messages.entries()) {
+  for (const message of messages) {
     if (message.type === "conversation_message") {
       displayEntries.push({
         type: "conversation_message",
