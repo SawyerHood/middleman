@@ -348,12 +348,12 @@ export function ArtifactsSidebar({
   return (
     <div
       className={cn(
-        'app-shell-height flex shrink-0 flex-col border-l border-border/80 bg-card/50',
+        'app-shell-height flex shrink-0 flex-col border-l border-border/80 bg-card text-card-foreground',
         'transition-[width,opacity] duration-200 ease-out',
         // Mobile: full screen overlay when open
         isOpen
-          ? 'max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:border-l-0 md:w-[300px] md:opacity-100'
-          : 'w-0 opacity-0 overflow-hidden max-md:hidden',
+          ? 'max-md:fixed max-md:inset-0 max-md:z-50 max-md:w-dvw max-md:max-w-none max-md:border-l-0 md:w-[300px] md:opacity-100'
+          : 'w-0 overflow-hidden opacity-0 max-md:hidden',
         isOpen && 'opacity-100',
       )}
       aria-label="Artifacts panel"
@@ -368,17 +368,17 @@ export function ArtifactsSidebar({
         }}
         className="h-full gap-0"
       >
-        <div className="app-top-bar flex shrink-0 items-center gap-2 px-3">
-          <TabsList className="h-7 w-full bg-muted/60 p-0.5">
+        <div className="app-top-bar flex shrink-0 items-center gap-2 border-b border-border/80 bg-card px-3 max-md:h-auto max-md:min-h-[calc(62px+var(--app-safe-top))] max-md:items-start max-md:pt-[calc(var(--app-safe-top)+0.75rem)] max-md:pb-3">
+          <TabsList className="grid h-auto min-w-0 flex-1 grid-cols-2 gap-1 bg-muted/60 p-1 max-md:min-h-9">
             <TabsTrigger
               value="artifacts"
-              className="h-6 rounded-sm px-2.5 text-[11px] font-medium data-active:bg-background data-active:text-foreground data-active:shadow-sm"
+              className="min-w-0 rounded-sm px-2 py-1.5 text-[11px] font-medium whitespace-normal data-active:bg-background data-active:text-foreground data-active:shadow-sm"
             >
               Artifacts
             </TabsTrigger>
             <TabsTrigger
               value="schedules"
-              className="h-6 rounded-sm px-2.5 text-[11px] font-medium data-active:bg-background data-active:text-foreground data-active:shadow-sm"
+              className="min-w-0 rounded-sm px-2 py-1.5 text-[11px] font-medium whitespace-normal data-active:bg-background data-active:text-foreground data-active:shadow-sm"
             >
               Schedules
             </TabsTrigger>
@@ -387,11 +387,11 @@ export function ArtifactsSidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
             onClick={onClose}
             aria-label="Close artifacts panel"
           >
-            <X className="size-3.5" />
+            <X className="size-4" />
           </Button>
         </div>
 

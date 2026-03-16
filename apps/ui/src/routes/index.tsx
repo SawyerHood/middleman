@@ -742,7 +742,7 @@ export function IndexPage() {
         )}
       </div>
 
-      {activeView === "chat" ? (
+      {activeView === "chat" && isDesktopSidebarLayout ? (
         <ArtifactsSidebar
           wsUrl={wsUrl}
           managerId={activeManagerId}
@@ -812,6 +812,17 @@ export function IndexPage() {
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
+
+      {activeView === "chat" && !isDesktopSidebarLayout ? (
+        <ArtifactsSidebar
+          wsUrl={wsUrl}
+          managerId={activeManagerId}
+          artifacts={collectedArtifacts}
+          isOpen={isArtifactsPanelOpen}
+          onClose={() => setIsArtifactsPanelOpen(false)}
+          onArtifactClick={handleOpenArtifact}
+        />
+      ) : null}
 
       <ArtifactPanel
         selection={panelSelection}

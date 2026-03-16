@@ -201,23 +201,24 @@ export function ArtifactPanel({
             'fixed inset-0 z-50',
             'transition-[backdrop-filter,background-color] duration-300 ease-out',
             isVisible
-              ? 'bg-background/60 backdrop-blur-[2px]'
+              ? 'bg-background/72 backdrop-blur-[2px] md:bg-background/60'
               : 'pointer-events-none bg-transparent backdrop-blur-0',
             isClosing && !isVisible && 'pointer-events-none',
           )}
         />
         <DialogPrimitive.Popup
           className={cn(
-            'app-shell-height fixed right-0 top-0 z-50 flex w-full flex-col',
-            'max-md:max-w-full md:max-w-[min(880px,90vw)]',
-            'border-l border-border/80 bg-background',
+            'app-shell-height fixed inset-y-0 right-0 z-50 flex w-full flex-col',
+            'max-md:inset-x-0 max-md:w-dvw max-md:max-w-none md:max-w-[min(880px,90vw)]',
+            'border-l border-border/80 bg-background text-foreground',
+            'max-md:border-l-0 max-md:shadow-none',
             'shadow-[-8px_0_32px_-4px_rgba(0,0,0,0.12)] outline-none',
             'transition-all duration-[260ms] ease-[cubic-bezier(0.32,0.72,0,1)]',
             isVisible ? 'translate-x-0 opacity-100' : 'translate-x-[40%] opacity-0',
           )}
         >
           <DialogTitle className="sr-only">{panelTitle}</DialogTitle>
-          <header className="app-top-bar flex shrink-0 items-center justify-between gap-3 border-b border-border/80 bg-card/80 px-4 backdrop-blur md:px-5">
+          <header className="app-top-bar flex shrink-0 items-center justify-between gap-3 border-b border-border/80 bg-card px-4 md:px-5">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <PanelIcon className="size-3.5" aria-hidden="true" />
