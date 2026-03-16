@@ -125,6 +125,7 @@ async function fileToPendingImageAttachment(file: File): Promise<PendingImageAtt
 
   return {
     id: createAttachmentId(),
+    type: 'image',
     mimeType: normalizeMimeType(file.type, 'image/png'),
     fileName: normalizeFileName(file.name, 'image'),
     data: base64Data,

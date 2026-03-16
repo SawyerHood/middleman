@@ -364,6 +364,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             }
 
             return {
+              type: 'image' as const,
               mimeType: attachment.mimeType,
               data: attachment.data,
               fileName: attachment.fileName,

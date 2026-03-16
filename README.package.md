@@ -15,7 +15,7 @@ That starts one local server, serves the built dashboard UI from the same origin
 ```bash
 middleman start --project /path/to/repo --port 48100 --no-open
 middleman schedule list
-middleman image generate --prompt "..." --output /tmp/output.png
+middleman image generate --prompt "..." --input-image ./source.png --output /tmp/output.png
 middleman brave-search search "query"
 ```
 

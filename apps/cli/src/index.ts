@@ -77,7 +77,9 @@ export async function runCli(argv: string[]): Promise<void> {
       return
     case 'image':
       if (subcommand !== 'generate') {
-        throw new Error('Usage: middleman image generate --prompt "..." --output "/path/to/file.png"')
+        throw new Error(
+          'Usage: middleman image generate --prompt "..." [--input-image "/path/to/source.png"]... --output "/path/to/file.png"',
+        )
       }
       await runHelperScript(resolveSkillScriptPath('image-generation', 'generate.js'), argv.slice(2))
       return
