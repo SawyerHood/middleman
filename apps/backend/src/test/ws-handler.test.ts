@@ -5,6 +5,32 @@ import type { AgentDescriptor, ServerEvent } from "@middleman/protocol";
 import { createConfig } from "../config.js";
 import { WsHandler } from "../ws/ws-handler.js";
 
+function pageEntries<T extends { historyCursor?: string; timestamp: string }>(
+  entries: T[],
+  options: { before?: string; limit: number },
+) {
+  const filteredEntries = options.before
+    ? entries.filter(
+        (entry) =>
+          (entry.historyCursor ?? entry.timestamp).localeCompare(
+            options.before!,
+          ) < 0,
+      )
+    : entries;
+
+  if (filteredEntries.length <= options.limit) {
+    return {
+      entries: filteredEntries,
+      hasMore: false,
+    };
+  }
+
+  return {
+    entries: filteredEntries.slice(filteredEntries.length - options.limit),
+    hasMore: true,
+  };
+}
+
 function createSocket() {
   const events: ServerEvent[] = [];
   return {
@@ -43,6 +69,24 @@ function createManagerStub(status: AgentDescriptor["status"] = "idle") {
     listAgents() {
       return [manager];
     },
+    getVisibleTranscriptPage(agentId?: string, options = { limit: 200 }) {
+      return pageEntries(
+        agentId === manager.agentId
+          ? [
+              {
+                type: "conversation_message" as const,
+                agentId: manager.agentId,
+                role: "assistant" as const,
+                text: "hello",
+                timestamp: "2026-03-14T00:00:01.000Z",
+                historyCursor: "2026-03-14T00:00:01.000Z|manager-1|message-1",
+                source: "speak_to_user" as const,
+              },
+            ]
+          : [],
+        options,
+      );
+    },
     getVisibleTranscript(agentId?: string) {
       return agentId === manager.agentId
         ? [
@@ -52,10 +96,14 @@ function createManagerStub(status: AgentDescriptor["status"] = "idle") {
               role: "assistant" as const,
               text: "hello",
               timestamp: "2026-03-14T00:00:01.000Z",
+              historyCursor: "2026-03-14T00:00:01.000Z|manager-1|message-1",
               source: "speak_to_user" as const,
             },
           ]
         : [];
+    },
+    getConversationHistoryPage(_agentId?: string, options = { limit: 200 }) {
+      return pageEntries([], options);
     },
     getConversationHistory() {
       return [];
@@ -101,6 +149,38 @@ function createRichManagerStub() {
       thinkingLevel: "xhigh",
     },
   };
+  const managerTranscript = [
+    {
+      type: "conversation_message" as const,
+      agentId: manager.agentId,
+      role: "assistant" as const,
+      text: "hello",
+      timestamp: "2026-03-14T00:00:01.000Z",
+      historyCursor: "2026-03-14T00:00:01.000Z|manager-1|message-1",
+      source: "speak_to_user" as const,
+    },
+  ];
+  const workerHistory = [
+    {
+      type: "conversation_message" as const,
+      agentId: worker.agentId,
+      role: "user" as const,
+      text: "debug the crash",
+      timestamp: "2026-03-14T00:00:03.000Z",
+      historyCursor: "2026-03-14T00:00:03.000Z|worker-1|message-1",
+      source: "user_input" as const,
+    },
+    {
+      type: "agent_message" as const,
+      agentId: manager.agentId,
+      fromAgentId: manager.agentId,
+      toAgentId: worker.agentId,
+      text: "investigate",
+      timestamp: "2026-03-14T00:00:04.000Z",
+      historyCursor: "2026-03-14T00:00:04.000Z|worker-1|message-2",
+      source: "agent_to_agent" as const,
+    },
+  ];
 
   return {
     createManager: vi.fn(async () => ({
@@ -120,42 +200,23 @@ function createRichManagerStub() {
       return [manager, worker];
     },
     handleUserMessage: vi.fn(async () => undefined),
+    getVisibleTranscriptPage(agentId?: string, options = { limit: 200 }) {
+      return pageEntries(
+        agentId === manager.agentId ? managerTranscript : [],
+        options,
+      );
+    },
     getVisibleTranscript(agentId?: string) {
-      return agentId === manager.agentId
-        ? [
-            {
-              type: "conversation_message" as const,
-              agentId: manager.agentId,
-              role: "assistant" as const,
-              text: "hello",
-              timestamp: "2026-03-14T00:00:01.000Z",
-              source: "speak_to_user" as const,
-            },
-          ]
-        : [];
+      return agentId === manager.agentId ? managerTranscript : [];
+    },
+    getConversationHistoryPage(agentId?: string, options = { limit: 200 }) {
+      return pageEntries(
+        agentId === worker.agentId ? workerHistory : [],
+        options,
+      );
     },
     getConversationHistory(agentId?: string) {
-      return agentId === worker.agentId
-        ? [
-            {
-              type: "conversation_message" as const,
-              agentId: worker.agentId,
-              role: "user" as const,
-              text: "debug the crash",
-              timestamp: "2026-03-14T00:00:03.000Z",
-              source: "user_input" as const,
-            },
-            {
-              type: "agent_message" as const,
-              agentId: manager.agentId,
-              fromAgentId: manager.agentId,
-              toAgentId: worker.agentId,
-              text: "investigate",
-              timestamp: "2026-03-14T00:00:04.000Z",
-              source: "agent_to_agent" as const,
-            },
-          ]
-        : [];
+      return agentId === worker.agentId ? workerHistory : [];
     },
     getConfig() {
       return createConfig({
@@ -175,8 +236,14 @@ function createEmptyManagerStub() {
     listAgents() {
       return [];
     },
+    getVisibleTranscriptPage(_agentId?: string, options = { limit: 200 }) {
+      return pageEntries([], options);
+    },
     getVisibleTranscript() {
       return [];
+    },
+    getConversationHistoryPage(_agentId?: string, options = { limit: 200 }) {
+      return pageEntries([], options);
     },
     getConversationHistory() {
       return [];
@@ -214,6 +281,8 @@ describe("WsHandler", () => {
     expect(events[2]).toMatchObject({
       type: "conversation_history",
       agentId: "manager-1",
+      mode: "replace",
+      hasMore: false,
       messages: [
         expect.objectContaining({
           type: "conversation_message",
@@ -271,11 +340,15 @@ describe("WsHandler", () => {
     });
     expect(events[1]).toMatchObject({
       type: "agents_snapshot",
-      agents: [expect.objectContaining({ agentId: "manager-1", status: "stopped" })],
+      agents: [
+        expect.objectContaining({ agentId: "manager-1", status: "stopped" }),
+      ],
     });
     expect(events[2]).toMatchObject({
       type: "conversation_history",
       agentId: "manager-1",
+      mode: "replace",
+      hasMore: false,
     });
   });
 
@@ -302,6 +375,8 @@ describe("WsHandler", () => {
         type: "conversation_history",
         agentId: "__bootstrap_manager__",
         messages: [],
+        mode: "replace",
+        hasMore: false,
       },
     ]);
   });
@@ -315,7 +390,10 @@ describe("WsHandler", () => {
     });
     const { events, socket } = createSocket();
 
-    await (handler as any).handleSocketMessage(socket, JSON.stringify({ type: "subscribe", agentId: "manager-1" }));
+    await (handler as any).handleSocketMessage(
+      socket,
+      JSON.stringify({ type: "subscribe", agentId: "manager-1" }),
+    );
     await (handler as any).handleSocketMessage(
       socket,
       JSON.stringify({ type: "subscribe_agent_detail", agentId: "worker-1" }),
@@ -324,10 +402,123 @@ describe("WsHandler", () => {
     expect(events.at(-1)).toMatchObject({
       type: "conversation_history",
       agentId: "worker-1",
+      mode: "replace",
+      hasMore: false,
       messages: [
-        expect.objectContaining({ type: "conversation_message", text: "debug the crash" }),
+        expect.objectContaining({
+          type: "conversation_message",
+          text: "debug the crash",
+        }),
         expect.objectContaining({ type: "agent_message", text: "investigate" }),
       ],
+    });
+  });
+
+  it("loads older history pages for the active subscription", async () => {
+    const manager: AgentDescriptor = {
+      agentId: "manager-1",
+      managerId: "manager-1",
+      displayName: "manager-1",
+      role: "manager",
+      status: "idle",
+      createdAt: "2026-03-14T00:00:00.000Z",
+      updatedAt: "2026-03-14T00:00:00.000Z",
+      cwd: "/tmp/project",
+      model: {
+        provider: "openai-codex-app-server",
+        modelId: "gpt-5.4",
+        thinkingLevel: "xhigh",
+      },
+    };
+    const newerMessage = {
+      type: "conversation_message" as const,
+      agentId: manager.agentId,
+      role: "assistant" as const,
+      text: "newer",
+      timestamp: "2026-03-14T00:00:02.000Z",
+      historyCursor: "2026-03-14T00:00:02.000Z|manager-1|message-2",
+      source: "speak_to_user" as const,
+    };
+    const olderMessage = {
+      type: "conversation_message" as const,
+      agentId: manager.agentId,
+      role: "assistant" as const,
+      text: "older",
+      timestamp: "2026-03-14T00:00:01.000Z",
+      historyCursor: "2026-03-14T00:00:01.000Z|manager-1|message-1",
+      source: "speak_to_user" as const,
+    };
+    const getVisibleTranscriptPage = vi.fn(
+      (_agentId?: string, options?: { before?: string; limit?: number }) => {
+        if (options?.before === newerMessage.historyCursor) {
+          return {
+            entries: [olderMessage],
+            hasMore: false,
+          };
+        }
+
+        return {
+          entries: [newerMessage],
+          hasMore: true,
+        };
+      },
+    );
+    const swarmManager = {
+      getAgent(agentId: string) {
+        return agentId === manager.agentId ? manager : undefined;
+      },
+      listAgents() {
+        return [manager];
+      },
+      getVisibleTranscriptPage,
+      getConversationHistoryPage: vi.fn(() => ({
+        entries: [],
+        hasMore: false,
+      })),
+      getVisibleTranscript() {
+        return [newerMessage];
+      },
+      getConversationHistory() {
+        return [];
+      },
+      getConfig() {
+        return createConfig({
+          installDir: process.cwd(),
+          projectRoot: process.cwd(),
+          dataDir: "/tmp/middleman-test",
+        });
+      },
+    };
+    const handler = new WsHandler({
+      swarmManager: swarmManager as never,
+      integrationRegistry: null,
+      allowNonManagerSubscriptions: true,
+    });
+    const { events, socket } = createSocket();
+
+    await (handler as any).handleSocketMessage(
+      socket,
+      JSON.stringify({ type: "subscribe", agentId: "manager-1" }),
+    );
+    await (handler as any).handleSocketMessage(
+      socket,
+      JSON.stringify({
+        type: "load_older_history",
+        agentId: "manager-1",
+        before: newerMessage.historyCursor,
+      }),
+    );
+
+    expect(getVisibleTranscriptPage).toHaveBeenLastCalledWith("manager-1", {
+      before: newerMessage.historyCursor,
+      limit: 200,
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "conversation_history",
+      agentId: "manager-1",
+      mode: "prepend",
+      hasMore: false,
+      messages: [expect.objectContaining({ text: "older" })],
     });
   });
 
@@ -340,7 +531,10 @@ describe("WsHandler", () => {
     });
     const { events, socket } = createSocket();
 
-    await (handler as any).handleSocketMessage(socket, JSON.stringify({ type: "subscribe", agentId: "manager-1" }));
+    await (handler as any).handleSocketMessage(
+      socket,
+      JSON.stringify({ type: "subscribe", agentId: "manager-1" }),
+    );
     await (handler as any).handleSocketMessage(
       socket,
       JSON.stringify({
@@ -351,12 +545,15 @@ describe("WsHandler", () => {
       }),
     );
 
-    expect(swarmManager.handleUserMessage).toHaveBeenCalledWith("Ship the migration", {
-      targetAgentId: "manager-1",
-      delivery: "followUp",
-      attachments: undefined,
-      sourceContext: { channel: "web" },
-    });
+    expect(swarmManager.handleUserMessage).toHaveBeenCalledWith(
+      "Ship the migration",
+      {
+        targetAgentId: "manager-1",
+        delivery: "followUp",
+        attachments: undefined,
+        sourceContext: { channel: "web" },
+      },
+    );
     expect(events.some((event) => event.type === "error")).toBe(false);
   });
 
@@ -372,7 +569,10 @@ describe("WsHandler", () => {
       clients: new Set([socket]),
     };
 
-    await (handler as any).handleSocketMessage(socket, JSON.stringify({ type: "subscribe", agentId: "manager-1" }));
+    await (handler as any).handleSocketMessage(
+      socket,
+      JSON.stringify({ type: "subscribe", agentId: "manager-1" }),
+    );
     await (handler as any).handleSocketMessage(
       socket,
       JSON.stringify({
@@ -396,7 +596,10 @@ describe("WsHandler", () => {
       cwd: "/tmp/project",
       model: undefined,
     });
-    expect(swarmManager.deleteManager).toHaveBeenCalledWith("manager-1", "manager-1");
+    expect(swarmManager.deleteManager).toHaveBeenCalledWith(
+      "manager-1",
+      "manager-1",
+    );
     expect(events).toContainEqual(
       expect.objectContaining({
         type: "manager_created",

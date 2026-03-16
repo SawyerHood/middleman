@@ -21,76 +21,66 @@ interface SwarmTranscriptServiceOptions {
   getCore: () => SwarmdCoreHandle;
   getAgent: (agentId: string) => AgentDescriptor | undefined;
   resolvePreferredManagerId: () => string | undefined;
-  resolveRuntimeErrorMessage: (descriptor: AgentDescriptor, payload: unknown) => string;
+  resolveRuntimeErrorMessage: (
+    descriptor: AgentDescriptor,
+    payload: unknown,
+  ) => string;
+}
+
+export interface ConversationHistoryPageResult<
+  Entry extends ConversationEntryEvent = ConversationEntryEvent,
+> {
+  entries: Entry[];
+  hasMore: boolean;
 }
 
 export class SwarmTranscriptService {
   constructor(private readonly options: SwarmTranscriptServiceOptions) {}
 
-  projectConversationEntries(agentId?: string, limit?: number): ConversationEntryEvent[] {
-    const resolvedAgentId = agentId?.trim() || this.options.resolvePreferredManagerId();
-    if (!resolvedAgentId) {
-      return [];
-    }
+  projectConversationEntries(
+    agentId?: string,
+    limit?: number,
+  ): ConversationEntryEvent[] {
+    return this.pageEntries(this.collectConversationEntries(agentId), { limit })
+      .entries;
+  }
 
-    const entries: ConversationEntryEvent[] = [];
-    const core = this.options.getCore();
-    const session = core.sessionService.getById(resolvedAgentId);
-    const resolvedDescriptor = this.options.getAgent(resolvedAgentId);
-    const seenMessageIds = new Set<string>();
-
-    if (session) {
-      let hasPersistedRuntimeError = false;
-      for (const message of core.messageStore.list(resolvedAgentId)) {
-        seenMessageIds.add(message.id);
-        const projected = projectStoredMessage(message);
-        if (projected) {
-          entries.push(projected);
-          if (projected.type === "conversation_log" && projected.isError === true) {
-            hasPersistedRuntimeError = true;
-          }
-        }
-      }
-
-      if (resolvedDescriptor?.role === "manager") {
-        entries.push(...this.collectManagerScopedAgentMessages(core, resolvedDescriptor.agentId, seenMessageIds));
-      }
-
-      if (session.status === "errored" && !hasPersistedRuntimeError) {
-        entries.push({
-          type: "conversation_log",
-          agentId: resolvedAgentId,
-          timestamp: session.updatedAt,
-          source: "runtime_log",
-          kind: "message_end",
-          text: this.options.resolveRuntimeErrorMessage(
-            this.options.getAgent(resolvedAgentId) ?? fallbackDescriptorForErroredSession(resolvedAgentId, session),
-            { error: session.lastError ?? null },
-          ),
-          isError: true,
-        });
-      }
-    }
-
-    entries.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
-
-    if (!limit || entries.length <= limit) {
-      return entries;
-    }
-
-    return entries.slice(entries.length - limit);
+  getConversationHistoryPage(
+    agentId: string | undefined,
+    options: { before?: string; limit: number },
+  ): ConversationHistoryPageResult {
+    return this.pageEntries(this.collectConversationEntries(agentId), options);
   }
 
   getVisibleTranscript(
     agentId?: string,
     options?: { limit?: number },
-  ): Array<ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent> {
-    return this.projectConversationEntries(agentId, options?.limit).filter(
-      (entry): entry is ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent =>
+  ): Array<
+    ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent
+  > {
+    return this.getVisibleTranscriptPage(agentId, { limit: options?.limit })
+      .entries;
+  }
+
+  getVisibleTranscriptPage(
+    agentId: string | undefined,
+    options: { before?: string; limit?: number },
+  ): ConversationHistoryPageResult<
+    ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent
+  > {
+    const visibleEntries = this.collectConversationEntries(agentId).filter(
+      (
+        entry,
+      ): entry is
+        | ConversationMessageEvent
+        | ConversationLogEvent
+        | AgentMessageEvent =>
         entry.type === "conversation_message" ||
         entry.type === "agent_message" ||
         (entry.type === "conversation_log" && entry.isError === true),
     );
+
+    return this.pageEntries(visibleEntries, options);
   }
 
   private collectManagerScopedAgentMessages(
@@ -120,6 +110,125 @@ export class SwarmTranscriptService {
 
     return entries;
   }
+
+  private collectConversationEntries(
+    agentId?: string,
+  ): ConversationEntryEvent[] {
+    const resolvedAgentId =
+      agentId?.trim() || this.options.resolvePreferredManagerId();
+    if (!resolvedAgentId) {
+      return [];
+    }
+
+    const entries: ConversationEntryEvent[] = [];
+    const core = this.options.getCore();
+    const session = core.sessionService.getById(resolvedAgentId);
+    const resolvedDescriptor = this.options.getAgent(resolvedAgentId);
+    const seenMessageIds = new Set<string>();
+
+    if (!session) {
+      return entries;
+    }
+
+    let hasPersistedRuntimeError = false;
+    for (const message of core.messageStore.list(resolvedAgentId)) {
+      seenMessageIds.add(message.id);
+      const projected = projectStoredMessage(message);
+      if (!projected) {
+        continue;
+      }
+
+      entries.push(projected);
+      if (projected.type === "conversation_log" && projected.isError === true) {
+        hasPersistedRuntimeError = true;
+      }
+    }
+
+    if (resolvedDescriptor?.role === "manager") {
+      entries.push(
+        ...this.collectManagerScopedAgentMessages(
+          core,
+          resolvedDescriptor.agentId,
+          seenMessageIds,
+        ),
+      );
+    }
+
+    if (session.status === "errored" && !hasPersistedRuntimeError) {
+      entries.push({
+        type: "conversation_log",
+        agentId: resolvedAgentId,
+        timestamp: session.updatedAt,
+        historyCursor: buildSyntheticHistoryCursor(
+          session.updatedAt,
+          resolvedAgentId,
+          "runtime-error",
+        ),
+        source: "runtime_log",
+        kind: "message_end",
+        text: this.options.resolveRuntimeErrorMessage(
+          this.options.getAgent(resolvedAgentId) ??
+            fallbackDescriptorForErroredSession(resolvedAgentId, session),
+          { error: session.lastError ?? null },
+        ),
+        isError: true,
+      });
+    }
+
+    entries.sort(compareConversationEntries);
+    return entries;
+  }
+
+  private pageEntries<Entry extends ConversationEntryEvent>(
+    entries: Entry[],
+    options?: { before?: string; limit?: number },
+  ): ConversationHistoryPageResult<Entry> {
+    const before = options?.before?.trim();
+    const matchingEntries = before
+      ? entries.filter(
+          (entry) =>
+            resolveConversationEntryCursor(entry).localeCompare(before) < 0,
+        )
+      : entries;
+    const limit = options?.limit;
+
+    if (!limit || matchingEntries.length <= limit) {
+      return {
+        entries: matchingEntries,
+        hasMore: false,
+      };
+    }
+
+    return {
+      entries: matchingEntries.slice(matchingEntries.length - limit),
+      hasMore: true,
+    };
+  }
+}
+
+function buildStoredMessageHistoryCursor(message: SwarmdMessage): string {
+  return `${message.createdAt}|${message.sessionId}|${message.orderKey}|${message.id}`;
+}
+
+function buildSyntheticHistoryCursor(
+  timestamp: string,
+  agentId: string,
+  kind: string,
+): string {
+  return `${timestamp}|${agentId}|${kind}`;
+}
+
+function resolveConversationEntryCursor(entry: ConversationEntryEvent): string {
+  return entry.historyCursor ?? entry.timestamp;
+}
+
+function compareConversationEntries(
+  left: ConversationEntryEvent,
+  right: ConversationEntryEvent,
+): number {
+  return resolveConversationEntryCursor(left).localeCompare(
+    resolveConversationEntryCursor(right),
+  );
 }
 
 function isManagerScopedAgentMessage(
@@ -133,7 +242,10 @@ function isManagerScopedAgentMessage(
   return entry.fromAgentId === managerId || entry.toAgentId === managerId;
 }
 
-function fallbackDescriptorForErroredSession(sessionId: string, session: SessionRecord): AgentDescriptor {
+function fallbackDescriptorForErroredSession(
+  sessionId: string,
+  session: SessionRecord,
+): AgentDescriptor {
   return {
     agentId: sessionId,
     displayName: session.displayName,
@@ -173,10 +285,13 @@ function fromSwarmdModel(session: SessionRecord): AgentModelDescriptor {
   };
 }
 
-export function projectStoredMessage(message: SwarmdMessage): ConversationEntryEvent | null {
+export function projectStoredMessage(
+  message: SwarmdMessage,
+): ConversationEntryEvent | null {
   const middleman = readObject(readObject(message.metadata)?.middleman);
   const routing = readObject(middleman?.routing);
   const renderAs = readString(middleman?.renderAs);
+  const historyCursor = buildStoredMessageHistoryCursor(message);
 
   if (readBoolean(middleman?.suppressed) === true) {
     return null;
@@ -194,6 +309,7 @@ export function projectStoredMessage(message: SwarmdMessage): ConversationEntryE
       type: "conversation_log",
       agentId: readString(event?.agentId) ?? message.sessionId,
       timestamp: readString(event?.timestamp) ?? message.createdAt,
+      historyCursor,
       source: "runtime_log",
       kind,
       role: readRole(event?.role),
@@ -217,6 +333,7 @@ export function projectStoredMessage(message: SwarmdMessage): ConversationEntryE
       agentId: readString(event?.agentId) ?? message.sessionId,
       actorAgentId: readString(event?.actorAgentId) ?? message.sessionId,
       timestamp: readString(event?.timestamp) ?? message.createdAt,
+      historyCursor,
       kind,
       toolName: readString(event?.toolName),
       toolCallId: readString(event?.toolCallId),
@@ -236,8 +353,11 @@ export function projectStoredMessage(message: SwarmdMessage): ConversationEntryE
       text: extractStoredMessageText(message.content),
       attachments: readAttachments(middleman?.attachments),
       timestamp: message.createdAt,
+      historyCursor,
       source: readConversationSource(middleman?.source, message.role),
-      sourceContext: readObject(middleman?.sourceContext) as MessageSourceContext | undefined,
+      sourceContext: readObject(middleman?.sourceContext) as
+        | MessageSourceContext
+        | undefined,
     };
   }
 
@@ -249,9 +369,16 @@ export function projectStoredMessage(message: SwarmdMessage): ConversationEntryE
   ) {
     return {
       type: "agent_message",
-      agentId: readString(middleman?.managerId) ?? readString(middleman?.agentId) ?? message.sessionId,
+      agentId:
+        readString(middleman?.managerId) ??
+        readString(middleman?.agentId) ??
+        message.sessionId,
       timestamp: message.createdAt,
-      source: readString(routing.origin) === "agent" ? "agent_to_agent" : "user_to_agent",
+      historyCursor,
+      source:
+        readString(routing.origin) === "agent"
+          ? "agent_to_agent"
+          : "user_to_agent",
       fromAgentId: readString(routing.fromAgentId),
       toAgentId: readString(routing.toAgentId) ?? message.sessionId,
       text: extractStoredMessageText(message.content),
@@ -276,8 +403,11 @@ export function projectStoredMessage(message: SwarmdMessage): ConversationEntryE
       text,
       attachments: attachments.length > 0 ? attachments : undefined,
       timestamp: message.createdAt,
+      historyCursor,
       source: "system",
-      sourceContext: readObject(middleman?.sourceContext) as MessageSourceContext | undefined,
+      sourceContext: readObject(middleman?.sourceContext) as
+        | MessageSourceContext
+        | undefined,
     };
   }
 
@@ -289,7 +419,9 @@ export function projectStoredMessage(message: SwarmdMessage): ConversationEntryE
 
     const result = readObject(content?.result);
     const details = readObject(result?.details);
-    const text = readString(details?.text) ?? extractToolResultContentText(result?.contentItems);
+    const text =
+      readString(details?.text) ??
+      extractToolResultContentText(result?.contentItems);
     if (!text) {
       return null;
     }
@@ -300,8 +432,11 @@ export function projectStoredMessage(message: SwarmdMessage): ConversationEntryE
       role: "assistant",
       text,
       timestamp: message.createdAt,
+      historyCursor,
       source: "speak_to_user",
-      sourceContext: readObject(details?.targetContext) as MessageSourceContext | undefined,
+      sourceContext: readObject(details?.targetContext) as
+        | MessageSourceContext
+        | undefined,
     };
   }
 
@@ -323,7 +458,9 @@ export function buildAttachmentMetadata(
   }));
 }
 
-export function toTargetContext(sourceContext: MessageSourceContext): MessageTargetContext {
+export function toTargetContext(
+  sourceContext: MessageSourceContext,
+): MessageTargetContext {
   return {
     channel: sourceContext.channel,
     channelId: sourceContext.channelId,
@@ -333,7 +470,9 @@ export function toTargetContext(sourceContext: MessageSourceContext): MessageTar
   };
 }
 
-export function readObject(value: unknown): Record<string, unknown> | undefined {
+export function readObject(
+  value: unknown,
+): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
@@ -347,8 +486,12 @@ export function readBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
-export function readRole(value: unknown): "user" | "assistant" | "system" | undefined {
-  return value === "user" || value === "assistant" || value === "system" ? value : undefined;
+export function readRole(
+  value: unknown,
+): "user" | "assistant" | "system" | undefined {
+  return value === "user" || value === "assistant" || value === "system"
+    ? value
+    : undefined;
 }
 
 export function readConversationSource(
@@ -358,32 +501,42 @@ export function readConversationSource(
   return value === "system" || role === "system" ? "system" : "user_input";
 }
 
-export function readRequestedDeliveryMode(value: unknown): RequestedDeliveryMode | undefined {
+export function readRequestedDeliveryMode(
+  value: unknown,
+): RequestedDeliveryMode | undefined {
   return value === "auto" || value === "followUp" || value === "steer"
     ? value
     : undefined;
 }
 
-export function readConversationLogKind(value: unknown): ConversationLogEvent["kind"] | undefined {
+export function readConversationLogKind(
+  value: unknown,
+): ConversationLogEvent["kind"] | undefined {
   return value === "message_start" ||
-      value === "message_end" ||
-      value === "tool_execution_start" ||
-      value === "tool_execution_update" ||
-      value === "tool_execution_end"
+    value === "message_end" ||
+    value === "tool_execution_start" ||
+    value === "tool_execution_update" ||
+    value === "tool_execution_end"
     ? value
     : undefined;
 }
 
-export function readAgentToolCallKind(value: unknown): AgentToolCallEvent["kind"] | undefined {
+export function readAgentToolCallKind(
+  value: unknown,
+): AgentToolCallEvent["kind"] | undefined {
   return value === "tool_execution_start" ||
-      value === "tool_execution_update" ||
-      value === "tool_execution_end"
+    value === "tool_execution_update" ||
+    value === "tool_execution_end"
     ? value
     : undefined;
 }
 
-export function readAttachments(value: unknown): ConversationAttachmentMetadata[] | undefined {
-  return Array.isArray(value) ? (value as ConversationAttachmentMetadata[]) : undefined;
+export function readAttachments(
+  value: unknown,
+): ConversationAttachmentMetadata[] | undefined {
+  return Array.isArray(value)
+    ? (value as ConversationAttachmentMetadata[])
+    : undefined;
 }
 
 export function safeJson(value: unknown): string {
@@ -433,7 +586,9 @@ export function extractStoredMessageText(content: unknown): string {
   return extractToolResultContentText(object?.contentItems) ?? "";
 }
 
-export function extractToolResultContentText(value: unknown): string | undefined {
+export function extractToolResultContentText(
+  value: unknown,
+): string | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -446,17 +601,27 @@ export function extractToolResultContentText(value: unknown): string | undefined
   return text.length > 0 ? text : undefined;
 }
 
-export function extractStoredMessageAttachments(content: unknown): ConversationAttachmentMetadata[] {
+export function extractStoredMessageAttachments(
+  content: unknown,
+): ConversationAttachmentMetadata[] {
   const object = readObject(content);
   if (!object) {
     return [];
   }
 
   return mergeAttachments(
-    extractAttachmentsFromArray(Array.isArray(object.parts) ? object.parts : []),
-    extractAttachmentsFromArray(Array.isArray(object.content) ? object.content : []),
-    extractAttachmentsFromArray(Array.isArray(object.contentItems) ? object.contentItems : []),
-    Array.isArray(object.attachments) ? readAttachments(object.attachments) : undefined,
+    extractAttachmentsFromArray(
+      Array.isArray(object.parts) ? object.parts : [],
+    ),
+    extractAttachmentsFromArray(
+      Array.isArray(object.content) ? object.content : [],
+    ),
+    extractAttachmentsFromArray(
+      Array.isArray(object.contentItems) ? object.contentItems : [],
+    ),
+    Array.isArray(object.attachments)
+      ? readAttachments(object.attachments)
+      : undefined,
   );
 }
 

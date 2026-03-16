@@ -13,7 +13,12 @@ export type AgentStatus =
   | "errored"
   | "terminated";
 
-export const SWARM_MODEL_PRESETS = ["pi-codex", "pi-opus", "codex-app", "claude-code"] as const;
+export const SWARM_MODEL_PRESETS = [
+  "pi-codex",
+  "pi-opus",
+  "codex-app",
+  "claude-code",
+] as const;
 
 export type SwarmModelPreset = (typeof SWARM_MODEL_PRESETS)[number];
 
@@ -173,7 +178,9 @@ export interface ConversationAttachmentMetadata {
   sizeBytes?: number;
 }
 
-export type ConversationMessageAttachment = ConversationAttachment | ConversationAttachmentMetadata;
+export type ConversationMessageAttachment =
+  | ConversationAttachment
+  | ConversationAttachmentMetadata;
 
 export interface ConversationMessageEvent {
   type: "conversation_message";
@@ -182,6 +189,7 @@ export interface ConversationMessageEvent {
   text: string;
   attachments?: ConversationMessageAttachment[];
   timestamp: string;
+  historyCursor?: string;
   source: "user_input" | "speak_to_user" | "system";
   sourceContext?: MessageSourceContext;
 }
@@ -197,6 +205,7 @@ export interface ConversationLogEvent {
   type: "conversation_log";
   agentId: string;
   timestamp: string;
+  historyCursor?: string;
   source: "runtime_log";
   kind: ConversationLogKind;
   role?: "user" | "assistant" | "system";
@@ -210,6 +219,7 @@ export interface AgentMessageEvent {
   type: "agent_message";
   agentId: string;
   timestamp: string;
+  historyCursor?: string;
   source: "user_to_agent" | "agent_to_agent";
   fromAgentId?: string;
   toAgentId: string;
@@ -230,6 +240,7 @@ export interface AgentToolCallEvent {
   agentId: string;
   actorAgentId: string;
   timestamp: string;
+  historyCursor?: string;
   kind: AgentToolCallKind;
   toolName?: string;
   toolCallId?: string;
