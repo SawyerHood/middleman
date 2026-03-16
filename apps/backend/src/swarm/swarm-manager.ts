@@ -940,7 +940,10 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
         return;
       }
       case "message.completed": {
-        const role = readRole(readObject(event.payload)?.role);
+        const role = this.resolveCompletedMessageRole(
+          descriptor.agentId,
+          event.payload,
+        );
         const messageCompletedEvent: ConversationLogEvent = {
           type: "conversation_log",
           agentId: descriptor.agentId,
@@ -1112,6 +1115,36 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     }
 
     return descriptor;
+  }
+
+  private resolveCompletedMessageRole(
+    agentId: string,
+    payload: unknown,
+  ): "assistant" | "system" | "user" | undefined {
+    const payloadObject = readObject(payload);
+    const role = readRole(payloadObject?.role);
+    if (role) {
+      return role;
+    }
+
+    const sourceMessageId = readString(payloadObject?.messageId);
+    if (!sourceMessageId) {
+      return undefined;
+    }
+
+    // Codex and Claude completed-message events omit role; recover it from the
+    // stored message captured earlier in the same event dispatch.
+    const messages = this.coreOrThrow().messageStore.list(agentId);
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.sourceMessageId !== sourceMessageId) {
+        continue;
+      }
+
+      return readRole(message.role);
+    }
+
+    return undefined;
   }
 
   private persistConversationLog(event: ConversationLogEvent): void {
