@@ -29,6 +29,8 @@ import type { ConversationAttachment } from '@middleman/protocol'
 const TEXTAREA_MAX_HEIGHT = 186
 const ACTIVE_WAVEFORM_BAR_COUNT = 16
 const OPENAI_KEY_REQUIRED_MESSAGE = 'OpenAI API key required \u2014 add it in Settings.'
+const COARSE_POINTER_MEDIA_QUERY = '(pointer: coarse)'
+const MOBILE_VIEWPORT_RESET_DELAY_MS = 320
 
 interface MessageInputProps {
   agentId: string | null
@@ -68,6 +70,24 @@ function stretchWaveformBars(source: number[], targetCount: number): number[] {
     const upperValue = source[upper] ?? lowerValue
     return lowerValue + (upperValue - lowerValue) * ratio
   })
+}
+
+function isCoarsePointerDevice(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(COARSE_POINTER_MEDIA_QUERY).matches
+  )
+}
+
+function scrollLayoutViewportToTop(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
 }
 
 async function hasConfiguredOpenAiKey(endpoint: string): Promise<boolean> {
@@ -124,6 +144,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const mobileViewportResetFrameRef = useRef<number | null>(null)
+  const mobileViewportResetTimeoutRef = useRef<number | null>(null)
+  const mobileViewportResetCleanupRef = useRef<(() => void) | null>(null)
 
   const {
     isRecording,
@@ -184,6 +207,25 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const blockedByLoading = isLoading && !allowWhileLoading
 
+  const cancelMobileViewportReset = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (mobileViewportResetFrameRef.current !== null) {
+      window.cancelAnimationFrame(mobileViewportResetFrameRef.current)
+      mobileViewportResetFrameRef.current = null
+    }
+
+    if (mobileViewportResetTimeoutRef.current !== null) {
+      window.clearTimeout(mobileViewportResetTimeoutRef.current)
+      mobileViewportResetTimeoutRef.current = null
+    }
+
+    mobileViewportResetCleanupRef.current?.()
+    mobileViewportResetCleanupRef.current = null
+  }, [])
+
   useEffect(() => {
     resizeTextarea()
   }, [input, resizeTextarea])
@@ -193,16 +235,14 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       return
     }
 
-    if (
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(pointer: coarse)').matches
-    ) {
+    if (isCoarsePointerDevice()) {
       return
     }
 
     textareaRef.current?.focus()
   }, [blockedByLoading, disabled, isRecording])
+
+  useEffect(() => cancelMobileViewportReset, [cancelMobileViewportReset])
 
   const addFiles = useCallback(
     async (files: File[]) => {
@@ -275,6 +315,45 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     requestAnimationFrame(() => textareaRef.current?.focus())
     return true
   }, [updateDraft])
+
+  const restoreMobileViewportAfterSubmit = useCallback(() => {
+    if (!isCoarsePointerDevice()) {
+      return
+    }
+
+    textareaRef.current?.blur()
+    cancelMobileViewportReset()
+    scrollLayoutViewportToTop()
+
+    mobileViewportResetFrameRef.current = window.requestAnimationFrame(() => {
+      mobileViewportResetFrameRef.current = null
+      scrollLayoutViewportToTop()
+    })
+
+    const visualViewport = window.visualViewport
+    if (
+      visualViewport &&
+      typeof visualViewport.addEventListener === 'function' &&
+      typeof visualViewport.removeEventListener === 'function'
+    ) {
+      const handleViewportResize = () => {
+        scrollLayoutViewportToTop()
+        mobileViewportResetCleanupRef.current = null
+      }
+
+      visualViewport.addEventListener('resize', handleViewportResize, { once: true })
+      mobileViewportResetCleanupRef.current = () => {
+        visualViewport.removeEventListener('resize', handleViewportResize)
+      }
+    }
+
+    mobileViewportResetTimeoutRef.current = window.setTimeout(() => {
+      mobileViewportResetTimeoutRef.current = null
+      scrollLayoutViewportToTop()
+      mobileViewportResetCleanupRef.current?.()
+      mobileViewportResetCleanupRef.current = null
+    }, MOBILE_VIEWPORT_RESET_DELAY_MS)
+  }, [cancelMobileViewportReset])
 
   const stopAndTranscribeRecording = useCallback(async () => {
     const recording = await stopRecording()
@@ -384,6 +463,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
     updateDraft('')
     setAttachedFiles([])
+    restoreMobileViewportAfterSubmit()
     requestAnimationFrame(() => {
       onSubmitted?.()
     })
@@ -396,6 +476,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     isTranscribingVoice,
     onSend,
     onSubmitted,
+    restoreMobileViewportAfterSubmit,
     updateDraft,
   ])
 

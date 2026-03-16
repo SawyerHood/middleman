@@ -153,6 +153,7 @@ function createLocalStorageMock(): Storage {
 
 let container!: HTMLDivElement
 let root: Root | null = null
+let windowScrollToMock: ReturnType<typeof vi.fn>
 
 const originalWebSocket = globalThis.WebSocket
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
@@ -160,12 +161,15 @@ const originalResizeObserverDescriptor = Object.getOwnPropertyDescriptor(globalT
 const originalGetAnimations = Element.prototype.getAnimations
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
 const originalScrollTo = HTMLElement.prototype.scrollTo
+const originalWindowScrollTo = window.scrollTo
 const originalCanvasGetContext = HTMLCanvasElement.prototype.getContext
 const originalCanvasToDataURL = HTMLCanvasElement.prototype.toDataURL
+const originalMatchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia')
 
 beforeEach(() => {
   FakeWebSocket.instances = []
   vi.useFakeTimers()
+  windowScrollToMock = vi.fn()
   ;(globalThis as any).WebSocket = FakeWebSocket
   const localStorageMock = createLocalStorageMock()
   Object.defineProperty(window, 'localStorage', {
@@ -201,6 +205,11 @@ beforeEach(() => {
     configurable: true,
     writable: true,
     value: vi.fn(),
+  })
+  Object.defineProperty(window, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value: windowScrollToMock,
   })
   Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
@@ -268,6 +277,11 @@ afterEach(() => {
     writable: true,
     value: originalScrollTo,
   })
+  Object.defineProperty(window, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value: originalWindowScrollTo,
+  })
   Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
     writable: true,
@@ -278,6 +292,11 @@ afterEach(() => {
     writable: true,
     value: originalCanvasToDataURL,
   })
+  if (originalMatchMediaDescriptor) {
+    Object.defineProperty(window, 'matchMedia', originalMatchMediaDescriptor)
+  } else {
+    Reflect.deleteProperty(window, 'matchMedia')
+  }
 })
 
 async function renderPage(): Promise<FakeWebSocket> {
@@ -333,6 +352,23 @@ function getSidebar(): HTMLElement {
 
 function getFaviconHref(): string | null {
   return document.head.querySelector('link[rel="icon"]')?.getAttribute('href') ?? null
+}
+
+function setPointerType(pointerType: 'coarse' | 'fine'): void {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: vi.fn((query: string) => ({
+      matches: query === '(pointer: coarse)' ? pointerType === 'coarse' : false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
 }
 
 describe('IndexPage create manager model selection', () => {
@@ -706,5 +742,26 @@ describe('IndexPage create manager model selection', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(readDraftStorage()).toEqual({})
+  })
+
+  it('resets the page viewport after sending from a mobile input', async () => {
+    setPointerType('coarse')
+    const blurSpy = vi.spyOn(HTMLTextAreaElement.prototype, 'blur')
+
+    await renderPage()
+
+    changeValue(getByRole(container, 'textbox') as HTMLTextAreaElement, 'mobile submit')
+    click(getByRole(container, 'button', { name: 'Send message' }))
+
+    expect(blurSpy).toHaveBeenCalledTimes(1)
+    expect(windowScrollToMock).toHaveBeenCalledWith({
+      top: 0,
+      left: 0,
+      behavior: 'auto',
+    })
+
+    await vi.advanceTimersByTimeAsync(320)
+
+    expect(windowScrollToMock).toHaveBeenCalled()
   })
 })
