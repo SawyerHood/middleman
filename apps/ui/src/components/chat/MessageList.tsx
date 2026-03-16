@@ -9,9 +9,10 @@ import {
 } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { buildAgentLookup } from '@/lib/agent-message-utils'
 import type { ArtifactReference } from '@/lib/artifacts'
 import { cn } from '@/lib/utils'
-import type { ConversationEntry } from '@middleman/protocol'
+import type { AgentDescriptor, ConversationEntry } from '@middleman/protocol'
 import { AgentMessageRow } from './message-list/AgentMessageRow'
 import { ConversationMessageRow } from './message-list/ConversationMessageRow'
 import { EmptyState } from './message-list/EmptyState'
@@ -25,6 +26,7 @@ import type {
 
 interface MessageListProps {
   messages: ConversationEntry[]
+  agents: AgentDescriptor[]
   isLoading: boolean
   activeAgentId?: string | null
   isWorkerDetailView?: boolean
@@ -363,6 +365,7 @@ function LoadingIndicator() {
 
 export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({
   messages,
+  agents,
   isLoading,
   activeAgentId,
   isWorkerDetailView = false,
@@ -380,6 +383,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
   const [showScrollButton, setShowScrollButton] = useState(false)
 
   const displayEntries = useMemo(() => buildDisplayEntries(messages), [messages])
+  const agentLookup = useMemo(() => buildAgentLookup(agents), [agents])
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = scrollContainerRef.current
@@ -510,7 +514,10 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
                   key={entry.id}
                   className={rowSpacingClass}
                 >
-                  <AgentMessageRow message={entry.message} />
+                  <AgentMessageRow
+                    message={entry.message}
+                    agentLookup={agentLookup}
+                  />
                 </div>
               )
             }

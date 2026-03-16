@@ -362,6 +362,57 @@ describe("SwarmManager lifecycle", () => {
     });
   });
 
+  it("emits manager-to-manager agent messages for both the sender and recipient manager views", async () => {
+    const harness = await createHarness();
+    harnesses.push(harness);
+
+    const senderManager = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Sender",
+      cwd: REPO_ROOT,
+      model: "codex-app",
+    });
+    const recipientManager = await harness.manager.createManager(senderManager.agentId, {
+      name: "Recipient",
+      cwd: REPO_ROOT,
+      model: "codex-app",
+    });
+
+    const agentMessages: Array<{ agentId: string; fromAgentId?: string; toAgentId: string; text: string }> = [];
+    harness.manager.on("agent_message", (event) => {
+      agentMessages.push({
+        agentId: event.agentId,
+        fromAgentId: event.fromAgentId,
+        toAgentId: event.toAgentId,
+        text: event.text,
+      });
+    });
+
+    await harness.manager.sendMessage(
+      senderManager.agentId,
+      recipientManager.agentId,
+      "Can you handle the release?",
+    );
+
+    expect(harness.createdMessages.at(-1)).toMatchObject({
+      sessionId: recipientManager.agentId,
+      text: "Can you handle the release?",
+    });
+    expect(agentMessages).toEqual([
+      {
+        agentId: recipientManager.agentId,
+        fromAgentId: senderManager.agentId,
+        toAgentId: recipientManager.agentId,
+        text: "Can you handle the release?",
+      },
+      {
+        agentId: senderManager.agentId,
+        fromAgentId: senderManager.agentId,
+        toAgentId: recipientManager.agentId,
+        text: "Can you handle the release?",
+      },
+    ]);
+  });
+
   it("interrupts in-flight sessions for stop_all_agents without stopping them", async () => {
     const harness = await createHarness();
     harnesses.push(harness);

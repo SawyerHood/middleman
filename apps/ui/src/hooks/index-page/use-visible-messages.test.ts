@@ -129,4 +129,145 @@ describe('useVisibleMessages', () => {
     ])
     expect(result.visibleMessages).toEqual(result.allMessages)
   })
+
+  it('hides worker internal chatter when disabled', () => {
+    const messages: ConversationEntry[] = [
+      {
+        type: 'conversation_message',
+        agentId: 'worker-1',
+        role: 'assistant',
+        text: 'after',
+        timestamp: '2026-01-01T00:00:02.000Z',
+        source: 'speak_to_user',
+      },
+    ]
+    const activityMessages: ConversationEntry[] = [
+      {
+        type: 'agent_message',
+        agentId: 'worker-1',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        source: 'agent_to_agent',
+        fromAgentId: 'manager',
+        toAgentId: 'worker-1',
+        text: 'before',
+      },
+    ]
+
+    const result = deriveVisibleMessages({
+      messages,
+      activityMessages,
+      agents: [manager, worker],
+      activeAgent: worker,
+      showInternalChatter: false,
+    })
+
+    expect(result.allMessages.map((entry) => entry.type)).toEqual([
+      'agent_message',
+      'conversation_message',
+    ])
+    expect(result.visibleMessages).toEqual(messages)
+  })
+
+  it('includes manager-scoped internal chatter when enabled', () => {
+    const messages: ConversationEntry[] = [
+      {
+        type: 'conversation_message',
+        agentId: 'manager',
+        role: 'user',
+        text: 'hello',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        source: 'user_input',
+      },
+      {
+        type: 'conversation_message',
+        agentId: 'manager',
+        role: 'assistant',
+        text: 'done',
+        timestamp: '2026-01-01T00:00:03.000Z',
+        source: 'speak_to_user',
+      },
+    ]
+    const activityMessages: ConversationEntry[] = [
+      {
+        type: 'agent_message',
+        agentId: 'manager',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        source: 'agent_to_agent',
+        fromAgentId: 'manager',
+        toAgentId: 'worker-1',
+        text: 'investigate',
+      },
+      {
+        type: 'agent_message',
+        agentId: 'manager',
+        timestamp: '2026-01-01T00:00:02.000Z',
+        source: 'agent_to_agent',
+        fromAgentId: 'other-manager',
+        toAgentId: 'manager',
+        text: 'need a hand',
+      },
+    ]
+    const otherManager: AgentDescriptor = {
+      ...manager,
+      agentId: 'other-manager',
+      displayName: 'Other Manager',
+      managerId: 'other-manager',
+    }
+
+    const result = deriveVisibleMessages({
+      messages,
+      activityMessages,
+      agents: [manager, worker, otherManager],
+      activeAgent: manager,
+      showInternalChatter: true,
+    })
+
+    expect(result.visibleMessages.map((entry) => entry.type)).toEqual([
+      'conversation_message',
+      'agent_message',
+      'agent_message',
+      'conversation_message',
+    ])
+    expect(result.visibleMessages.filter((entry) => entry.type === 'agent_message')).toHaveLength(2)
+  })
+
+  it('hides manager-scoped internal chatter when disabled', () => {
+    const messages: ConversationEntry[] = [
+      {
+        type: 'conversation_message',
+        agentId: 'manager',
+        role: 'user',
+        text: 'hello',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        source: 'user_input',
+      },
+    ]
+    const activityMessages: ConversationEntry[] = [
+      {
+        type: 'agent_message',
+        agentId: 'manager',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        source: 'agent_to_agent',
+        fromAgentId: 'manager',
+        toAgentId: 'other-manager',
+        text: 'ping',
+      },
+    ]
+    const otherManager: AgentDescriptor = {
+      ...manager,
+      agentId: 'other-manager',
+      displayName: 'Other Manager',
+      managerId: 'other-manager',
+    }
+
+    const result = deriveVisibleMessages({
+      messages,
+      activityMessages,
+      agents: [manager, otherManager],
+      activeAgent: manager,
+      showInternalChatter: false,
+    })
+
+    expect(result.visibleMessages).toEqual(messages)
+  })
 })

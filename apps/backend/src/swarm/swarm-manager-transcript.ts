@@ -2,6 +2,7 @@ import type { SessionRecord, SwarmdCoreHandle, SwarmdMessage } from "swarmd";
 
 import type {
   AgentDescriptor,
+  AgentMessageEvent,
   AgentModelDescriptor,
   AgentStatus,
   AgentToolCallEvent,
@@ -35,10 +36,13 @@ export class SwarmTranscriptService {
     const entries: ConversationEntryEvent[] = [];
     const core = this.options.getCore();
     const session = core.sessionService.getById(resolvedAgentId);
+    const resolvedDescriptor = this.options.getAgent(resolvedAgentId);
+    const seenMessageIds = new Set<string>();
 
     if (session) {
       let hasPersistedRuntimeError = false;
       for (const message of core.messageStore.list(resolvedAgentId)) {
+        seenMessageIds.add(message.id);
         const projected = projectStoredMessage(message);
         if (projected) {
           entries.push(projected);
@@ -46,6 +50,10 @@ export class SwarmTranscriptService {
             hasPersistedRuntimeError = true;
           }
         }
+      }
+
+      if (resolvedDescriptor?.role === "manager") {
+        entries.push(...this.collectManagerScopedAgentMessages(core, resolvedDescriptor.agentId, seenMessageIds));
       }
 
       if (session.status === "errored" && !hasPersistedRuntimeError) {
@@ -76,13 +84,53 @@ export class SwarmTranscriptService {
   getVisibleTranscript(
     agentId?: string,
     options?: { limit?: number },
-  ): Array<ConversationMessageEvent | ConversationLogEvent> {
+  ): Array<ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent> {
     return this.projectConversationEntries(agentId, options?.limit).filter(
-      (entry): entry is ConversationMessageEvent | ConversationLogEvent =>
+      (entry): entry is ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent =>
         entry.type === "conversation_message" ||
+        entry.type === "agent_message" ||
         (entry.type === "conversation_log" && entry.isError === true),
     );
   }
+
+  private collectManagerScopedAgentMessages(
+    core: SwarmdCoreHandle,
+    managerId: string,
+    seenMessageIds: ReadonlySet<string>,
+  ): AgentMessageEvent[] {
+    const entries: AgentMessageEvent[] = [];
+
+    for (const session of core.sessionService.list()) {
+      for (const message of core.messageStore.list(session.id)) {
+        if (seenMessageIds.has(message.id)) {
+          continue;
+        }
+
+        const projected = projectStoredMessage(message);
+        if (!isManagerScopedAgentMessage(projected, managerId)) {
+          continue;
+        }
+
+        entries.push({
+          ...projected,
+          agentId: managerId,
+        });
+      }
+    }
+
+    return entries;
+  }
+}
+
+function isManagerScopedAgentMessage(
+  entry: ConversationEntryEvent | null,
+  managerId: string,
+): entry is AgentMessageEvent {
+  if (entry?.type !== "agent_message" || entry.source !== "agent_to_agent") {
+    return false;
+  }
+
+  return entry.fromAgentId === managerId || entry.toAgentId === managerId;
 }
 
 function fallbackDescriptorForErroredSession(sessionId: string, session: SessionRecord): AgentDescriptor {

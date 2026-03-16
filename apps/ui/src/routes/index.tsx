@@ -34,6 +34,10 @@ import { NotesView } from '@/components/notes/NotesView'
 import { chooseFallbackAgentId } from '@/lib/agent-hierarchy'
 import { isActiveAgentStatus, isWorkingAgentStatus } from '@/lib/agent-status'
 import type { ArtifactReference } from '@/lib/artifacts'
+import {
+  readStoredShowInternalChatter,
+  writeStoredShowInternalChatter,
+} from '@/lib/chat-view-preferences'
 import { collectArtifactsFromMessages } from '@/lib/collect-artifacts'
 import { pruneMessageDraftsAtom } from '@/lib/message-drafts'
 import {
@@ -220,6 +224,9 @@ export function IndexPage() {
   const [panelSelection, setPanelSelection] = useState<ArtifactPanelSelection | null>(null)
   const [isArtifactsPanelOpen, setIsArtifactsPanelOpen] = useState(false)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const [showInternalChatter, setShowInternalChatter] = useState(
+    readStoredShowInternalChatter,
+  )
 
   const activeAgentId = useMemo(() => {
     return (
@@ -302,6 +309,7 @@ export function IndexPage() {
     activityMessages: state.activityMessages,
     agents: state.agents,
     activeAgent,
+    showInternalChatter,
   })
 
   const collectedArtifacts = useMemo(
@@ -360,6 +368,10 @@ export function IndexPage() {
     setIsArtifactsPanelOpen(false)
     setIsMobileSidebarOpen(false)
   }, [activeAgentId])
+
+  useEffect(() => {
+    writeStoredShowInternalChatter(showInternalChatter)
+  }, [showInternalChatter])
 
   useEffect(() => {
     if (!state.hasReceivedAgentsSnapshot) {
@@ -656,6 +668,8 @@ export function IndexPage() {
               onStopAll={() => void handleStopAllAgents()}
               showNewChat={isActiveManager}
               onNewChat={handleNewChat}
+              showInternalChatter={showInternalChatter}
+              onShowInternalChatterChange={setShowInternalChatter}
               isArtifactsPanelOpen={isArtifactsPanelOpen}
               onToggleArtifactsPanel={handleToggleArtifactsPanel}
               onToggleMobileSidebar={() =>
@@ -667,6 +681,7 @@ export function IndexPage() {
             <MessageList
               ref={messageListRef}
               messages={visibleMessages}
+              agents={state.agents}
               isLoading={isLoading}
               activeAgentId={activeAgentId}
               isWorkerDetailView={activeAgent?.role === 'worker'}

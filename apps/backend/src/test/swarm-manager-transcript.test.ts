@@ -471,6 +471,7 @@ describe("SwarmTranscriptService", () => {
         ({
           sessionService: {
             getById: () => session,
+            list: () => [session],
           },
           messageStore: {
             list: () => messages,
@@ -511,9 +512,176 @@ describe("SwarmTranscriptService", () => {
         text: "working on it",
       }),
       expect.objectContaining({
+        type: "agent_message",
+        text: "delegate to worker",
+      }),
+      expect.objectContaining({
         type: "conversation_log",
         text: "runtime exploded",
         isError: true,
+      }),
+    ]);
+  });
+
+  it("replays manager internal chatter from related sessions into manager history", () => {
+    const manager = makeDescriptor({
+      agentId: "manager-1",
+      managerId: "manager-1",
+      role: "manager",
+    });
+    const otherManager = makeDescriptor({
+      agentId: "manager-2",
+      managerId: "manager-2",
+      role: "manager",
+    });
+    const worker = makeDescriptor({
+      agentId: "worker-1",
+      managerId: "manager-1",
+      role: "worker",
+    });
+    const managerSession = makeSession({
+      id: "manager-1",
+      backend: "codex",
+      status: "idle",
+    });
+    const otherManagerSession = makeSession({
+      id: "manager-2",
+      backend: "codex",
+      status: "idle",
+    });
+    const workerSession = makeSession({
+      id: "worker-1",
+      backend: "codex",
+      status: "idle",
+    });
+    const messagesBySession = new Map<string, SwarmdMessage[]>([
+      [
+        managerSession.id,
+        [
+          makeMessage({
+            id: "manager-user",
+            sessionId: "manager-1",
+            source: "user",
+            kind: "text",
+            role: "user",
+            createdAt: "2026-03-15T00:00:01.000Z",
+            content: { text: "hello" },
+            metadata: {
+              middleman: {
+                renderAs: "conversation_message",
+                agentId: "manager-1",
+                source: "user_input",
+              },
+            },
+          }),
+        ],
+      ],
+      [
+        workerSession.id,
+        [
+          makeMessage({
+            id: "manager-to-worker",
+            sessionId: "worker-1",
+            source: "system",
+            kind: "text",
+            role: "system",
+            createdAt: "2026-03-15T00:00:02.000Z",
+            content: { text: "Investigate the test failure" },
+            metadata: {
+              middleman: {
+                visibility: "internal",
+                renderAs: "hidden",
+                managerId: "manager-1",
+                agentId: "worker-1",
+                routing: {
+                  origin: "agent",
+                  fromAgentId: "manager-1",
+                  toAgentId: "worker-1",
+                  requestedDelivery: "auto",
+                },
+              },
+            },
+          }),
+        ],
+      ],
+      [
+        otherManagerSession.id,
+        [
+          makeMessage({
+            id: "manager-to-manager",
+            sessionId: "manager-2",
+            source: "system",
+            kind: "text",
+            role: "system",
+            createdAt: "2026-03-15T00:00:03.000Z",
+            content: { text: "Can you take over the deploy?" },
+            metadata: {
+              middleman: {
+                visibility: "internal",
+                renderAs: "hidden",
+                managerId: "manager-2",
+                agentId: "manager-2",
+                routing: {
+                  origin: "agent",
+                  fromAgentId: "manager-1",
+                  toAgentId: "manager-2",
+                  requestedDelivery: "steer",
+                },
+              },
+            },
+          }),
+        ],
+      ],
+    ]);
+
+    const transcript = new SwarmTranscriptService({
+      getCore: () =>
+        ({
+          sessionService: {
+            getById: (sessionId: string) =>
+              [managerSession, otherManagerSession, workerSession].find((session) => session.id === sessionId) ?? null,
+            list: () => [managerSession, otherManagerSession, workerSession],
+          },
+          messageStore: {
+            list: (sessionId: string) => messagesBySession.get(sessionId) ?? [],
+          },
+        }) as unknown as SwarmdCoreHandle,
+      getAgent: (agentId) =>
+        [manager, otherManager, worker].find((descriptor) => descriptor.agentId === agentId),
+      resolvePreferredManagerId: () => "manager-1",
+      resolveRuntimeErrorMessage: () => "ignored",
+    });
+
+    const projectedEntries = transcript.projectConversationEntries("manager-1");
+    const managerAgentMessages = projectedEntries.filter((entry) => entry.type === "agent_message");
+
+    expect(managerAgentMessages).toEqual([
+      expect.objectContaining({
+        agentId: "manager-1",
+        fromAgentId: "manager-1",
+        toAgentId: "worker-1",
+        text: "Investigate the test failure",
+      }),
+      expect.objectContaining({
+        agentId: "manager-1",
+        fromAgentId: "manager-1",
+        toAgentId: "manager-2",
+        text: "Can you take over the deploy?",
+      }),
+    ]);
+
+    expect(transcript.getVisibleTranscript("manager-1")).toEqual([
+      expect.objectContaining({
+        type: "conversation_message",
+        text: "hello",
+      }),
+      expect.objectContaining({
+        type: "agent_message",
+        text: "Investigate the test failure",
+      }),
+      expect.objectContaining({
+        type: "agent_message",
+        text: "Can you take over the deploy?",
       }),
     ]);
   });
@@ -565,6 +733,7 @@ describe("SwarmTranscriptService", () => {
         ({
           sessionService: {
             getById: (sessionId: string) => (sessionId === "worker-1" ? session : null),
+            list: () => [session],
           },
           messageStore: {
             list: () => messages,

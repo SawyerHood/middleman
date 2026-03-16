@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { isManagerInvolvedAgentMessage } from '@/lib/agent-message-utils'
 import type { AgentDescriptor, ConversationEntry } from '@middleman/protocol'
 
 function toEpochMillis(timestamp: string): number {
@@ -83,6 +84,7 @@ interface UseVisibleMessagesOptions {
   activityMessages: ConversationEntry[]
   agents: AgentDescriptor[]
   activeAgent: AgentDescriptor | null
+  showInternalChatter?: boolean
 }
 
 export function deriveVisibleMessages({
@@ -90,6 +92,7 @@ export function deriveVisibleMessages({
   activityMessages,
   agents,
   activeAgent,
+  showInternalChatter = true,
 }: UseVisibleMessagesOptions): {
   allMessages: ConversationEntry[]
   visibleMessages: ConversationEntry[]
@@ -100,6 +103,14 @@ export function deriveVisibleMessages({
     activeAgentRole === 'manager' && activeAgentId
       ? buildManagerScopedAgentIds(agents, activeAgentId)
       : null
+  const managerScopedActivityMessages =
+    activeAgentRole === 'manager' && activeAgentId && showInternalChatter
+      ? activityMessages.filter(
+          (entry): entry is Extract<ConversationEntry, { type: 'agent_message' }> =>
+            entry.type === 'agent_message' &&
+            isManagerInvolvedAgentMessage(entry, activeAgentId),
+        )
+      : []
 
   const allMessages =
     activeAgentRole === 'worker'
@@ -108,9 +119,14 @@ export function deriveVisibleMessages({
 
   const visibleMessages =
     activeAgentRole === 'manager' && managerScopedAgentIds
-      ? messages.filter((entry) => isManagerScopedTranscriptEntry(entry, managerScopedAgentIds))
+      ? mergeConversationAndActivityMessages(
+          messages.filter((entry) => isManagerScopedTranscriptEntry(entry, managerScopedAgentIds)),
+          managerScopedActivityMessages,
+        )
       : activeAgentRole === 'worker'
-        ? allMessages
+        ? showInternalChatter
+          ? allMessages
+          : messages
         : messages.filter((entry) => {
             if (entry.type !== 'conversation_message') {
               return true
@@ -130,6 +146,7 @@ export function useVisibleMessages({
   activityMessages,
   agents,
   activeAgent,
+  showInternalChatter = true,
 }: UseVisibleMessagesOptions): {
   allMessages: ConversationEntry[]
   visibleMessages: ConversationEntry[]
@@ -141,7 +158,8 @@ export function useVisibleMessages({
         activityMessages,
         agents,
         activeAgent,
+        showInternalChatter,
       }),
-    [activeAgent, activityMessages, agents, messages],
+    [activeAgent, activityMessages, agents, messages, showInternalChatter],
   )
 }

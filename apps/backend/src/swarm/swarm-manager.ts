@@ -273,7 +273,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   getVisibleTranscript(
     agentId?: string,
     options?: { limit?: number },
-  ): Array<ConversationMessageEvent | ConversationLogEvent> {
+  ): Array<ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent> {
     return this.transcript.getVisibleTranscript(agentId, options);
   }
 
@@ -533,7 +533,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       },
     );
 
-    this.emitAgentMessage({
+    const agentMessageEvent: AgentMessageEvent = {
       type: "agent_message",
       agentId: target.role === "manager" ? target.agentId : target.managerId,
       timestamp: this.now(),
@@ -543,7 +543,16 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       text: message,
       requestedDelivery: delivery,
       acceptedMode: fromSwarmdDeliveryMode(receipt.acceptedDelivery, delivery),
-    });
+    };
+
+    this.emitAgentMessage(agentMessageEvent);
+
+    if (sender.role === "manager" && target.role === "manager" && sender.agentId !== target.agentId) {
+      this.emitAgentMessage({
+        ...agentMessageEvent,
+        agentId: sender.agentId,
+      });
+    }
 
     return {
       targetAgentId: target.agentId,

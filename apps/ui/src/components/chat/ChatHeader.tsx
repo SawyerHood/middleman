@@ -5,8 +5,10 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ContextWindowIndicator } from '@/components/chat/ContextWindowIndicator'
@@ -27,6 +29,8 @@ interface ChatHeaderProps {
   onStopAll: () => void
   showNewChat: boolean
   onNewChat: () => void
+  showInternalChatter?: boolean
+  onShowInternalChatterChange?: (nextValue: boolean) => void
   isArtifactsPanelOpen: boolean
   onToggleArtifactsPanel: () => void
   onToggleMobileSidebar?: () => void
@@ -70,6 +74,8 @@ export function ChatHeader({
   onStopAll,
   showNewChat,
   onNewChat,
+  showInternalChatter,
+  onShowInternalChatterChange,
   isArtifactsPanelOpen,
   onToggleArtifactsPanel,
   onToggleMobileSidebar,
@@ -77,6 +83,7 @@ export function ChatHeader({
   const isStreaming = connected && !!activeAgentStatus && isWorkingAgentStatus(activeAgentStatus)
   const statusLabel = connected ? formatAgentStatus(activeAgentStatus) : 'Reconnecting'
   const archetypeLabel = activeAgentArchetypeId?.trim()
+  const hasMenu = showNewChat || showStopAll || onShowInternalChatterChange !== undefined
 
   return (
     <header className="sticky top-0 z-10 flex h-[62px] w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/80 bg-card/80 px-2 backdrop-blur md:px-4">
@@ -137,7 +144,7 @@ export function ChatHeader({
         </div>
 
         {/* ── Three-dots dropdown: secondary actions ── */}
-        {(showNewChat || showStopAll) ? (
+        {hasMenu ? (
           <>
             <Separator orientation="vertical" className="hidden sm:block mx-0.5 h-4 bg-border/60" />
             <DropdownMenu>
@@ -154,6 +161,19 @@ export function ChatHeader({
                 <MoreHorizontal className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={6} className="min-w-44">
+                {onShowInternalChatterChange !== undefined ? (
+                  <>
+                    <DropdownMenuCheckboxItem
+                      checked={showInternalChatter}
+                      onCheckedChange={(checked) => onShowInternalChatterChange(checked === true)}
+                      className="gap-2 text-xs"
+                    >
+                      Show internal chatter
+                    </DropdownMenuCheckboxItem>
+                    {(showNewChat || showStopAll) ? <DropdownMenuSeparator /> : null}
+                  </>
+                ) : null}
+
                 {showNewChat ? (
                   <DropdownMenuItem
                     onClick={onNewChat}
