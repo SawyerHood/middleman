@@ -15,9 +15,9 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.68",
-    "@mariozechner/pi-ai": "^0.56.2",
-    "@mariozechner/pi-coding-agent": "^0.56.2",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.76",
+    "@mariozechner/pi-ai": "^0.58.3",
+    "@mariozechner/pi-coding-agent": "^0.58.3",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^12.6.2",

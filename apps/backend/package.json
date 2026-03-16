@@ -14,10 +14,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.68",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.76",
     "@google/genai": "^1.42.0",
-    "@mariozechner/pi-ai": "^0.56.2",
-    "@mariozechner/pi-coding-agent": "^0.56.2",
+    "@mariozechner/pi-ai": "^0.58.3",
+    "@mariozechner/pi-coding-agent": "^0.58.3",
     "@middleman/protocol": "workspace:*",
     "@mozilla/readability": "^0.6.0",
     "@sinclair/typebox": "^0.34.41",
