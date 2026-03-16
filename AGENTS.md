@@ -97,7 +97,10 @@ Currently installed: badge, button, card, checkbox, context-menu, dialog, input,
 2. Keep event handling deterministic across live stream and replayed history.
 3. Prefer working within existing backend/frontend boundaries instead of introducing broad architectural churn.
 4. Validate changes with UI smoke checks (manager creation, chat send/stop, settings updates).
-5. Before finishing any task, run a full TypeScript typecheck and fix reported errors:
-   - `pnpm exec tsc --noEmit`
+5. Before finishing any task, run the **full CI validation suite** from the repo root and fix any errors:
+   ```bash
+   pnpm build && pnpm exec tsc --noEmit && pnpm test
+   ```
+   All three must pass. Do not commit or report completion if any of these fail. CI runs the same checks — if it fails locally, it will fail in CI.
 6. Prefer shadcn/ui components over hand-rolled HTML for UI controls and surfaces.
 7. Keep panel and view headers consistent by using the shared `ViewHeader` in `apps/ui/src/components/ViewHeader.tsx` for chat/settings/notes-style views. Header shells should stay `h-[62px] mb-2`, place back buttons on the left, and put counts or actions in the trailing slot instead of hand-rolling new variants.
