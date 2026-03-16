@@ -11,6 +11,7 @@ import { MESSAGE_DRAFTS_STORAGE_KEY } from '@/lib/message-drafts'
 import { IndexPage } from './index'
 
 const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus', 'codex-app'] as const
+const TEST_BUILD_HASH = import.meta.env.VITE_BUILD_HASH || 'test-build'
 
 type ListenerMap = Record<string, Array<(event?: any) => void>>
 const faviconEmojiByCanvas = new WeakMap<HTMLCanvasElement, string>()
@@ -330,6 +331,7 @@ async function renderPage(): Promise<FakeWebSocket> {
   emitServerEvent(socket, {
     type: 'ready',
     serverTime: new Date().toISOString(),
+    buildHash: TEST_BUILD_HASH,
     subscribedAgentId: 'manager',
   })
 
@@ -635,6 +637,7 @@ describe('IndexPage create manager model selection', () => {
     emitServerEvent(socket, {
       type: 'ready',
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: 'worker-1',
     })
 

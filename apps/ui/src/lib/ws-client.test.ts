@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ManagerWsClient } from "./ws-client";
+import { ManagerWsClient, WS_CLIENT_BUILD_HASH } from "./ws-client";
 import type { AgentDescriptor } from "@middleman/protocol";
+
+const TEST_BUILD_HASH = WS_CLIENT_BUILD_HASH;
 
 type ListenerMap = Record<string, Array<(event?: any) => void>>;
 
@@ -108,6 +110,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -153,6 +156,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "release-manager",
     });
 
@@ -174,6 +178,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -205,6 +210,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -224,7 +230,7 @@ describe("ManagerWsClient", () => {
     client.destroy();
   });
 
-  it("reloads the page only after reconnecting following a disconnect", () => {
+  it("does not reload after reconnect when the backend build matches", () => {
     const reload = vi.fn();
     (globalThis as any).window = {
       location: {
@@ -250,6 +256,61 @@ describe("ManagerWsClient", () => {
     expect(reconnectedSocket).toBeDefined();
 
     reconnectedSocket.emit("open");
+    expect(reload).not.toHaveBeenCalled();
+
+    emitServerEvent(reconnectedSocket, {
+      type: "ready",
+      serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
+      subscribedAgentId: "manager",
+    });
+
+    expect(reload).not.toHaveBeenCalled();
+
+    client.destroy();
+  });
+
+  it("reloads after reconnect when the backend build hash changes", () => {
+    const reload = vi.fn();
+    (globalThis as any).window = {
+      location: {
+        reload,
+      },
+    };
+
+    const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
+
+    client.start();
+    vi.advanceTimersByTime(60);
+
+    const socket = FakeWebSocket.instances[0];
+    expect(socket).toBeDefined();
+
+    socket.emit("open");
+
+    emitServerEvent(socket, {
+      type: "ready",
+      serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
+      subscribedAgentId: "manager",
+    });
+
+    socket.close();
+    vi.advanceTimersByTime(1200);
+
+    const reconnectedSocket = FakeWebSocket.instances[1];
+    expect(reconnectedSocket).toBeDefined();
+
+    reconnectedSocket.emit("open");
+    expect(reload).not.toHaveBeenCalled();
+
+    emitServerEvent(reconnectedSocket, {
+      type: "ready",
+      serverTime: new Date().toISOString(),
+      buildHash: "different-build",
+      subscribedAgentId: "manager",
+    });
+
     expect(reload).toHaveBeenCalledTimes(1);
 
     client.destroy();
@@ -267,6 +328,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -308,6 +370,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -368,6 +431,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -381,6 +445,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "worker-1",
     });
 
@@ -449,6 +514,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "worker-1",
     });
 
@@ -536,6 +602,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -616,6 +683,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "worker-1",
     });
 
@@ -651,6 +719,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "voice",
     });
 
@@ -706,6 +775,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "worker-1",
     });
 
@@ -772,6 +842,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "worker-1",
     });
 
@@ -816,6 +887,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "worker-1",
     });
 
@@ -857,6 +929,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -917,6 +990,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "worker-1",
     });
 
@@ -947,6 +1021,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -972,6 +1047,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -1018,6 +1094,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -1113,6 +1190,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -1173,6 +1251,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -1223,6 +1302,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -1283,6 +1363,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -1359,6 +1440,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -1392,6 +1474,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager-2",
     });
 
@@ -1460,6 +1543,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
@@ -1522,6 +1606,7 @@ describe("ManagerWsClient", () => {
     emitServerEvent(socket, {
       type: "ready",
       serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
       subscribedAgentId: "manager",
     });
 
