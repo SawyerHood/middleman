@@ -14,7 +14,6 @@ import {
   SUPPRESS_OPEN_ON_RESTART_ENV_VAR
 } from "./reboot/control-pid.js";
 import { CronSchedulerService } from "./scheduler/cron-scheduler-service.js";
-import { getScheduleFilePath } from "./scheduler/schedule-storage.js";
 import { SwarmManager } from "./swarm/swarm-manager.js";
 import type { AgentDescriptor, SwarmConfig } from "./swarm/types.js";
 import { SwarmWebSocketServer } from "./ws/server.js";
@@ -59,8 +58,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
 
       const scheduler = new CronSchedulerService({
         swarmManager,
-        schedulesFile: getScheduleFilePath(config.paths.dataDir, managerId),
-        managerId
+        managerId,
       });
       await scheduler.start();
       schedulersByManagerId.set(managerId, scheduler);
@@ -90,6 +88,27 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
 
   await queueSchedulerSync(collectManagerIds(swarmManager.listAgents(), config.managerId));
 
+  const integrationRegistry = new IntegrationRegistryService({
+    swarmManager,
+    defaultManagerId: config.managerId
+  });
+  await integrationRegistry.start();
+
+  let integrationLifecycle: Promise<void> = Promise.resolve();
+  const queueIntegrationSync = (managerIds: Set<string>): Promise<void> => {
+    const next = integrationLifecycle.then(
+      () => integrationRegistry.syncManagers(managerIds),
+      () => integrationRegistry.syncManagers(managerIds)
+    );
+    integrationLifecycle = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
+  };
+
+  await queueIntegrationSync(collectManagerIds(swarmManager.listAgents(), config.managerId));
+
   const handleAgentsSnapshot = (event: unknown): void => {
     if (!event || typeof event !== "object") {
       return;
@@ -105,16 +124,27 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[scheduler] Failed to sync scheduler instances: ${message}`);
     });
+    void queueIntegrationSync(managerIds).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[integrations] Failed to sync manager integrations: ${message}`);
+    });
   };
 
   swarmManager.on("agents_snapshot", handleAgentsSnapshot);
+  const handleScheduleChanged = (event: unknown): void => {
+    if (!event || typeof event !== "object") {
+      return;
+    }
 
-  const integrationRegistry = new IntegrationRegistryService({
-    swarmManager,
-    dataDir: config.paths.dataDir,
-    defaultManagerId: config.managerId
-  });
-  await integrationRegistry.start();
+    const payload = event as { managerId?: unknown };
+    const managerId = typeof payload.managerId === "string" ? payload.managerId.trim() : "";
+    if (!managerId) {
+      return;
+    }
+
+    schedulersByManagerId.get(managerId)?.refresh();
+  };
+  swarmManager.on("schedule_changed", handleScheduleChanged);
 
   const wsServer = new SwarmWebSocketServer({
     swarmManager,
@@ -147,10 +177,12 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
 
     stopped = true;
     swarmManager.off("agents_snapshot", handleAgentsSnapshot);
+    swarmManager.off("schedule_changed", handleScheduleChanged);
     await Promise.allSettled([
       queueSchedulerSync(new Set<string>()),
       integrationRegistry.stop(),
-      wsServer.stop()
+      wsServer.stop(),
+      swarmManager.shutdown(),
     ]);
 
     if (managingControlPid) {

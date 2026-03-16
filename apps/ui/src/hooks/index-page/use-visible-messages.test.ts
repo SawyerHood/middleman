@@ -16,7 +16,6 @@ const manager: AgentDescriptor = {
     modelId: 'gpt-5',
     thinkingLevel: 'high',
   },
-  sessionFile: '/tmp/project/manager.jsonl',
 }
 
 const worker: AgentDescriptor = {
@@ -25,7 +24,6 @@ const worker: AgentDescriptor = {
   displayName: 'Worker 1',
   role: 'worker',
   managerId: 'manager',
-  sessionFile: '/tmp/project/worker-1.jsonl',
 }
 
 describe('useVisibleMessages', () => {
@@ -69,6 +67,29 @@ describe('useVisibleMessages', () => {
     })
 
     expect(result.allMessages).toBe(messages)
+    expect(result.visibleMessages).toEqual(messages)
+  })
+
+  it('keeps runtime error logs visible in manager transcript views', () => {
+    const messages: ConversationEntry[] = [
+      {
+        type: 'conversation_log',
+        agentId: 'manager',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        source: 'runtime_log',
+        kind: 'message_end',
+        text: 'Missing authentication for openai-codex. Configure credentials in Settings.',
+        isError: true,
+      },
+    ]
+
+    const result = deriveVisibleMessages({
+      messages,
+      activityMessages: [],
+      agents: [manager],
+      activeAgent: manager,
+    })
+
     expect(result.visibleMessages).toEqual(messages)
   })
 

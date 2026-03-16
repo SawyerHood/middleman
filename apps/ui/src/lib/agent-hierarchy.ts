@@ -1,28 +1,17 @@
 import { getOrderedManagers } from './manager-order'
 import type { AgentDescriptor } from '@middleman/protocol'
 
-const ACTIVE_STATUSES = new Set(['idle', 'streaming'])
-
 function byCreatedAtThenId(a: AgentDescriptor, b: AgentDescriptor): number {
   const createdOrder = a.createdAt.localeCompare(b.createdAt)
   if (createdOrder !== 0) return createdOrder
   return a.agentId.localeCompare(b.agentId)
 }
 
-export function isActiveAgent(agent: AgentDescriptor): boolean {
-  return ACTIVE_STATUSES.has(agent.status)
-}
-
 export function getPrimaryManagerId(
   agents: AgentDescriptor[],
   managerOrder: string[] = [],
 ): string | null {
-  return (
-    getOrderedManagers(
-      agents.filter((agent) => isActiveAgent(agent)),
-      managerOrder,
-    )[0]?.agentId ?? null
-  )
+  return getOrderedManagers(agents, managerOrder)[0]?.agentId ?? null
 }
 
 export interface ManagerTreeRow {
@@ -37,9 +26,8 @@ export function buildManagerTreeRows(
   managerRows: ManagerTreeRow[]
   orphanWorkers: AgentDescriptor[]
 } {
-  const activeAgents = agents.filter(isActiveAgent)
-  const managers = getOrderedManagers(activeAgents, managerOrder)
-  const workers = activeAgents.filter((agent) => agent.role === 'worker').sort(byCreatedAtThenId)
+  const managers = getOrderedManagers(agents, managerOrder)
+  const workers = agents.filter((agent) => agent.role === 'worker').sort(byCreatedAtThenId)
 
   const workersByManager = new Map<string, AgentDescriptor[]>()
   for (const worker of workers) {
@@ -67,19 +55,18 @@ export function chooseFallbackAgentId(
   managerOrder: string[] = [],
   preferredAgentId?: string | null,
 ): string | null {
-  const activeAgents = agents.filter(isActiveAgent)
-  if (activeAgents.length === 0) {
+  if (agents.length === 0) {
     return null
   }
 
-  if (preferredAgentId && activeAgents.some((agent) => agent.agentId === preferredAgentId)) {
+  if (preferredAgentId && agents.some((agent) => agent.agentId === preferredAgentId)) {
     return preferredAgentId
   }
 
-  const primaryManagerId = getPrimaryManagerId(activeAgents, managerOrder)
+  const primaryManagerId = getPrimaryManagerId(agents, managerOrder)
   if (primaryManagerId) {
     return primaryManagerId
   }
 
-  return [...activeAgents].sort(byCreatedAtThenId)[0]?.agentId ?? null
+  return [...agents].sort(byCreatedAtThenId)[0]?.agentId ?? null
 }

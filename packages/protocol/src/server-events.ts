@@ -7,7 +7,6 @@ import type {
   DeliveryMode,
   DirectoryItem,
   MessageSourceContext,
-  UserEscalation,
 } from './shared-types.js'
 
 export interface ConversationMessageEvent {
@@ -19,13 +18,6 @@ export interface ConversationMessageEvent {
   timestamp: string
   source: 'user_input' | 'speak_to_user' | 'system'
   sourceContext?: MessageSourceContext
-}
-
-export interface ConversationEscalationEvent {
-  type: 'conversation_escalation'
-  agentId: string
-  escalation: UserEscalation
-  timestamp: string
 }
 
 export type ConversationLogKind =
@@ -103,8 +95,6 @@ export interface StopAllAgentsResultEvent {
   managerId: string
   stoppedWorkerIds: string[]
   managerStopped: boolean
-  terminatedWorkerIds?: string[]
-  managerTerminated?: boolean
   requestId?: string
 }
 
@@ -169,36 +159,8 @@ export interface TelegramStatusEvent {
   botUsername?: string
 }
 
-export interface EscalationsSnapshotEvent {
-  type: 'escalations_snapshot'
-  escalations: UserEscalation[]
-  requestId?: string
-}
-
-export interface EscalationCreatedEvent {
-  type: 'escalation_created'
-  escalation: UserEscalation
-}
-
-export interface EscalationUpdatedEvent {
-  type: 'escalation_updated'
-  escalation: UserEscalation
-}
-
-export interface EscalationsDeletedEvent {
-  type: 'escalations_deleted'
-  escalationIds: string[]
-}
-
-export interface EscalationResolutionResultEvent {
-  type: 'escalation_resolution_result'
-  escalation: UserEscalation
-  requestId?: string
-}
-
 export type ConversationEntry =
   | ConversationMessageEvent
-  | ConversationEscalationEvent
   | ConversationLogEvent
   | AgentMessageEvent
   | AgentToolCallEvent
@@ -238,9 +200,4 @@ export type ServerEvent =
   | DirectoryPickedEvent
   | SlackStatusEvent
   | TelegramStatusEvent
-  | EscalationsSnapshotEvent
-  | EscalationCreatedEvent
-  | EscalationUpdatedEvent
-  | EscalationsDeletedEvent
-  | EscalationResolutionResultEvent
   | { type: 'error'; code: string; message: string; requestId?: string }

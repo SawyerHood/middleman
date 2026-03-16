@@ -41,7 +41,7 @@ export class SlackIntegrationService extends BaseIntegrationService<
   private botUserId: string | undefined;
   private teamId: string | undefined;
 
-  constructor(options: { swarmManager: SwarmManager; dataDir: string; managerId: string }) {
+  constructor(options: { swarmManager: SwarmManager; managerId: string }) {
     const managerId = normalizeManagerId(options.managerId);
     const defaultConfig = createDefaultSlackConfig(managerId);
     const statusTracker = new SlackStatusTracker({
@@ -54,7 +54,6 @@ export class SlackIntegrationService extends BaseIntegrationService<
 
     super({
       swarmManager: options.swarmManager,
-      dataDir: options.dataDir,
       managerId,
       defaultConfig,
       statusTracker,

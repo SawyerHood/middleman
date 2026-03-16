@@ -65,8 +65,8 @@ describe('createConfig', () => {
       expect(config.allowNonManagerSubscriptions).toBe(true)
       expect(config.managerId).toBeUndefined()
       expect(config.defaultModel).toEqual({
-        provider: 'openai-codex',
-        modelId: 'gpt-5.3-codex',
+        provider: 'openai-codex-app-server',
+        modelId: 'gpt-5.4',
         thinkingLevel: 'xhigh',
       })
 
@@ -74,21 +74,16 @@ describe('createConfig', () => {
       expect(config.paths.projectRoot).toBe(resolve(process.cwd()))
       expect(config.paths.dataDir).toBe(resolve(homedir(), '.middleman'))
       expect(config.paths.projectSwarmDir).toBe(resolve(config.paths.projectRoot, '.swarm'))
-      expect(config.paths.swarmDir).toBe(resolve(homedir(), '.middleman', 'swarm'))
-      expect(config.paths.sessionsDir).toBe(resolve(homedir(), '.middleman', 'sessions'))
+      expect(config.paths.swarmdDbFile).toBe(resolve(homedir(), '.middleman', 'swarmd.db'))
+      expect(config.paths.runtimeScratchDir).toBe(resolve(homedir(), '.middleman', 'runtime'))
       expect(config.paths.uploadsDir).toBe(resolve(homedir(), '.middleman', 'uploads'))
       expect(config.paths.authDir).toBe(resolve(homedir(), '.middleman', 'auth'))
       expect(config.paths.authFile).toBe(resolve(homedir(), '.middleman', 'auth', 'auth.json'))
-      expect(config.paths.managerAgentDir).toBe(resolve(homedir(), '.middleman', 'agent', 'manager'))
       expect(config.paths.projectArchetypesDir).toBe(resolve(config.paths.projectRoot, '.swarm', 'archetypes'))
       expect(config.paths.memoryDir).toBe(resolve(homedir(), '.middleman', 'memory'))
-      expect(config.paths.memoryFile).toBeUndefined()
       expect(config.paths.projectMemorySkillFile).toBe(
         resolve(config.paths.projectRoot, '.swarm', 'skills', 'memory', 'SKILL.md'),
       )
-      expect(config.paths.agentsStoreFile).toBe(resolve(homedir(), '.middleman', 'swarm', 'agents.json'))
-      expect(config.paths.secretsFile).toBe(resolve(homedir(), '.middleman', 'secrets.json'))
-      expect(config.paths.schedulesFile).toBeUndefined()
 
       expect(config.defaultCwd).toBe(config.paths.projectRoot)
       expect(config.cwdAllowlistRoots).toContain(config.paths.projectRoot)
@@ -130,8 +125,8 @@ describe('createConfig', () => {
         expect(config.managerId).toBeUndefined()
         expect(config.defaultCwd).toBe(config.paths.projectRoot)
         expect(config.defaultModel).toEqual({
-          provider: 'openai-codex',
-          modelId: 'gpt-5.3-codex',
+          provider: 'openai-codex-app-server',
+          modelId: 'gpt-5.4',
           thinkingLevel: 'xhigh',
         })
         expect(config.cwdAllowlistRoots).not.toContain('/tmp/swarm-allowlist')

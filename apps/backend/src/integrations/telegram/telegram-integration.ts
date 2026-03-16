@@ -41,7 +41,7 @@ export class TelegramIntegrationService extends BaseIntegrationService<
   private botUsername: string | undefined;
   private nextUpdateOffset: number | undefined;
 
-  constructor(options: { swarmManager: SwarmManager; dataDir: string; managerId: string }) {
+  constructor(options: { swarmManager: SwarmManager; managerId: string }) {
     const managerId = normalizeManagerId(options.managerId);
     const defaultConfig = createDefaultTelegramConfig(managerId);
     const statusTracker = new TelegramStatusTracker({
@@ -54,7 +54,6 @@ export class TelegramIntegrationService extends BaseIntegrationService<
 
     super({
       swarmManager: options.swarmManager,
-      dataDir: options.dataDir,
       managerId,
       defaultConfig,
       statusTracker,

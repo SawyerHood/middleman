@@ -1,4 +1,4 @@
-import { CircleDashed, Loader2, Menu, Minimize2, MoreHorizontal, PanelRight, Square, Trash2 } from 'lucide-react'
+import { CircleDashed, Loader2, Menu, MoreHorizontal, PanelRight, Square, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ContextWindowIndicator } from '@/components/chat/ContextWindowIndicator'
+import { isWorkingAgentStatus } from '@/lib/agent-status'
 import { cn } from '@/lib/utils'
 import type { AgentStatus } from '@middleman/protocol'
 
@@ -20,9 +21,6 @@ interface ChatHeaderProps {
   activeAgentArchetypeId?: string | null
   activeAgentStatus: AgentStatus | null
   contextWindowUsage: { usedTokens: number; contextWindow: number } | null
-  showCompact: boolean
-  compactInProgress: boolean
-  onCompact: () => void
   showStopAll: boolean
   stopAllInProgress: boolean
   stopAllDisabled: boolean
@@ -38,15 +36,23 @@ function formatAgentStatus(status: AgentStatus | null): string {
   if (!status) return 'Idle'
 
   switch (status) {
-    case 'streaming':
-      return 'Streaming'
+    case 'created':
+      return 'Created'
+    case 'starting':
+      return 'Starting'
     case 'idle':
       return 'Idle'
+    case 'busy':
+      return 'Busy'
+    case 'interrupting':
+      return 'Interrupting'
+    case 'stopping':
+      return 'Stopping'
     case 'terminated':
       return 'Terminated'
     case 'stopped':
       return 'Stopped'
-    case 'error':
+    case 'errored':
       return 'Error'
   }
 }
@@ -58,9 +64,6 @@ export function ChatHeader({
   activeAgentArchetypeId,
   activeAgentStatus,
   contextWindowUsage,
-  showCompact,
-  compactInProgress,
-  onCompact,
   showStopAll,
   stopAllInProgress,
   stopAllDisabled,
@@ -71,7 +74,7 @@ export function ChatHeader({
   onToggleArtifactsPanel,
   onToggleMobileSidebar,
 }: ChatHeaderProps) {
-  const isStreaming = connected && activeAgentStatus === 'streaming'
+  const isStreaming = connected && !!activeAgentStatus && isWorkingAgentStatus(activeAgentStatus)
   const statusLabel = connected ? formatAgentStatus(activeAgentStatus) : 'Reconnecting'
   const archetypeLabel = activeAgentArchetypeId?.trim()
 
@@ -134,7 +137,7 @@ export function ChatHeader({
         </div>
 
         {/* ── Three-dots dropdown: secondary actions ── */}
-        {(showCompact || showNewChat || showStopAll) ? (
+        {(showNewChat || showStopAll) ? (
           <>
             <Separator orientation="vertical" className="hidden sm:block mx-0.5 h-4 bg-border/60" />
             <DropdownMenu>
@@ -151,21 +154,6 @@ export function ChatHeader({
                 <MoreHorizontal className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={6} className="min-w-44">
-                {showCompact ? (
-                  <DropdownMenuItem
-                    onClick={onCompact}
-                    disabled={compactInProgress}
-                    className="gap-2 text-xs"
-                  >
-                    {compactInProgress ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Minimize2 className="size-3.5" />
-                    )}
-                    {compactInProgress ? 'Compacting…' : 'Compact context'}
-                  </DropdownMenuItem>
-                ) : null}
-
                 {showNewChat ? (
                   <DropdownMenuItem
                     onClick={onNewChat}

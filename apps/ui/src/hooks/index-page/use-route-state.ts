@@ -2,10 +2,9 @@ import { useCallback, useMemo } from 'react'
 
 export const DEFAULT_MANAGER_AGENT_ID = 'opus-manager'
 
-export type ActiveView = 'chat' | 'escalations' | 'notes' | 'settings'
+export type ActiveView = 'chat' | 'notes' | 'settings'
 export type AppRouteState =
   | { view: 'chat'; agentId: string }
-  | { view: 'escalations' }
   | { view: 'notes' }
   | { view: 'settings' }
 
@@ -38,13 +37,6 @@ function parseRouteStateFromPathname(pathname: string): ParsedRouteState {
   if (normalizedPath === '/settings') {
     return {
       routeState: { view: 'settings' },
-      hasExplicitAgentSelection: false,
-    }
-  }
-
-  if (normalizedPath === '/escalations') {
-    return {
-      routeState: { view: 'escalations' },
       hasExplicitAgentSelection: false,
     }
   }
@@ -88,13 +80,6 @@ function parseRouteStateFromLocation(pathname: string, search: unknown): ParsedR
     }
   }
 
-  if (view === 'escalations') {
-    return {
-      routeState: { view: 'escalations' },
-      hasExplicitAgentSelection: false,
-    }
-  }
-
   if (view === 'notes') {
     return {
       routeState: { view: 'notes' },
@@ -120,10 +105,6 @@ function normalizeRouteState(routeState: AppRouteState): AppRouteState {
     return { view: 'settings' }
   }
 
-  if (routeState.view === 'escalations') {
-    return { view: 'escalations' }
-  }
-
   if (routeState.view === 'notes') {
     return { view: 'notes' }
   }
@@ -137,10 +118,6 @@ function normalizeRouteState(routeState: AppRouteState): AppRouteState {
 function toRouteSearch(routeState: AppRouteState): AppRouteSearch {
   if (routeState.view === 'settings') {
     return { view: 'settings' }
-  }
-
-  if (routeState.view === 'escalations') {
-    return { view: 'escalations' }
   }
 
   if (routeState.view === 'notes') {
@@ -157,10 +134,6 @@ function toRouteSearch(routeState: AppRouteState): AppRouteSearch {
 
 function routeStatesEqual(left: AppRouteState, right: AppRouteState): boolean {
   if (left.view === 'settings' && right.view === 'settings') {
-    return true
-  }
-
-  if (left.view === 'escalations' && right.view === 'escalations') {
     return true
   }
 

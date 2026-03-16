@@ -1,37 +1,26 @@
-import { readFile } from "node:fs/promises";
-import { getScheduleFilePath } from "../../scheduler/schedule-storage.js";
+import type { CreateScheduledTaskInput } from "../../scheduler/schedule-types.js";
 import type { SwarmManager } from "../../swarm/swarm-manager.js";
 import {
   applyCorsHeaders,
   decodePathSegment,
   matchPathPattern,
-  sendJson
+  readJsonBody,
+  sendJson,
 } from "../http-utils.js";
 import type { HttpRoute } from "./http-route.js";
 
 const MANAGER_SCHEDULES_ENDPOINT_PATTERN = /^\/api\/managers\/([^/]+)\/schedules$/;
-
-interface ScheduleHttpRecord {
-  id: string;
-  name: string;
-  cron: string;
-  message: string;
-  oneShot: boolean;
-  timezone: string;
-  createdAt: string;
-  nextFireAt: string;
-  lastFiredAt?: string;
-}
+const MANAGER_SCHEDULE_ENDPOINT_PATTERN = /^\/api\/managers\/([^/]+)\/schedules\/([^/]+)$/;
 
 export function createSchedulerRoutes(options: { swarmManager: SwarmManager }): HttpRoute[] {
   const { swarmManager } = options;
 
   return [
     {
-      methods: "GET, OPTIONS",
+      methods: "GET, POST, OPTIONS",
       matches: (pathname) => MANAGER_SCHEDULES_ENDPOINT_PATTERN.test(pathname),
       handle: async (request, response, requestUrl) => {
-        const methods = "GET, OPTIONS";
+        const methods = "GET, POST, OPTIONS";
 
         if (request.method === "OPTIONS") {
           applyCorsHeaders(request, response, methods);
@@ -40,16 +29,9 @@ export function createSchedulerRoutes(options: { swarmManager: SwarmManager }): 
           return;
         }
 
-        if (request.method !== "GET") {
-          applyCorsHeaders(request, response, methods);
-          response.setHeader("Allow", methods);
-          sendJson(response, 405, { error: "Method Not Allowed" });
-          return;
-        }
-
         applyCorsHeaders(request, response, methods);
 
-        const route = resolveSchedulesRoute(requestUrl.pathname);
+        const route = resolveManagerSchedulesRoute(requestUrl.pathname);
         if (!route) {
           response.setHeader("Allow", methods);
           sendJson(response, 405, { error: "Method Not Allowed" });
@@ -61,40 +43,100 @@ export function createSchedulerRoutes(options: { swarmManager: SwarmManager }): 
           return;
         }
 
-        try {
-          const schedulesFile = getScheduleFilePath(swarmManager.getConfig().paths.dataDir, route.managerId);
-          const raw = await readFile(schedulesFile, "utf8");
-          const parsed = JSON.parse(raw) as { schedules?: unknown };
-
-          if (!parsed || !Array.isArray(parsed.schedules)) {
-            sendJson(response, 200, { schedules: [] });
-            return;
-          }
-
-          const schedules = parsed.schedules
-            .map((entry) => normalizeScheduleRecord(entry))
-            .filter((entry): entry is ScheduleHttpRecord => entry !== undefined);
-
-          sendJson(response, 200, { schedules });
-        } catch (error) {
-          if (isEnoentError(error)) {
-            sendJson(response, 200, { schedules: [] });
-            return;
-          }
-
-          const message = error instanceof Error ? error.message : "Unable to load schedules";
-          sendJson(response, 500, { error: message });
+        if (request.method === "GET") {
+          sendJson(response, 200, {
+            schedules: await swarmManager.listSchedulesForManager(route.managerId),
+          });
+          return;
         }
-      }
-    }
+
+        if (request.method === "POST") {
+          try {
+            const schedule = await swarmManager.createScheduleForManager(
+              route.managerId,
+              parseCreateScheduleBody(await readJsonBody(request)),
+            );
+            sendJson(response, 201, {
+              ok: true,
+              action: "add",
+              managerId: route.managerId,
+              schedule,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            sendJson(response, 400, { error: message });
+          }
+          return;
+        }
+
+        response.setHeader("Allow", methods);
+        sendJson(response, 405, { error: "Method Not Allowed" });
+      },
+    },
+    {
+      methods: "DELETE, OPTIONS",
+      matches: (pathname) => MANAGER_SCHEDULE_ENDPOINT_PATTERN.test(pathname),
+      handle: async (request, response, requestUrl) => {
+        const methods = "DELETE, OPTIONS";
+
+        if (request.method === "OPTIONS") {
+          applyCorsHeaders(request, response, methods);
+          response.statusCode = 204;
+          response.end();
+          return;
+        }
+
+        applyCorsHeaders(request, response, methods);
+
+        const route = resolveManagerScheduleRoute(requestUrl.pathname);
+        if (!route) {
+          response.setHeader("Allow", methods);
+          sendJson(response, 405, { error: "Method Not Allowed" });
+          return;
+        }
+
+        if (!isManagerAgent(swarmManager, route.managerId)) {
+          sendJson(response, 404, { error: `Unknown manager: ${route.managerId}` });
+          return;
+        }
+
+        if (request.method !== "DELETE") {
+          response.setHeader("Allow", methods);
+          sendJson(response, 405, { error: "Method Not Allowed" });
+          return;
+        }
+
+        try {
+          const schedule = await swarmManager.removeScheduleForManager(
+            route.managerId,
+            route.scheduleId,
+          );
+          sendJson(response, 200, {
+            ok: true,
+            action: "remove",
+            managerId: route.managerId,
+            schedule,
+            removed: true,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const statusCode = message.startsWith("Unknown schedule:") ? 404 : 400;
+          sendJson(response, statusCode, { error: message });
+        }
+      },
+    },
   ];
 }
 
-type SchedulesRoute = {
+type ManagerSchedulesRoute = {
   managerId: string;
 };
 
-function resolveSchedulesRoute(pathname: string): SchedulesRoute | null {
+type ManagerScheduleRoute = ManagerSchedulesRoute & {
+  scheduleId: string;
+};
+
+function resolveManagerSchedulesRoute(pathname: string): ManagerSchedulesRoute | null {
   const managerMatch = matchPathPattern(pathname, MANAGER_SCHEDULES_ENDPOINT_PATTERN);
   if (!managerMatch) {
     return null;
@@ -108,57 +150,74 @@ function resolveSchedulesRoute(pathname: string): SchedulesRoute | null {
   return { managerId };
 }
 
+function resolveManagerScheduleRoute(pathname: string): ManagerScheduleRoute | null {
+  const scheduleMatch = matchPathPattern(pathname, MANAGER_SCHEDULE_ENDPOINT_PATTERN);
+  if (!scheduleMatch) {
+    return null;
+  }
+
+  const managerId = decodePathSegment(scheduleMatch[1]);
+  const scheduleId = decodePathSegment(scheduleMatch[2]);
+  if (!managerId || !scheduleId) {
+    return null;
+  }
+
+  return { managerId, scheduleId };
+}
+
 function isManagerAgent(swarmManager: SwarmManager, managerId: string): boolean {
   const descriptor = swarmManager.getAgent(managerId);
   return Boolean(descriptor && descriptor.role === "manager");
 }
 
-function normalizeScheduleRecord(entry: unknown): ScheduleHttpRecord | undefined {
-  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-    return undefined;
+function parseCreateScheduleBody(body: unknown): CreateScheduledTaskInput {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("Schedule payload must be a JSON object.");
   }
 
-  const maybe = entry as Partial<ScheduleHttpRecord>;
-  const id = normalizeScheduleRequiredString(maybe.id);
-  const name = normalizeScheduleRequiredString(maybe.name);
-  const cron = normalizeScheduleRequiredString(maybe.cron);
-  const message = normalizeScheduleRequiredString(maybe.message);
-  const timezone = normalizeScheduleRequiredString(maybe.timezone);
-  const createdAt = normalizeScheduleRequiredString(maybe.createdAt);
-  const nextFireAt = normalizeScheduleRequiredString(maybe.nextFireAt);
-  const lastFiredAt = normalizeScheduleRequiredString(maybe.lastFiredAt);
-
-  if (!id || !name || !cron || !message || !timezone || !createdAt || !nextFireAt) {
-    return undefined;
-  }
+  const payload = body as Record<string, unknown>;
+  const cron = parseRequiredString(payload.cron, "cron");
+  const message = parseRequiredString(payload.message, "message");
 
   return {
-    id,
-    name,
     cron,
     message,
-    oneShot: typeof maybe.oneShot === "boolean" ? maybe.oneShot : false,
-    timezone,
-    createdAt,
-    nextFireAt,
-    lastFiredAt
+    name: parseOptionalString(payload.name, "name"),
+    description: parseOptionalString(payload.description, "description"),
+    timezone: parseOptionalString(payload.timezone, "timezone"),
+    oneShot: parseOptionalBoolean(payload.oneShot, "oneShot"),
+    enabled: parseOptionalBoolean(payload.enabled, "enabled"),
   };
 }
 
-function normalizeScheduleRequiredString(value: unknown): string | undefined {
-  if (typeof value !== "string") {
+function parseRequiredString(value: unknown, fieldName: string): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Schedule ${fieldName} is required.`);
+  }
+
+  return value.trim();
+}
+
+function parseOptionalString(value: unknown, fieldName: string): string | undefined {
+  if (value === undefined || value === null) {
     return undefined;
   }
 
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Schedule ${fieldName} must be a non-empty string.`);
+  }
+
+  return value.trim();
 }
 
-function isEnoentError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
+function parseOptionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "boolean") {
+    throw new Error(`Schedule ${fieldName} must be a boolean.`);
+  }
+
+  return value;
 }

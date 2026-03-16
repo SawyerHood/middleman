@@ -298,8 +298,6 @@ async function handleSettingsAuthLoginHttpRequest(
   activeSettingsAuthLoginFlows.set(providerId, flow);
 
   const provider = SETTINGS_AUTH_LOGIN_PROVIDERS[providerId];
-  const authStorage = AuthStorage.create(swarmManager.getConfig().paths.authFile);
-
   response.statusCode = 200;
   response.setHeader("Cache-Control", "no-cache, no-transform");
   response.setHeader("Connection", "keep-alive");
@@ -388,6 +386,7 @@ async function handleSettingsAuthLoginHttpRequest(
   response.on("close", onClose);
 
   sendSseEvent("progress", { message: `Starting ${provider.name} OAuth login...` });
+  const authStorage = AuthStorage.create(swarmManager.getConfig().paths.authFile);
 
   try {
     const callbacks: OAuthLoginCallbacks = {
@@ -423,7 +422,7 @@ async function handleSettingsAuthLoginHttpRequest(
 
     authStorage.set(providerId, {
       type: "oauth",
-      ...credentials
+      ...credentials,
     });
 
     sendSseEvent("complete", {

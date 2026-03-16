@@ -73,7 +73,6 @@ function manager(
       thinkingLevel: 'high',
       ...modelOverrides,
     },
-    sessionFile: `/tmp/${agentId}.jsonl`,
   }
 }
 
@@ -133,12 +132,9 @@ function renderSidebar({
   onDeleteManager = vi.fn(),
   onReorderManagers = vi.fn(),
   onOpenNotes = vi.fn(),
-  onOpenEscalations = vi.fn(),
   onOpenSettings = vi.fn(),
   isNotesActive = false,
   isSettingsActive = false,
-  isEscalationsActive = false,
-  escalations = [],
   statuses = {},
 }: {
   agents: AgentDescriptor[]
@@ -149,20 +145,9 @@ function renderSidebar({
   onDeleteManager?: (managerId: string) => void
   onReorderManagers?: (managerIds: string[]) => void
   onOpenNotes?: () => void
-  onOpenEscalations?: () => void
   onOpenSettings?: () => void
   isNotesActive?: boolean
   isSettingsActive?: boolean
-  isEscalationsActive?: boolean
-  escalations?: Array<{
-    id: string
-    managerId: string
-    title: string
-    description: string
-    options: string[]
-    status: 'open' | 'resolved'
-    createdAt: string
-  }>
   statuses?: Record<string, { status: AgentStatus; pendingCount: number }>
 }) {
   root = createRoot(container)
@@ -181,12 +166,9 @@ function renderSidebar({
         onDeleteManager,
         onReorderManagers,
         onOpenNotes,
-        onOpenEscalations,
         onOpenSettings,
         isNotesActive,
         isSettingsActive,
-        isEscalationsActive,
-        escalations,
       }),
     )
   })
@@ -334,30 +316,5 @@ describe('AgentSidebar', () => {
 
     click(within(sidebar).getByRole('button', { name: 'Notes' }))
     expect(onOpenNotes).toHaveBeenCalledTimes(1)
-  })
-
-  it('shows open escalation count and calls onOpenEscalations when the button is clicked', () => {
-    const onOpenEscalations = vi.fn()
-
-    renderSidebar({
-      agents: [manager('manager-alpha')],
-      onOpenEscalations,
-      escalations: [
-        {
-          id: 'esc-1',
-          managerId: 'manager-alpha',
-          title: 'Review docs',
-          description: 'Choose whether to publish the docs.',
-          options: ['Publish', 'Wait'],
-          status: 'open',
-          createdAt: '2026-01-01T00:00:00.000Z',
-        },
-      ],
-    })
-    const sidebar = getPrimarySidebar()
-
-    expect(within(sidebar).getByText('1')).toBeTruthy()
-    click(within(sidebar).getByRole('button', { name: /^Your Tasks/ }))
-    expect(onOpenEscalations).toHaveBeenCalledTimes(1)
   })
 })

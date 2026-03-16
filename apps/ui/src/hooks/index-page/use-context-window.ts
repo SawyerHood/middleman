@@ -7,16 +7,15 @@ import type {
   ConversationEntry,
   ConversationMessageAttachment,
   ConversationTextAttachment,
-  ManagerModelPreset,
 } from '@middleman/protocol'
 
 const CHARS_PER_TOKEN_ESTIMATE = 4
-const CONTEXT_WINDOW_BY_PRESET: Record<ManagerModelPreset, number> = {
+const CONTEXT_WINDOW_BY_PRESET = {
   'pi-opus': 200_000,
   'pi-codex': 1_048_576,
   'codex-app': 1_048_576,
   'claude-code': 200_000,
-}
+} as const
 
 function contextWindowForAgent(agent: AgentDescriptor | null): number | null {
   if (!agent) {
@@ -53,28 +52,6 @@ function estimateUsedTokens(messages: ConversationEntry[]): number {
   return Math.ceil(totalChars / CHARS_PER_TOKEN_ESTIMATE)
 }
 
-function toContextWindowUsage(
-  contextUsage: AgentContextUsage | undefined,
-): { usedTokens: number; contextWindow: number } | null {
-  if (!contextUsage) {
-    return null
-  }
-
-  if (
-    !Number.isFinite(contextUsage.tokens) ||
-    contextUsage.tokens < 0 ||
-    !Number.isFinite(contextUsage.contextWindow) ||
-    contextUsage.contextWindow <= 0
-  ) {
-    return null
-  }
-
-  return {
-    usedTokens: Math.round(contextUsage.tokens),
-    contextWindow: Math.max(1, Math.round(contextUsage.contextWindow)),
-  }
-}
-
 interface UseContextWindowOptions {
   activeAgent: AgentDescriptor | null
   activeAgentId: string | null
@@ -90,31 +67,36 @@ export function useContextWindow({
 }: UseContextWindowOptions): {
   contextWindowUsage: { usedTokens: number; contextWindow: number } | null
 } {
-  const contextWindow = useMemo(() => contextWindowForAgent(activeAgent), [activeAgent])
+  const realContextUsage = useMemo<AgentContextUsage | null>(() => {
+    if (!activeAgentId) {
+      return activeAgent?.contextUsage ?? null
+    }
+
+    return statuses[activeAgentId]?.contextUsage ?? activeAgent?.contextUsage ?? null
+  }, [activeAgent, activeAgentId, statuses])
+
+  const fallbackContextWindow = useMemo(() => contextWindowForAgent(activeAgent), [activeAgent])
 
   const contextWindowUsage = useMemo(() => {
-    const liveFromStatus =
-      activeAgentId !== null ? toContextWindowUsage(statuses[activeAgentId]?.contextUsage) : null
-    if (liveFromStatus) {
-      return liveFromStatus
+    if (realContextUsage) {
+      return {
+        usedTokens: realContextUsage.tokens,
+        contextWindow: realContextUsage.contextWindow,
+      }
     }
 
-    const liveFromDescriptor = toContextWindowUsage(activeAgent?.contextUsage)
-    if (liveFromDescriptor) {
-      return liveFromDescriptor
-    }
-
-    if (!contextWindow) {
+    if (!fallbackContextWindow) {
       return null
     }
 
     return {
       usedTokens: estimateUsedTokens(messages),
-      contextWindow,
+      contextWindow: fallbackContextWindow,
     }
-  }, [activeAgent, activeAgentId, contextWindow, messages, statuses])
+  }, [fallbackContextWindow, messages, realContextUsage])
 
   return {
-    contextWindowUsage,
+    contextWindowUsage:
+      contextWindowUsage && contextWindowUsage.contextWindow > 0 ? contextWindowUsage : null,
   }
 }

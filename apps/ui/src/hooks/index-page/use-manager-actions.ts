@@ -6,7 +6,6 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react'
-import { resolveApiEndpoint } from '@/lib/api-endpoint'
 import { ManagerWsClient } from '@/lib/ws-client'
 import type { ManagerWsState } from '@/lib/ws-state'
 import type {
@@ -16,12 +15,9 @@ import type {
 import type { AppRouteState } from './use-route-state'
 
 interface UseManagerActionsOptions {
-  wsUrl: string
   clientRef: MutableRefObject<ManagerWsClient | null>
   agents: AgentDescriptor[]
   activeAgent: AgentDescriptor | null
-  activeAgentId: string | null
-  isActiveManager: boolean
   defaultManagerModel: ManagerModelPreset
   navigateToRoute: (nextRouteState: AppRouteState, replace?: boolean) => void
   setState: Dispatch<SetStateAction<ManagerWsState>>
@@ -29,12 +25,9 @@ interface UseManagerActionsOptions {
 }
 
 export function useManagerActions({
-  wsUrl,
   clientRef,
   agents,
   activeAgent,
-  activeAgentId,
-  isActiveManager,
   defaultManagerModel,
   navigateToRoute,
   setState,
@@ -62,8 +55,6 @@ export function useManagerActions({
   handleRequestDeleteManager: (managerId: string) => void
   handleConfirmDeleteManager: () => Promise<void>
   handleCloseDeleteManagerDialog: () => void
-  isCompactingManager: boolean
-  handleCompactManager: (customInstructions?: string) => Promise<void>
   isStoppingAllAgents: boolean
   handleStopAllAgents: () => Promise<void>
 } {
@@ -82,7 +73,6 @@ export function useManagerActions({
   const [deleteManagerError, setDeleteManagerError] = useState<string | null>(null)
   const [isDeletingManager, setIsDeletingManager] = useState(false)
 
-  const [isCompactingManager, setIsCompactingManager] = useState(false)
   const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false)
 
   const handleNewManagerNameChange = useCallback((value: string) => {
@@ -98,29 +88,6 @@ export function useManagerActions({
     setNewManagerModel(value)
     setCreateManagerError(null)
   }, [])
-
-  const handleCompactManager = useCallback(async (customInstructions?: string) => {
-    if (!isActiveManager || !activeAgentId) {
-      return
-    }
-
-    setIsCompactingManager(true)
-
-    try {
-      await requestManagerCompaction(wsUrl, activeAgentId, customInstructions)
-      setState((previous) => ({
-        ...previous,
-        lastError: null,
-      }))
-    } catch (error) {
-      setState((previous) => ({
-        ...previous,
-        lastError: `Failed to compact manager context: ${toErrorMessage(error)}`,
-      }))
-    } finally {
-      setIsCompactingManager(false)
-    }
-  }, [activeAgentId, isActiveManager, setState, wsUrl])
 
   const handleStopAllAgents = useCallback(async () => {
     const client = clientRef.current
@@ -323,50 +290,9 @@ export function useManagerActions({
     handleRequestDeleteManager,
     handleConfirmDeleteManager,
     handleCloseDeleteManagerDialog,
-    isCompactingManager,
-    handleCompactManager,
     isStoppingAllAgents,
     handleStopAllAgents,
   }
-}
-
-async function requestManagerCompaction(
-  wsUrl: string,
-  agentId: string,
-  customInstructions?: string,
-): Promise<void> {
-  const endpoint = resolveApiEndpoint(
-    wsUrl,
-    `/api/agents/${encodeURIComponent(agentId)}/compact`,
-  )
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(
-      customInstructions && customInstructions.trim().length > 0
-        ? { customInstructions: customInstructions.trim() }
-        : {},
-    ),
-  })
-
-  if (response.ok) {
-    return
-  }
-
-  let errorMessage: string | undefined
-  try {
-    const payload = (await response.json()) as { error?: unknown }
-    if (typeof payload.error === 'string' && payload.error.trim().length > 0) {
-      errorMessage = payload.error.trim()
-    }
-  } catch {
-    // Ignore JSON parsing errors and fall back to status-based error text.
-  }
-
-  throw new Error(errorMessage ?? `Compaction request failed with status ${response.status}`)
 }
 
 function toErrorMessage(error: unknown): string {

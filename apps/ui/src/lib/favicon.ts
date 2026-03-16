@@ -1,11 +1,12 @@
-import type { AgentContextUsage, AgentDescriptor, AgentStatus } from '@middleman/protocol'
+import type { AgentDescriptor, AgentStatus } from '@middleman/protocol'
+import { isWorkingAgentStatus } from './agent-status'
 
 export const DEFAULT_FAVICON_EMOJI = '👔'
 export const ACTIVE_FAVICON_EMOJI = '👨‍💻'
 
 type AgentLiveStatuses = Record<
   string,
-  { status: AgentStatus; pendingCount: number; contextUsage?: AgentContextUsage }
+  { status: AgentStatus; pendingCount: number }
 >
 
 interface FaviconDescriptor {
@@ -87,7 +88,7 @@ export function hasStreamingAgentInManagerScope(
       return false
     }
 
-    return getAgentLiveStatus(agent, statuses) === 'streaming'
+    return isWorkingAgentStatus(getAgentLiveStatus(agent, statuses))
   })
 }
 
@@ -97,7 +98,7 @@ export function resolveManagerFaviconEmoji(
   statuses: AgentLiveStatuses,
 ): string {
   const anyStreaming = agents.some(
-    (agent) => getAgentLiveStatus(agent, statuses) === 'streaming',
+    (agent) => isWorkingAgentStatus(getAgentLiveStatus(agent, statuses)),
   )
   return anyStreaming ? ACTIVE_FAVICON_EMOJI : DEFAULT_FAVICON_EMOJI
 }

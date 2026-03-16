@@ -64,7 +64,6 @@ function managerDescriptor(
       modelId: 'gpt-5.3-codex',
       thinkingLevel: 'medium',
     },
-    sessionFile: `/tmp/${agentId}.jsonl`,
   }
 }
 
@@ -109,12 +108,9 @@ describe('ManagerWsClient', () => {
       subscribedAgentId: 'manager',
     })
 
-    const getAllEscalationsPayload = JSON.parse(socket.sentPayloads[1])
-    expect(getAllEscalationsPayload.type).toBe('get_all_escalations')
-
     client.sendUserMessage('hello manager')
 
-    expect(JSON.parse(socket.sentPayloads[2])).toEqual({
+    expect(JSON.parse(socket.sentPayloads[1])).toEqual({
       type: 'user_message',
       text: 'hello manager',
       agentId: 'manager',
@@ -473,10 +469,9 @@ describe('ManagerWsClient', () => {
           agentId: 'worker-1',
           timestamp: new Date().toISOString(),
           source: 'runtime_log',
-          kind: 'tool_execution_start',
-          toolName: 'read',
-          toolCallId: 'detail-call',
-          text: '{"path":"README.md"}',
+          kind: 'message_end',
+          text: 'Missing authentication for openai-codex. Configure credentials in Settings.',
+          isError: true,
         },
         {
           type: 'agent_message',
@@ -503,6 +498,9 @@ describe('ManagerWsClient', () => {
     const state = client.getState()
     expect(state.messages.map((entry) => entry.type)).toEqual(['conversation_message', 'conversation_log'])
     expect(state.activityMessages.map((entry) => entry.type)).toEqual(['agent_message', 'agent_tool_call'])
+    expect(state.lastError).toBe(
+      'Missing authentication for openai-codex. Configure credentials in Settings.',
+    )
 
     client.unsubscribeFromAgentDetail()
     expect(JSON.parse(socket.sentPayloads.at(-1) ?? '')).toEqual({
@@ -650,6 +648,104 @@ describe('ManagerWsClient', () => {
       expect(lastMessage.kind).toBe('tool_execution_end')
       expect(lastMessage.toolName).toBe('read')
     }
+    expect(client.getState().lastError).toBeNull()
+
+    emitServerEvent(socket, {
+      type: 'conversation_log',
+      agentId: 'worker-1',
+      timestamp: new Date().toISOString(),
+      source: 'runtime_log',
+      kind: 'message_end',
+      text: 'Missing authentication for openai-codex. Configure credentials in Settings.',
+      isError: true,
+    })
+
+    expect(client.getState().lastError).toBe(
+      'Missing authentication for openai-codex. Configure credentials in Settings.',
+    )
+
+    client.destroy()
+  })
+
+  it('clears stale lastError when history shows later successful output', () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'worker-1',
+    })
+
+    emitServerEvent(socket, {
+      type: 'conversation_history',
+      agentId: 'worker-1',
+      messages: [
+        {
+          type: 'conversation_log',
+          agentId: 'worker-1',
+          timestamp: new Date(Date.now() - 1_000).toISOString(),
+          source: 'runtime_log',
+          kind: 'message_end',
+          text: 'Worker exited with code null, signal SIGINT',
+          isError: true,
+        },
+        {
+          type: 'conversation_message',
+          agentId: 'worker-1',
+          role: 'assistant',
+          text: 'Recovered and completed the task.',
+          timestamp: new Date().toISOString(),
+          source: 'system',
+        },
+      ],
+    })
+
+    expect(client.getState().lastError).toBeNull()
+
+    client.destroy()
+  })
+
+  it('clears lastError after the selected agent starts working again', () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'worker-1',
+    })
+
+    emitServerEvent(socket, {
+      type: 'conversation_log',
+      agentId: 'worker-1',
+      timestamp: new Date().toISOString(),
+      source: 'runtime_log',
+      kind: 'message_end',
+      text: 'Worker exited with code null, signal SIGINT',
+      isError: true,
+    })
+
+    expect(client.getState().lastError).toBe('Worker exited with code null, signal SIGINT')
+
+    emitServerEvent(socket, {
+      type: 'agent_status',
+      agentId: 'worker-1',
+      status: 'busy',
+      pendingCount: 0,
+    })
+
+    expect(client.getState().lastError).toBeNull()
 
     client.destroy()
   })
@@ -844,7 +940,6 @@ describe('ManagerWsClient', () => {
             modelId: 'gpt-5.3-codex',
             thinkingLevel: 'xhigh',
           },
-          sessionFile: '/tmp/manager.jsonl',
         },
       ],
     })
@@ -852,7 +947,7 @@ describe('ManagerWsClient', () => {
     emitServerEvent(socket, {
       type: 'agent_status',
       agentId: 'manager',
-      status: 'streaming',
+      status: 'busy',
       pendingCount: 2,
     })
 
@@ -953,7 +1048,6 @@ describe('ManagerWsClient', () => {
           modelId: 'gpt-5.3-codex',
           thinkingLevel: 'high',
         },
-        sessionFile: '/tmp/release-manager.jsonl',
       },
     })
 
@@ -1127,170 +1221,6 @@ describe('ManagerWsClient', () => {
     client.destroy()
   })
 
-  it('requests escalation snapshots after ready and keeps escalation state in sync with escalation events', async () => {
-    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
-
-    client.start()
-    vi.advanceTimersByTime(60)
-
-    const socket = FakeWebSocket.instances[0]
-    socket.emit('open')
-
-    emitServerEvent(socket, {
-      type: 'ready',
-      serverTime: new Date().toISOString(),
-      subscribedAgentId: 'manager',
-    })
-
-    const snapshotRequest = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
-    expect(snapshotRequest).toMatchObject({
-      type: 'get_all_escalations',
-    })
-
-    emitServerEvent(socket, {
-      type: 'escalations_snapshot',
-      requestId: snapshotRequest.requestId,
-      escalations: [
-        {
-          id: 'esc-1',
-          managerId: 'manager',
-          title: 'Review deployment',
-          description: 'Choose whether to proceed with the rollout.',
-          options: ['Proceed', 'Pause'],
-          status: 'open',
-          createdAt: '2026-01-02T00:00:00.000Z',
-        },
-      ],
-    })
-
-    expect(client.getState().escalations).toHaveLength(1)
-    expect(client.getState().escalations[0]?.title).toBe('Review deployment')
-
-    emitServerEvent(socket, {
-      type: 'conversation_escalation',
-      agentId: 'manager',
-      timestamp: '2026-01-02T00:00:00.000Z',
-      escalation: {
-        id: 'esc-1',
-        managerId: 'manager',
-        title: 'Review deployment',
-        description: 'Choose whether to proceed with the rollout.',
-        options: ['Proceed', 'Pause'],
-        status: 'open',
-        createdAt: '2026-01-02T00:00:00.000Z',
-      },
-    })
-
-    expect(client.getState().messages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'conversation_escalation',
-          escalation: expect.objectContaining({
-            id: 'esc-1',
-            title: 'Review deployment',
-          }),
-        }),
-      ]),
-    )
-
-    emitServerEvent(socket, {
-      type: 'escalation_updated',
-      escalation: {
-        id: 'esc-1',
-        managerId: 'manager',
-        title: 'Review deployment',
-        description: 'Choose whether to proceed with the rollout.',
-        options: ['Proceed', 'Pause'],
-        status: 'resolved',
-        createdAt: '2026-01-02T00:00:00.000Z',
-        resolvedAt: '2026-01-02T01:00:00.000Z',
-        response: {
-          choice: 'Proceed',
-          isCustom: false,
-        },
-      },
-    })
-
-    expect(client.getState().escalations[0]?.status).toBe('resolved')
-    expect(client.getState().escalations[0]?.response?.choice).toBe('Proceed')
-
-    emitServerEvent(socket, {
-      type: 'escalations_deleted',
-      escalationIds: ['esc-1'],
-    })
-
-    expect(client.getState().escalations).toEqual([])
-
-    client.destroy()
-  })
-
-  it('sends resolve_escalation commands and resolves from escalation_resolution_result', async () => {
-    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
-
-    client.start()
-    vi.advanceTimersByTime(60)
-
-    const socket = FakeWebSocket.instances[0]
-    socket.emit('open')
-
-    emitServerEvent(socket, {
-      type: 'ready',
-      serverTime: new Date().toISOString(),
-      subscribedAgentId: 'manager',
-    })
-
-    const initialTaskRequest = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
-    emitServerEvent(socket, {
-      type: 'escalations_snapshot',
-      requestId: initialTaskRequest.requestId,
-      escalations: [],
-    })
-
-    const resolutionPromise = client.resolveEscalation({
-      escalationId: 'esc-9',
-      choice: 'Wrapped up',
-      isCustom: true,
-    })
-    const resolutionPayload = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
-
-    expect(resolutionPayload).toMatchObject({
-      type: 'resolve_escalation',
-      escalationId: 'esc-9',
-      choice: 'Wrapped up',
-      isCustom: true,
-    })
-
-    emitServerEvent(socket, {
-      type: 'escalation_resolution_result',
-      requestId: resolutionPayload.requestId,
-      escalation: {
-        id: 'esc-9',
-        managerId: 'manager',
-        title: 'Finalize docs',
-        description: 'Choose how to wrap up the docs work.',
-        options: ['Ship docs', 'Defer docs'],
-        status: 'resolved',
-        createdAt: '2026-01-03T00:00:00.000Z',
-        resolvedAt: '2026-01-03T00:15:00.000Z',
-        response: {
-          choice: 'Wrapped up',
-          isCustom: true,
-        },
-      },
-    })
-
-    await expect(resolutionPromise).resolves.toMatchObject({
-      id: 'esc-9',
-      status: 'resolved',
-      response: {
-        choice: 'Wrapped up',
-        isCustom: true,
-      },
-    })
-
-    client.destroy()
-  })
-
   it('rejects delete_manager when backend returns an error', async () => {
     const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
 
@@ -1354,7 +1284,6 @@ describe('ManagerWsClient', () => {
             modelId: 'gpt-5.3-codex',
             thinkingLevel: 'medium',
           },
-          sessionFile: '/tmp/manager.jsonl',
         },
         {
           agentId: 'manager-2',
@@ -1370,7 +1299,6 @@ describe('ManagerWsClient', () => {
             modelId: 'gpt-5.3-codex',
             thinkingLevel: 'medium',
           },
-          sessionFile: '/tmp/manager-2.jsonl',
         },
       ],
     })
@@ -1388,6 +1316,68 @@ describe('ManagerWsClient', () => {
       type: 'subscribe',
       agentId: 'manager',
     })
+
+    client.destroy()
+  })
+
+  it('keeps an explicitly selected errored manager thread active so its error remains visible', () => {
+    const client = new ManagerWsClient('ws://127.0.0.1:8787', 'manager')
+
+    client.start()
+    vi.advanceTimersByTime(60)
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    emitServerEvent(socket, {
+      type: 'ready',
+      serverTime: new Date().toISOString(),
+      subscribedAgentId: 'manager',
+    })
+
+    emitServerEvent(socket, {
+      type: 'conversation_history',
+      agentId: 'manager',
+      messages: [
+        {
+          type: 'conversation_log',
+          agentId: 'manager',
+          timestamp: new Date().toISOString(),
+          source: 'runtime_log',
+          kind: 'message_end',
+          text: 'Missing authentication for openai-codex. Configure credentials in Settings.',
+          isError: true,
+        },
+      ],
+    })
+
+    emitServerEvent(socket, {
+      type: 'agents_snapshot',
+      agents: [
+        {
+          agentId: 'manager',
+          managerId: 'manager',
+          displayName: 'Manager',
+          role: 'manager',
+          status: 'errored',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:01.000Z',
+          cwd: '/tmp',
+          model: {
+            provider: 'openai-codex',
+            modelId: 'gpt-5.4',
+            thinkingLevel: 'medium',
+          },
+        },
+      ],
+    })
+
+    expect(client.getState().targetAgentId).toBe('manager')
+    expect(client.getState().subscribedAgentId).toBe('manager')
+    expect(client.getState().messages).toHaveLength(1)
+    expect(client.getState().lastError).toBe(
+      'Missing authentication for openai-codex. Configure credentials in Settings.',
+    )
 
     client.destroy()
   })
@@ -1424,7 +1414,6 @@ describe('ManagerWsClient', () => {
             modelId: 'gpt-5.3-codex',
             thinkingLevel: 'medium',
           },
-          sessionFile: '/tmp/manager.jsonl',
         },
       ],
     })

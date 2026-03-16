@@ -239,10 +239,7 @@ export function SettingsIntegrations({
   telegramStatus,
 }: SettingsIntegrationsProps) {
   const managerOptions = useMemo(
-    () =>
-      managers.filter(
-        (agent) => agent.role === 'manager' && (agent.status === 'idle' || agent.status === 'streaming'),
-      ),
+    () => managers.filter((agent) => agent.role === 'manager'),
     [managers],
   )
   const [selectedIntegrationManagerId, setSelectedIntegrationManagerId] = useState<string>('')

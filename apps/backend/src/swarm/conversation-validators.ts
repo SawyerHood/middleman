@@ -4,7 +4,6 @@ import type {
   ConversationAttachment,
   ConversationAttachmentMetadata,
   ConversationBinaryAttachment,
-  ConversationEscalationEvent,
   ConversationEntryEvent,
   ConversationImageAttachment,
   ConversationLogEvent,
@@ -12,14 +11,11 @@ import type {
   ConversationMessageEvent,
   ConversationTextAttachment,
   MessageSourceContext,
-  UserEscalation,
-  UserEscalationResponse
 } from "./types.js";
 
 export function isConversationEntryEvent(value: unknown): value is ConversationEntryEvent {
   return (
     isConversationMessageEvent(value) ||
-    isConversationEscalationEvent(value) ||
     isConversationLogEvent(value) ||
     isAgentMessageEvent(value) ||
     isAgentToolCallEvent(value)
@@ -54,27 +50,6 @@ export function isConversationMessageEvent(value: unknown): value is Conversatio
   }
 
   return true;
-}
-
-export function isConversationEscalationEvent(value: unknown): value is ConversationEscalationEvent {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const maybe = value as Partial<ConversationEscalationEvent>;
-  if (maybe.type !== "conversation_escalation") {
-    return false;
-  }
-
-  if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
-    return false;
-  }
-
-  if (typeof maybe.timestamp !== "string" || maybe.timestamp.trim().length === 0) {
-    return false;
-  }
-
-  return isUserEscalation(maybe.escalation);
 }
 
 export function isMessageSourceContext(value: unknown): value is MessageSourceContext {
@@ -123,64 +98,6 @@ export function isMessageSourceContext(value: unknown): value is MessageSourceCo
   }
 
   return true;
-}
-
-function isUserEscalation(value: unknown): value is UserEscalation {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  const maybe = value as Partial<UserEscalation>;
-  if (typeof maybe.id !== "string" || maybe.id.trim().length === 0) {
-    return false;
-  }
-
-  if (typeof maybe.managerId !== "string" || maybe.managerId.trim().length === 0) {
-    return false;
-  }
-
-  if (typeof maybe.title !== "string" || maybe.title.trim().length === 0) {
-    return false;
-  }
-
-  if (typeof maybe.description !== "string" || maybe.description.trim().length === 0) {
-    return false;
-  }
-
-  if (maybe.status !== "open" && maybe.status !== "resolved") {
-    return false;
-  }
-
-  if (typeof maybe.createdAt !== "string" || maybe.createdAt.trim().length === 0) {
-    return false;
-  }
-
-  if (maybe.resolvedAt !== undefined && (typeof maybe.resolvedAt !== "string" || maybe.resolvedAt.trim().length === 0)) {
-    return false;
-  }
-
-  if (!Array.isArray(maybe.options) || maybe.options.some((option) => typeof option !== "string" || option.trim().length === 0)) {
-    return false;
-  }
-
-  if (maybe.response !== undefined && !isUserEscalationResponse(maybe.response)) {
-    return false;
-  }
-
-  return true;
-}
-
-function isUserEscalationResponse(value: unknown): value is UserEscalationResponse {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  const maybe = value as Partial<UserEscalationResponse>;
-  if (typeof maybe.choice !== "string" || maybe.choice.trim().length === 0) {
-    return false;
-  }
-
-  return typeof maybe.isCustom === "boolean";
 }
 
 export function isConversationAttachment(value: unknown): value is ConversationAttachment {

@@ -7,14 +7,12 @@ import type { ServerEvent } from "@middleman/protocol";
 import { getControlPidFileCandidates } from "../reboot/control-pid.js";
 import type { SwarmManager } from "../swarm/swarm-manager.js";
 import { applyCorsHeaders, resolveReadFileContentType, resolveRequestUrl, sendJson } from "./http-utils.js";
-import { createAgentHttpRoutes } from "./routes/agent-routes.js";
 import { createFileRoutes } from "./routes/file-routes.js";
 import { createHealthRoutes } from "./routes/health-routes.js";
 import type { HttpRoute } from "./routes/http-route.js";
 import { createIntegrationRoutes } from "./routes/integration-routes.js";
 import { createSchedulerRoutes } from "./routes/scheduler-routes.js";
 import { createSettingsRoutes, type SettingsRouteBundle } from "./routes/settings-routes.js";
-import { createEscalationHttpRoutes } from "./routes/escalation-routes.js";
 import { createNotesHttpRoutes } from "./routes/notes-routes.js";
 import { createTranscriptionRoutes } from "./routes/transcription-routes.js";
 import { WsHandler } from "./ws-handler.js";
@@ -36,11 +34,6 @@ export class SwarmWebSocketServer {
 
   private readonly onConversationMessage = (event: ServerEvent): void => {
     if (event.type !== "conversation_message") return;
-    this.wsHandler.broadcastToSubscribed(event);
-  };
-
-  private readonly onConversationEscalation = (event: ServerEvent): void => {
-    if (event.type !== "conversation_escalation") return;
     this.wsHandler.broadcastToSubscribed(event);
   };
 
@@ -84,21 +77,6 @@ export class SwarmWebSocketServer {
     this.wsHandler.broadcastToSubscribed(event);
   };
 
-  private readonly onEscalationCreated = (event: ServerEvent): void => {
-    if (event.type !== "escalation_created") return;
-    this.wsHandler.broadcastToSubscribed(event);
-  };
-
-  private readonly onEscalationUpdated = (event: ServerEvent): void => {
-    if (event.type !== "escalation_updated") return;
-    this.wsHandler.broadcastToSubscribed(event);
-  };
-
-  private readonly onEscalationsDeleted = (event: ServerEvent): void => {
-    if (event.type !== "escalations_deleted") return;
-    this.wsHandler.broadcastToSubscribed(event);
-  };
-
   constructor(options: {
     swarmManager: SwarmManager;
     host: string;
@@ -130,8 +108,6 @@ export class SwarmWebSocketServer {
       ...createFileRoutes({ swarmManager: this.swarmManager }),
       ...createTranscriptionRoutes({ swarmManager: this.swarmManager }),
       ...createSchedulerRoutes({ swarmManager: this.swarmManager }),
-      ...createAgentHttpRoutes({ swarmManager: this.swarmManager }),
-      ...createEscalationHttpRoutes({ swarmManager: this.swarmManager }),
       ...createNotesHttpRoutes({ swarmManager: this.swarmManager }),
       ...this.settingsRoutes.routes,
       ...createIntegrationRoutes({
@@ -182,32 +158,24 @@ export class SwarmWebSocketServer {
     });
 
     this.swarmManager.on("conversation_message", this.onConversationMessage);
-    this.swarmManager.on("conversation_escalation", this.onConversationEscalation);
     this.swarmManager.on("conversation_log", this.onConversationLog);
     this.swarmManager.on("agent_message", this.onAgentMessage);
     this.swarmManager.on("agent_tool_call", this.onAgentToolCall);
     this.swarmManager.on("conversation_reset", this.onConversationReset);
     this.swarmManager.on("agent_status", this.onAgentStatus);
     this.swarmManager.on("agents_snapshot", this.onAgentsSnapshot);
-    this.swarmManager.on("escalation_created", this.onEscalationCreated);
-    this.swarmManager.on("escalation_updated", this.onEscalationUpdated);
-    this.swarmManager.on("escalations_deleted", this.onEscalationsDeleted);
     this.integrationRegistry?.on("slack_status", this.onSlackStatus);
     this.integrationRegistry?.on("telegram_status", this.onTelegramStatus);
   }
 
   async stop(): Promise<void> {
     this.swarmManager.off("conversation_message", this.onConversationMessage);
-    this.swarmManager.off("conversation_escalation", this.onConversationEscalation);
     this.swarmManager.off("conversation_log", this.onConversationLog);
     this.swarmManager.off("agent_message", this.onAgentMessage);
     this.swarmManager.off("agent_tool_call", this.onAgentToolCall);
     this.swarmManager.off("conversation_reset", this.onConversationReset);
     this.swarmManager.off("agent_status", this.onAgentStatus);
     this.swarmManager.off("agents_snapshot", this.onAgentsSnapshot);
-    this.swarmManager.off("escalation_created", this.onEscalationCreated);
-    this.swarmManager.off("escalation_updated", this.onEscalationUpdated);
-    this.swarmManager.off("escalations_deleted", this.onEscalationsDeleted);
     this.integrationRegistry?.off("slack_status", this.onSlackStatus);
     this.integrationRegistry?.off("telegram_status", this.onTelegramStatus);
 

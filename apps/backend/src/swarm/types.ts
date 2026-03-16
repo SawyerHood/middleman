@@ -1,10 +1,17 @@
-import type { AgentStatus } from "./agent-state-machine.js";
-
 export type AgentRole = "manager" | "worker";
 
 export type AgentArchetypeId = string;
 
-export type { AgentStatus };
+export type AgentStatus =
+  | "created"
+  | "starting"
+  | "idle"
+  | "busy"
+  | "interrupting"
+  | "stopping"
+  | "stopped"
+  | "errored"
+  | "terminated";
 
 export const SWARM_MODEL_PRESETS = ["pi-codex", "pi-opus", "codex-app", "claude-code"] as const;
 
@@ -33,31 +40,7 @@ export interface AgentDescriptor {
   updatedAt: string;
   cwd: string;
   model: AgentModelDescriptor;
-  sessionFile: string;
   contextUsage?: AgentContextUsage;
-}
-
-export interface AgentsStoreFile {
-  agents: AgentDescriptor[];
-}
-
-export type UserEscalationStatus = "open" | "resolved";
-
-export interface UserEscalationResponse {
-  choice: string;
-  isCustom: boolean;
-}
-
-export interface UserEscalation {
-  id: string;
-  managerId: string;
-  title: string;
-  description: string;
-  options: string[];
-  status: UserEscalationStatus;
-  response?: UserEscalationResponse;
-  createdAt: string;
-  resolvedAt?: string;
 }
 
 export type RequestedDeliveryMode = "auto" | "followUp" | "steer";
@@ -110,24 +93,16 @@ export interface SwarmPaths {
   projectSkillsDir: string;
   projectMemorySkillFile: string;
   dataDir: string;
+  swarmdDbFile: string;
+  runtimeScratchDir: string;
   configFile: string;
   configEnvFile: string;
   runDir: string;
   logsDir: string;
-  schedulesDir: string;
-  integrationsDir: string;
-  swarmDir: string;
-  sessionsDir: string;
   uploadsDir: string;
   authDir: string;
   authFile: string;
-  agentDir: string;
-  managerAgentDir: string;
   memoryDir: string;
-  memoryFile?: string;
-  agentsStoreFile: string;
-  secretsFile: string;
-  schedulesFile?: string;
 }
 
 export interface SkillEnvRequirement {
@@ -155,7 +130,6 @@ export interface SwarmConfig {
   debug: boolean;
   allowNonManagerSubscriptions: boolean;
   managerId?: string;
-  managerDisplayName: string;
   defaultModel: AgentModelDescriptor;
   defaultCwd: string;
   cwdAllowlistRoots: string[];
@@ -212,13 +186,6 @@ export interface ConversationMessageEvent {
   sourceContext?: MessageSourceContext;
 }
 
-export interface ConversationEscalationEvent {
-  type: "conversation_escalation";
-  agentId: string;
-  escalation: UserEscalation;
-  timestamp: string;
-}
-
 export type ConversationLogKind =
   | "message_start"
   | "message_end"
@@ -272,7 +239,6 @@ export interface AgentToolCallEvent {
 
 export type ConversationEntryEvent =
   | ConversationMessageEvent
-  | ConversationEscalationEvent
   | ConversationLogEvent
   | AgentMessageEvent
   | AgentToolCallEvent;

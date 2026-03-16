@@ -1,27 +1,13 @@
-import {
-  BaseConfigPersistence,
-  buildIntegrationProfileId
-} from "../base-config-persistence.js";
+import type { SwarmManager } from "../../swarm/swarm-manager.js";
+import { normalizeManagerId } from "../../utils/normalize.js";
 import type { SlackIntegrationConfig, SlackIntegrationConfigPublic } from "./slack-types.js";
 
-const SLACK_CONFIG_FILE_NAME = "slack.json";
 const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MIN_FILE_BYTES = 1024;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
-const SLACK_CONFIG_PERSISTENCE = new BaseConfigPersistence<SlackIntegrationConfig>({
-  integrationName: "Slack",
-  fileName: SLACK_CONFIG_FILE_NAME,
-  createDefaultConfig: createDefaultSlackConfig,
-  parseConfig: parseSlackConfig
-});
-
-export function getSlackConfigPath(dataDir: string, managerId: string): string {
-  return SLACK_CONFIG_PERSISTENCE.getPath(dataDir, managerId);
-}
-
 export function buildSlackProfileId(managerId: string): string {
-  return buildIntegrationProfileId("slack", managerId);
+  return `slack:${normalizeManagerId(managerId)}`;
 }
 
 export function createDefaultSlackConfig(managerId: string): SlackIntegrationConfig {
@@ -51,18 +37,29 @@ export function createDefaultSlackConfig(managerId: string): SlackIntegrationCon
 }
 
 export async function loadSlackConfig(options: {
-  dataDir: string;
+  swarmManager: SwarmManager;
   managerId: string;
 }): Promise<SlackIntegrationConfig> {
-  return SLACK_CONFIG_PERSISTENCE.load(options);
+  const profile = options.swarmManager.getIntegrationProfile(options.managerId, "slack");
+  if (!profile) {
+    return createDefaultSlackConfig(options.managerId);
+  }
+
+  return parseSlackConfig(profile.config);
 }
 
 export async function saveSlackConfig(options: {
-  dataDir: string;
+  swarmManager: SwarmManager;
   managerId: string;
   config: SlackIntegrationConfig;
 }): Promise<void> {
-  await SLACK_CONFIG_PERSISTENCE.save(options);
+  options.swarmManager.upsertIntegrationProfile({
+    id: options.config.profileId,
+    managerId: normalizeManagerId(options.managerId),
+    provider: "slack",
+    config: options.config as unknown as Record<string, unknown>,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export function mergeSlackConfig(

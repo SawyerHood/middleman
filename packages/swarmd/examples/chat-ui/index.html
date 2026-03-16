@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>swarmd Chat UI</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #1a1a1a;
+        --panel: #202020;
+        --panel-2: #222222;
+        --panel-3: #262626;
+        --border: #353535;
+        --border-soft: #2b2b2b;
+        --text: #f2f2f2;
+        --text-soft: #a4a4a4;
+        --text-dim: #7d7d7d;
+        --blue: #2d6fe7;
+        --blue-soft: rgba(45, 111, 231, 0.2);
+        --green: #45c26b;
+        --orange: #f2a33c;
+        --red: #f06a5f;
+        --gray: #909090;
+        --shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+        --radius: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(45, 111, 231, 0.12), transparent 32%),
+          linear-gradient(180deg, #1b1b1b 0%, #171717 100%);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .app-shell {
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 18px;
+        background: rgba(34, 34, 34, 0.92);
+        border-right: 1px solid var(--border-soft);
+        backdrop-filter: blur(10px);
+      }
+
+      .sidebar-top {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .brand-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .brand strong {
+        font-size: 15px;
+        letter-spacing: 0.02em;
+      }
+
+      .brand span {
+        color: var(--text-dim);
+        font-size: 12px;
+      }
+
+      .primary-button,
+      .secondary-button,
+      .ghost-button {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel-3);
+        color: var(--text);
+        transition:
+          border-color 140ms ease,
+          background 140ms ease,
+          transform 140ms ease;
+      }
+
+      .primary-button:hover,
+      .secondary-button:hover,
+      .ghost-button:hover {
+        border-color: #4a4a4a;
+        background: #2d2d2d;
+      }
+
+      .primary-button:active,
+      .secondary-button:active,
+      .ghost-button:active {
+        transform: translateY(1px);
+      }
+
+      .primary-button:disabled,
+      .secondary-button:disabled,
+      .ghost-button:disabled,
+      .composer button:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+
+      .primary-button {
+        padding: 10px 12px;
+        background: linear-gradient(180deg, #2f77ee 0%, #275fc0 100%);
+        border-color: rgba(72, 120, 210, 0.9);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      .primary-button:hover {
+        background: linear-gradient(180deg, #3882fb 0%, #2a68d5 100%);
+        border-color: rgba(96, 146, 236, 0.95);
+      }
+
+      .secondary-button,
+      .ghost-button {
+        padding: 9px 12px;
+      }
+
+      .ghost-button {
+        background: transparent;
+      }
+
+      .session-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: rgba(25, 25, 25, 0.7);
+        box-shadow: var(--shadow);
+      }
+
+      .session-form.hidden {
+        display: none;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .field span {
+        color: var(--text-soft);
+        font-size: 12px;
+      }
+
+      .field input,
+      .field select,
+      .composer textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #181818;
+        color: var(--text);
+      }
+
+      .field input,
+      .field select {
+        padding: 10px 12px;
+      }
+
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-soft);
+        font-size: 13px;
+      }
+
+      .checkbox-row input {
+        margin: 0;
+      }
+
+      .form-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .form-error,
+      .banner {
+        min-height: 18px;
+        font-size: 12px;
+      }
+
+      .form-error {
+        color: var(--red);
+      }
+
+      .session-list {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+
+      .empty-sessions {
+        margin: auto 0;
+        padding: 18px 14px;
+        border: 1px dashed var(--border);
+        border-radius: 14px;
+        color: var(--text-soft);
+        font-size: 13px;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .session-button {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-soft);
+        border-radius: 14px;
+        background: rgba(24, 24, 24, 0.68);
+        color: inherit;
+        text-align: left;
+      }
+
+      .session-button:hover {
+        background: rgba(33, 33, 33, 0.95);
+      }
+
+      .session-button.selected {
+        border-color: rgba(70, 117, 208, 0.85);
+        background: rgba(35, 52, 87, 0.58);
+        box-shadow: inset 0 0 0 1px rgba(82, 129, 220, 0.2);
+      }
+
+      .session-dot {
+        width: 10px;
+        height: 10px;
+        margin-top: 5px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+
+      .status-idle {
+        background: var(--green);
+      }
+
+      .status-busy,
+      .status-starting,
+      .status-stopping,
+      .status-interrupting {
+        background: var(--orange);
+      }
+
+      .status-errored {
+        background: var(--red);
+      }
+
+      .status-created,
+      .status-stopped,
+      .status-terminated {
+        background: var(--gray);
+      }
+
+      .session-copy {
+        min-width: 0;
+      }
+
+      .session-name {
+        margin: 0;
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .session-meta {
+        margin-top: 3px;
+        color: var(--text-dim);
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .sidebar-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--text-dim);
+        font-size: 12px;
+      }
+
+      .main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 100vh;
+        background:
+          linear-gradient(180deg, rgba(32, 32, 32, 0.94) 0%, rgba(24, 24, 24, 0.98) 100%);
+      }
+
+      .main-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 22px 26px 18px;
+        border-bottom: 1px solid var(--border-soft);
+        background: linear-gradient(180deg, rgba(36, 36, 36, 0.92) 0%, rgba(31, 31, 31, 0.72) 100%);
+      }
+
+      .header-copy {
+        min-width: 0;
+      }
+
+      .header-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .header-title span {
+        color: var(--text-soft);
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .header-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(23, 23, 23, 0.88);
+        color: var(--text-soft);
+        font-size: 12px;
+      }
+
+      .meta-pill .session-dot {
+        margin-top: 0;
+      }
+
+      .meta-pill code {
+        color: var(--text);
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      .header-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .banner {
+        display: none;
+        margin: 0 26px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(28, 28, 28, 0.9);
+        color: var(--text-soft);
+      }
+
+      .banner.visible {
+        display: block;
+      }
+
+      .banner.error {
+        border-color: rgba(240, 106, 95, 0.34);
+        color: #ffb6ad;
+      }
+
+      .banner.success {
+        border-color: rgba(69, 194, 107, 0.32);
+        color: #9ae4af;
+      }
+
+      .conversation {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 28px 26px 116px;
+      }
+
+      .empty-chat {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100%;
+        color: var(--text-soft);
+        text-align: center;
+      }
+
+      .empty-chat-card {
+        max-width: 440px;
+        padding: 28px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: rgba(25, 25, 25, 0.74);
+        box-shadow: var(--shadow);
+      }
+
+      .empty-chat-card h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+
+      .empty-chat-card p {
+        margin: 0;
+        line-height: 1.55;
+      }
+
+      .message-row {
+        display: flex;
+        margin-bottom: 16px;
+      }
+
+      .message-row.user {
+        justify-content: flex-end;
+      }
+
+      .message-row.assistant,
+      .message-row.system {
+        justify-content: flex-start;
+      }
+
+      .message-bubble {
+        max-width: min(720px, 84%);
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: rgba(31, 31, 31, 0.94);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+      }
+
+      .message-row.user .message-bubble {
+        background: linear-gradient(180deg, rgba(44, 68, 112, 0.95), rgba(32, 53, 92, 0.96));
+        border-color: rgba(78, 124, 205, 0.64);
+      }
+
+      .message-row.system .message-bubble {
+        background: rgba(29, 29, 29, 0.62);
+        border-style: dashed;
+      }
+
+      .message-bubble.failed {
+        border-color: rgba(240, 106, 95, 0.52);
+      }
+
+      .message-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 6px;
+        color: var(--text-dim);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .message-text {
+        white-space: pre-wrap;
+        line-height: 1.55;
+        word-break: break-word;
+      }
+
+      .streaming-cursor {
+        display: inline-block;
+        width: 8px;
+        height: 1.1em;
+        margin-left: 2px;
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 2px;
+        vertical-align: text-bottom;
+        animation: blink 1s steps(2, start) infinite;
+      }
+
+      .tool-row {
+        margin-bottom: 16px;
+      }
+
+      .tool-card {
+        max-width: min(760px, 92%);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: rgba(20, 20, 20, 0.9);
+        overflow: hidden;
+      }
+
+      .tool-card summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 14px;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .tool-card summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .tool-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .tool-title strong {
+        font-size: 13px;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      .tool-status {
+        color: var(--text-soft);
+        font-size: 12px;
+      }
+
+      .tool-body {
+        padding: 0 14px 14px;
+        border-top: 1px solid var(--border-soft);
+      }
+
+      .tool-section {
+        margin-top: 14px;
+      }
+
+      .tool-section h4 {
+        margin: 0 0 8px;
+        color: var(--text-soft);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .tool-section pre {
+        margin: 0;
+        padding: 12px;
+        overflow-x: auto;
+        border: 1px solid var(--border-soft);
+        border-radius: 12px;
+        background: #141414;
+        color: #d9d9d9;
+        font-size: 12px;
+        line-height: 1.5;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      .event-row {
+        margin: 8px 0 14px;
+        color: var(--text-dim);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .composer-wrap {
+        position: sticky;
+        bottom: 0;
+        padding: 0 26px 24px;
+        background:
+          linear-gradient(180deg, rgba(24, 24, 24, 0) 0%, rgba(24, 24, 24, 0.94) 22%, rgba(24, 24, 24, 0.98) 100%);
+      }
+
+      .composer {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: rgba(26, 26, 26, 0.96);
+        box-shadow: var(--shadow);
+      }
+
+      .composer textarea {
+        min-height: 48px;
+        max-height: 180px;
+        padding: 12px 14px;
+        resize: none;
+        line-height: 1.5;
+      }
+
+      .composer button {
+        flex: 0 0 auto;
+        padding: 12px 18px;
+        border: 1px solid rgba(77, 126, 210, 0.9);
+        border-radius: 14px;
+        background: linear-gradient(180deg, #347af1 0%, #275dc0 100%);
+        color: white;
+      }
+
+      .composer-status {
+        margin: 0 0 10px;
+        color: var(--text-dim);
+        font-size: 12px;
+      }
+
+      @keyframes blink {
+        0%,
+        49% {
+          opacity: 1;
+        }
+
+        50%,
+        100% {
+          opacity: 0;
+        }
+      }
+
+      @media (max-width: 920px) {
+        .app-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--border-soft);
+        }
+
+        .session-list {
+          max-height: 240px;
+        }
+
+        .main-header {
+          flex-direction: column;
+        }
+
+        .message-bubble,
+        .tool-card {
+          max-width: 100%;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .sidebar,
+        .main-header,
+        .conversation,
+        .composer-wrap {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+
+        .conversation {
+          padding-bottom: 108px;
+        }
+
+        .composer {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .composer button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <div class="brand-row">
+            <div class="brand">
+              <strong>swarmd</strong>
+              <span>chat test ui</span>
+            </div>
+            <button id="show-session-form" class="primary-button" type="button">New Session</button>
+          </div>
+
+          <form id="session-form" class="session-form hidden">
+            <label class="field">
+              <span>Session ID</span>
+              <input id="session-id" name="id" type="text" placeholder="Optional" />
+            </label>
+
+            <label class="field">
+              <span>Backend</span>
+              <select id="session-backend" name="backend">
+                <option value="codex">codex</option>
+                <option value="claude">claude</option>
+                <option value="pi">pi</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>cwd</span>
+              <input id="session-cwd" name="cwd" type="text" placeholder="/path/to/project" />
+            </label>
+
+            <label class="field">
+              <span>Model</span>
+              <input id="session-model" name="model" type="text" placeholder="Optional" />
+            </label>
+
+            <label class="checkbox-row">
+              <input id="session-autostart" name="autoStart" type="checkbox" checked />
+              <span>Start immediately</span>
+            </label>
+
+            <div class="form-actions">
+              <button id="create-session" class="primary-button" type="submit">Create</button>
+              <button id="cancel-session" class="ghost-button" type="button">Cancel</button>
+            </div>
+
+            <div id="form-error" class="form-error" aria-live="polite"></div>
+          </form>
+        </div>
+
+        <div id="session-list" class="session-list" aria-live="polite"></div>
+
+        <div class="sidebar-footer">
+          <span id="session-count">0 sessions</span>
+          <span id="socket-state">WS connecting</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="main-header">
+          <div class="header-copy">
+            <h1 id="header-title" class="header-title">Choose a session <span>to start chatting</span></h1>
+            <div id="header-meta" class="header-meta"></div>
+          </div>
+
+          <div class="header-actions">
+            <button id="start-session" class="secondary-button" type="button" disabled>Start</button>
+            <button id="stop-session" class="secondary-button" type="button" disabled>Stop</button>
+          </div>
+        </header>
+
+        <div id="banner" class="banner" aria-live="polite"></div>
+
+        <section id="conversation" class="conversation"></section>
+
+        <div class="composer-wrap">
+          <p id="composer-status" class="composer-status">Select a session to send messages.</p>
+
+          <form id="composer" class="composer">
+            <textarea
+              id="message-input"
+              rows="1"
+              placeholder="Message swarmd..."
+              disabled
+            ></textarea>
+            <button id="send-button" type="submit" disabled>Send</button>
+          </form>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      (() => {
+        const DEFAULT_MODELS = {
+          codex: "codex",
+          claude: "claude-sonnet-4-20250514",
+          pi: "default",
+        };
+
+        const state = {
+          sessions: [],
+          sessionMap: new Map(),
+          conversations: new Map(),
+          selectedSessionId: null,
+          formOpen: false,
+          formError: "",
+          banner: { text: "", tone: "info" },
+          ws: null,
+          wsConnected: false,
+          reconnectTimer: null,
+          reconnectDelayMs: 1000,
+          subscribedSessionId: null,
+          loadingHistorySessionId: null,
+          sendingMessage: false,
+          pendingSessionAction: null,
+          nextId: 0,
+        };
+
+        const elements = {
+          sessionList: document.getElementById("session-list"),
+          sessionCount: document.getElementById("session-count"),
+          socketState: document.getElementById("socket-state"),
+          sessionForm: document.getElementById("session-form"),
+          showSessionForm: document.getElementById("show-session-form"),
+          cancelSession: document.getElementById("cancel-session"),
+          sessionId: document.getElementById("session-id"),
+          sessionBackend: document.getElementById("session-backend"),
+          sessionCwd: document.getElementById("session-cwd"),
+          sessionModel: document.getElementById("session-model"),
+          sessionAutoStart: document.getElementById("session-autostart"),
+          formError: document.getElementById("form-error"),
+          headerTitle: document.getElementById("header-title"),
+          headerMeta: document.getElementById("header-meta"),
+          startSession: document.getElementById("start-session"),
+          stopSession: document.getElementById("stop-session"),
+          banner: document.getElementById("banner"),
+          conversation: document.getElementById("conversation"),
+          composerStatus: document.getElementById("composer-status"),
+          composer: document.getElementById("composer"),
+          messageInput: document.getElementById("message-input"),
+          sendButton: document.getElementById("send-button"),
+        };
+
+        initialize().catch((error) => {
+          setBanner(error.message || "Failed to initialize the chat UI.", "error");
+        });
+
+        async function initialize() {
+          const savedCwd = window.localStorage.getItem("swarmd-chat-ui.cwd");
+          elements.sessionCwd.value = savedCwd || "";
+          elements.sessionModel.value = DEFAULT_MODELS[elements.sessionBackend.value];
+
+          bindEvents();
+          renderAll();
+          connectWebSocket();
+          await refreshSessions();
+          window.setInterval(() => {
+            void refreshSessions();
+          }, 5000);
+        }
+
+        function bindEvents() {
+          elements.showSessionForm.addEventListener("click", () => {
+            state.formOpen = !state.formOpen;
+            state.formError = "";
+            if (state.formOpen && !elements.sessionModel.value.trim()) {
+              elements.sessionModel.value = DEFAULT_MODELS[elements.sessionBackend.value];
+            }
+            renderSessionForm();
+          });
+
+          elements.cancelSession.addEventListener("click", () => {
+            state.formOpen = false;
+            state.formError = "";
+            renderSessionForm();
+          });
+
+          elements.sessionBackend.addEventListener("change", () => {
+            if (!elements.sessionModel.value.trim()) {
+              elements.sessionModel.value = DEFAULT_MODELS[elements.sessionBackend.value];
+            }
+          });
+
+          elements.sessionForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+            void handleCreateSession();
+          });
+
+          elements.startSession.addEventListener("click", () => {
+            void handleSessionAction("start");
+          });
+
+          elements.stopSession.addEventListener("click", () => {
+            void handleSessionAction("stop");
+          });
+
+          elements.composer.addEventListener("submit", (event) => {
+            event.preventDefault();
+            void handleSendMessage();
+          });
+
+          elements.messageInput.addEventListener("input", () => {
+            autosizeComposer();
+          });
+
+          elements.messageInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void handleSendMessage();
+            }
+          });
+        }
+
+        function renderAll() {
+          renderSessionForm();
+          renderSessions();
+          renderHeader();
+          renderBanner();
+          renderConversation(true);
+          renderComposer();
+          renderSocketState();
+        }
+
+        function renderSessionForm() {
+          elements.sessionForm.classList.toggle("hidden", !state.formOpen);
+          elements.formError.textContent = state.formError;
+        }
+
+        function renderSessions() {
+          const sessions = [...state.sessions].sort((left, right) => {
+            return right.updatedAt.localeCompare(left.updatedAt);
+          });
+
+          elements.sessionCount.textContent =
+            sessions.length === 1 ? "1 session" : sessions.length + " sessions";
+          elements.sessionList.replaceChildren();
+
+          if (sessions.length === 0) {
+            const empty = document.createElement("div");
+            empty.className = "empty-sessions";
+            empty.textContent = "No sessions yet. Create one to start sending prompts.";
+            elements.sessionList.appendChild(empty);
+            return;
+          }
+
+          for (const session of sessions) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className =
+              "session-button" + (session.id === state.selectedSessionId ? " selected" : "");
+            button.addEventListener("click", () => {
+              void selectSession(session.id);
+            });
+
+            const dot = document.createElement("span");
+            dot.className = "session-dot " + statusClass(session.status);
+
+            const copy = document.createElement("div");
+            copy.className = "session-copy";
+
+            const name = document.createElement("div");
+            name.className = "session-name";
+            name.textContent = session.displayName || session.id;
+
+            const meta = document.createElement("div");
+            meta.className = "session-meta";
+            meta.textContent =
+              session.id +
+              " • " +
+              session.backend +
+              " • " +
+              humanizeStatus(session.status);
+
+            copy.append(name, meta);
+            button.append(dot, copy);
+            elements.sessionList.appendChild(button);
+          }
+        }
+
+        function renderHeader() {
+          const session = currentSession();
+          elements.headerMeta.replaceChildren();
+
+          if (!session) {
+            elements.headerTitle.innerHTML = "Choose a session <span>to start chatting</span>";
+            elements.startSession.disabled = true;
+            elements.stopSession.disabled = true;
+            return;
+          }
+
+          elements.headerTitle.textContent = session.id;
+
+          elements.headerMeta.appendChild(createStatusPill(session.status));
+          elements.headerMeta.appendChild(createMetaPill("backend", session.backend));
+          elements.headerMeta.appendChild(createMetaPill("model", session.model));
+          elements.headerMeta.appendChild(createMetaPill("cwd", session.cwd, true));
+          elements.headerMeta.appendChild(
+            createMetaPill("live", state.wsConnected ? "connected" : "reconnecting"),
+          );
+
+          elements.startSession.disabled =
+            !canStart(session) || state.pendingSessionAction === session.id + ":start";
+          elements.stopSession.disabled =
+            !canStop(session) || state.pendingSessionAction === session.id + ":stop";
+        }
+
+        function renderBanner() {
+          elements.banner.className = "banner";
+
+          if (!state.banner.text) {
+            elements.banner.textContent = "";
+            return;
+          }
+
+          elements.banner.textContent = state.banner.text;
+          elements.banner.classList.add("visible", state.banner.tone);
+        }
+
+        function renderConversation(forceScroll) {
+          const shouldStick = forceScroll || isNearBottom(elements.conversation);
+          const session = currentSession();
+          elements.conversation.replaceChildren();
+
+          if (!session) {
+            elements.conversation.appendChild(
+              renderEmptyState("No session selected", "Pick a session from the sidebar or create a new one."),
+            );
+            return;
+          }
+
+          if (state.loadingHistorySessionId === session.id) {
+            elements.conversation.appendChild(
+              renderEmptyState("Loading conversation", "Fetching session history and preparing live events."),
+            );
+            return;
+          }
+
+          const conversation = getConversationState(session.id).items;
+          if (conversation.length === 0) {
+            const description =
+              canSend(session)
+                ? "Send the first message from the composer below."
+                : "Start the session to enable the composer and receive streamed events.";
+            elements.conversation.appendChild(renderEmptyState("No messages yet", description));
+            return;
+          }
+
+          for (const item of conversation) {
+            if (item.kind === "message") {
+              elements.conversation.appendChild(renderMessage(item));
+              continue;
+            }
+
+            if (item.kind === "tool") {
+              elements.conversation.appendChild(renderTool(item));
+              continue;
+            }
+
+            elements.conversation.appendChild(renderEvent(item));
+          }
+
+          if (shouldStick) {
+            elements.conversation.scrollTop = elements.conversation.scrollHeight;
+          }
+        }
+
+        function renderComposer() {
+          const session = currentSession();
+          const enabled = canSend(session) && !state.sendingMessage;
+
+          if (!session) {
+            elements.composerStatus.textContent = "Select a session to send messages.";
+          } else if (state.sendingMessage) {
+            elements.composerStatus.textContent = "Sending message...";
+          } else if (canSend(session)) {
+            elements.composerStatus.textContent =
+              "Connected to " + session.backend + ". Press Enter to send, Shift+Enter for a newline.";
+          } else {
+            elements.composerStatus.textContent =
+              "Session is " + humanizeStatus(session.status) + ". Start it before sending a message.";
+          }
+
+          elements.messageInput.disabled = !enabled;
+          elements.sendButton.disabled = !enabled || !elements.messageInput.value.trim();
+        }
+
+        function renderSocketState() {
+          elements.socketState.textContent = state.wsConnected ? "WS connected" : "WS reconnecting";
+        }
+
+        function renderEmptyState(title, description) {
+          const wrap = document.createElement("div");
+          wrap.className = "empty-chat";
+
+          const card = document.createElement("div");
+          card.className = "empty-chat-card";
+
+          const heading = document.createElement("h2");
+          heading.textContent = title;
+
+          const copy = document.createElement("p");
+          copy.textContent = description;
+
+          card.append(heading, copy);
+          wrap.appendChild(card);
+          return wrap;
+        }
+
+        function renderMessage(item) {
+          const row = document.createElement("div");
+          row.className = "message-row " + item.role;
+
+          const bubble = document.createElement("div");
+          bubble.className = "message-bubble";
+          if (item.error) {
+            bubble.classList.add("failed");
+          }
+
+          const head = document.createElement("div");
+          head.className = "message-head";
+
+          const role = document.createElement("span");
+          role.textContent = item.role;
+
+          const meta = document.createElement("span");
+          const parts = [];
+          if (item.timestamp) {
+            parts.push(formatTimestamp(item.timestamp));
+          }
+          if (item.error) {
+            parts.push("failed");
+          } else if (item.status === "streaming") {
+            parts.push("streaming");
+          }
+          meta.textContent = parts.join(" • ");
+
+          head.append(role, meta);
+
+          const body = document.createElement("div");
+          body.className = "message-text";
+          body.textContent = item.text;
+
+          bubble.append(head, body);
+
+          if (item.status === "streaming") {
+            const cursor = document.createElement("span");
+            cursor.className = "streaming-cursor";
+            body.appendChild(cursor);
+          }
+
+          row.appendChild(bubble);
+          return row;
+        }
+
+        function renderTool(item) {
+          const row = document.createElement("div");
+          row.className = "tool-row";
+
+          const details = document.createElement("details");
+          details.className = "tool-card";
+          details.open = item.status === "running" || item.ok === false;
+
+          const summary = document.createElement("summary");
+
+          const title = document.createElement("div");
+          title.className = "tool-title";
+
+          const name = document.createElement("strong");
+          name.textContent = item.toolName;
+
+          const callId = document.createElement("span");
+          callId.className = "tool-status";
+          callId.textContent = item.toolCallId ? item.toolCallId : item.status;
+
+          title.append(name, callId);
+
+          const status = document.createElement("span");
+          status.className = "tool-status";
+          status.textContent = item.ok === false ? "errored" : item.status;
+
+          summary.append(title, status);
+          details.appendChild(summary);
+
+          const body = document.createElement("div");
+          body.className = "tool-body";
+
+          if (item.input !== undefined) {
+            body.appendChild(renderToolSection("Input", item.input));
+          }
+          if (item.progress !== undefined) {
+            body.appendChild(renderToolSection("Progress", item.progress));
+          }
+          if (item.result !== undefined) {
+            body.appendChild(renderToolSection(item.ok === false ? "Error" : "Result", item.result));
+          }
+
+          details.appendChild(body);
+          row.appendChild(details);
+          return row;
+        }
+
+        function renderToolSection(title, value) {
+          const section = document.createElement("div");
+          section.className = "tool-section";
+
+          const heading = document.createElement("h4");
+          heading.textContent = title;
+
+          const pre = document.createElement("pre");
+          pre.textContent = formatPayload(value);
+
+          section.append(heading, pre);
+          return section;
+        }
+
+        function renderEvent(item) {
+          const row = document.createElement("div");
+          row.className = "event-row";
+          row.textContent = item.timestamp
+            ? item.text + " • " + formatTimestamp(item.timestamp)
+            : item.text;
+          return row;
+        }
+
+        async function refreshSessions() {
+          try {
+            const response = await requestJson("/v1/sessions");
+            const sessions = Array.isArray(response.sessions) ? response.sessions : [];
+
+            state.sessions = sessions;
+            state.sessionMap = new Map(sessions.map((session) => [session.id, session]));
+
+            if (state.selectedSessionId && !state.sessionMap.has(state.selectedSessionId)) {
+              state.selectedSessionId = null;
+              state.loadingHistorySessionId = null;
+              subscribeToSession(null);
+            }
+
+            renderSessions();
+            renderHeader();
+            renderConversation(false);
+            renderComposer();
+          } catch (error) {
+            setBanner(error.message || "Failed to refresh sessions.", "error");
+          }
+        }
+
+        async function selectSession(sessionId) {
+          if (!sessionId) {
+            return;
+          }
+
+          state.selectedSessionId = sessionId;
+          state.loadingHistorySessionId = sessionId;
+          subscribeToSession(null);
+          renderSessions();
+          renderHeader();
+          renderConversation(true);
+          renderComposer();
+
+          try {
+            const response = await requestJson("/v1/sessions/" + encodeURIComponent(sessionId) + "/history");
+            replaceConversationFromHistory(sessionId, Array.isArray(response.entries) ? response.entries : []);
+          } catch (error) {
+            replaceConversationFromHistory(sessionId, []);
+            setBanner(error.message || "Failed to load history.", "error");
+          } finally {
+            if (state.selectedSessionId === sessionId) {
+              state.loadingHistorySessionId = null;
+              renderConversation(true);
+              subscribeToSession(sessionId);
+            }
+          }
+        }
+
+        async function handleCreateSession() {
+          const body = {
+            backend: elements.sessionBackend.value,
+            cwd: elements.sessionCwd.value.trim(),
+            autoStart: elements.sessionAutoStart.checked,
+          };
+
+          const id = elements.sessionId.value.trim();
+          const model = elements.sessionModel.value.trim();
+
+          if (!body.cwd) {
+            state.formError = "cwd is required";
+            renderSessionForm();
+            return;
+          }
+
+          if (id) {
+            body.id = id;
+          }
+
+          if (model) {
+            body.model = model;
+          }
+
+          state.formError = "";
+          renderSessionForm();
+
+          try {
+            window.localStorage.setItem("swarmd-chat-ui.cwd", body.cwd);
+            const session = await requestJson("/v1/sessions", {
+              method: "POST",
+              json: body,
+            });
+
+            state.formOpen = false;
+            elements.sessionForm.reset();
+            elements.sessionBackend.value = "codex";
+            elements.sessionModel.value = DEFAULT_MODELS.codex;
+            elements.sessionAutoStart.checked = true;
+            elements.sessionCwd.value = body.cwd;
+            await refreshSessions();
+            await selectSession(session.id);
+            setBanner("Created session " + session.id + ".", "success");
+          } catch (error) {
+            state.formError = error.message || "Failed to create session.";
+            renderSessionForm();
+          }
+        }
+
+        async function handleSessionAction(action) {
+          const session = currentSession();
+          if (!session) {
+            return;
+          }
+
+          state.pendingSessionAction = session.id + ":" + action;
+          renderHeader();
+
+          try {
+            await requestJson("/v1/sessions/" + encodeURIComponent(session.id) + "/" + action, {
+              method: "POST",
+            });
+            await refreshSessions();
+          } catch (error) {
+            setBanner(error.message || "Failed to " + action + " session.", "error");
+          } finally {
+            state.pendingSessionAction = null;
+            renderHeader();
+          }
+        }
+
+        async function handleSendMessage() {
+          const session = currentSession();
+          const text = elements.messageInput.value.trim();
+
+          if (!session || !canSend(session) || !text || state.sendingMessage) {
+            renderComposer();
+            return;
+          }
+
+          state.sendingMessage = true;
+          const localMessage = {
+            key: nextId("message:local"),
+            kind: "message",
+            role: "user",
+            text,
+            timestamp: new Date().toISOString(),
+            status: "complete",
+          };
+
+          getConversationState(session.id).items.push(localMessage);
+          getConversationState(session.id).lookup.set(localMessage.key, localMessage);
+
+          elements.messageInput.value = "";
+          autosizeComposer();
+          renderConversation(true);
+          renderComposer();
+
+          try {
+            await requestJson("/v1/sessions/" + encodeURIComponent(session.id) + "/messages", {
+              method: "POST",
+              json: {
+                parts: [{ type: "text", text }],
+              },
+            });
+          } catch (error) {
+            localMessage.error = error.message || "Failed to send message.";
+            setBanner(localMessage.error, "error");
+            renderConversation(false);
+          } finally {
+            state.sendingMessage = false;
+            renderComposer();
+          }
+        }
+
+        function connectWebSocket() {
+          clearReconnectTimer();
+
+          const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+          const socket = new WebSocket(protocol + "//" + window.location.host + "/v1/ws");
+
+          state.ws = socket;
+          state.wsConnected = false;
+          state.subscribedSessionId = null;
+          renderHeader();
+          renderSocketState();
+
+          socket.addEventListener("open", () => {
+            state.wsConnected = true;
+            state.reconnectDelayMs = 1000;
+            renderHeader();
+            renderSocketState();
+
+            if (state.selectedSessionId) {
+              subscribeToSession(state.selectedSessionId);
+            }
+          });
+
+          socket.addEventListener("message", (event) => {
+            handleSocketMessage(event.data);
+          });
+
+          socket.addEventListener("close", () => {
+            handleSocketDisconnect();
+          });
+
+          socket.addEventListener("error", () => {
+            socket.close();
+          });
+        }
+
+        function handleSocketMessage(raw) {
+          let message;
+
+          try {
+            message = JSON.parse(raw);
+          } catch {
+            return;
+          }
+
+          if (message.type !== "event" || !message.event) {
+            return;
+          }
+
+          applyLiveEvent(message.event);
+        }
+
+        function handleSocketDisconnect() {
+          if (state.ws) {
+            state.ws = null;
+          }
+
+          state.wsConnected = false;
+          state.subscribedSessionId = null;
+          renderHeader();
+          renderSocketState();
+
+          clearReconnectTimer();
+          state.reconnectTimer = window.setTimeout(() => {
+            connectWebSocket();
+          }, state.reconnectDelayMs);
+          state.reconnectDelayMs = Math.min(state.reconnectDelayMs * 2, 5000);
+        }
+
+        function subscribeToSession(sessionId) {
+          if (state.subscribedSessionId === sessionId) {
+            return;
+          }
+
+          if (state.ws && state.ws.readyState === WebSocket.OPEN && state.subscribedSessionId) {
+            state.ws.send(
+              JSON.stringify({
+                type: "unsubscribe",
+                sessions: [state.subscribedSessionId],
+              }),
+            );
+          }
+
+          state.subscribedSessionId = null;
+
+          if (!sessionId) {
+            return;
+          }
+
+          if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+            state.ws.send(
+              JSON.stringify({
+                type: "subscribe",
+                sessions: [sessionId],
+              }),
+            );
+            state.subscribedSessionId = sessionId;
+          }
+        }
+
+        function applyLiveEvent(event) {
+          const payload = asObject(event.payload);
+          const sessionId = event.sessionId;
+          const conversation = getConversationState(sessionId);
+
+          switch (event.type) {
+            case "message.started": {
+              const role = payload.role === "user" || payload.role === "system" ? payload.role : "assistant";
+              const messageId = typeof payload.messageId === "string" ? payload.messageId : event.id;
+
+              if (role !== "assistant" && typeof payload.text !== "string") {
+                break;
+              }
+
+              const message = upsertItem(conversation, "message:" + messageId, () => ({
+                key: "message:" + messageId,
+                kind: "message",
+                role,
+                text: typeof payload.text === "string" ? payload.text : "",
+                timestamp: event.timestamp,
+                status: role === "assistant" ? "streaming" : "complete",
+              }));
+
+              message.role = role;
+              message.timestamp = event.timestamp;
+              if (typeof payload.text === "string" && !message.text) {
+                message.text = payload.text;
+              }
+              if (role === "assistant") {
+                message.status = "streaming";
+              }
+              break;
+            }
+
+            case "message.delta": {
+              const messageId = typeof payload.messageId === "string" ? payload.messageId : event.id;
+              const message = upsertItem(conversation, "message:" + messageId, () => ({
+                key: "message:" + messageId,
+                kind: "message",
+                role: "assistant",
+                text: "",
+                timestamp: event.timestamp,
+                status: "streaming",
+              }));
+
+              message.text += typeof payload.delta === "string" ? payload.delta : "";
+              message.status = "streaming";
+              message.timestamp = event.timestamp;
+              break;
+            }
+
+            case "message.completed": {
+              const messageId = typeof payload.messageId === "string" ? payload.messageId : event.id;
+              const message = upsertItem(conversation, "message:" + messageId, () => ({
+                key: "message:" + messageId,
+                kind: "message",
+                role: "assistant",
+                text: "",
+                timestamp: event.timestamp,
+                status: "complete",
+              }));
+
+              message.status = "complete";
+              message.timestamp = event.timestamp;
+              break;
+            }
+
+            case "tool.started": {
+              const toolId = toolKey(payload, event.id);
+              const tool = upsertItem(conversation, toolId, () => ({
+                key: toolId,
+                kind: "tool",
+                toolName: typeof payload.toolName === "string" ? payload.toolName : "tool",
+                toolCallId: typeof payload.toolCallId === "string" ? payload.toolCallId : "",
+                input: payload.input,
+                progress: undefined,
+                result: undefined,
+                ok: undefined,
+                status: "running",
+                timestamp: event.timestamp,
+              }));
+
+              tool.toolName = typeof payload.toolName === "string" ? payload.toolName : tool.toolName;
+              tool.toolCallId = typeof payload.toolCallId === "string" ? payload.toolCallId : tool.toolCallId;
+              tool.input = payload.input;
+              tool.status = "running";
+              tool.timestamp = event.timestamp;
+              break;
+            }
+
+            case "tool.progress": {
+              const toolId = toolKey(payload, event.id);
+              const tool = upsertItem(conversation, toolId, () => ({
+                key: toolId,
+                kind: "tool",
+                toolName: typeof payload.toolName === "string" ? payload.toolName : "tool",
+                toolCallId: typeof payload.toolCallId === "string" ? payload.toolCallId : "",
+                input: undefined,
+                progress: payload.progress,
+                result: undefined,
+                ok: undefined,
+                status: "running",
+                timestamp: event.timestamp,
+              }));
+
+              tool.progress = payload.progress;
+              tool.status = "running";
+              tool.timestamp = event.timestamp;
+              break;
+            }
+
+            case "tool.completed": {
+              const toolId = toolKey(payload, event.id);
+              const tool = upsertItem(conversation, toolId, () => ({
+                key: toolId,
+                kind: "tool",
+                toolName: typeof payload.toolName === "string" ? payload.toolName : "tool",
+                toolCallId: typeof payload.toolCallId === "string" ? payload.toolCallId : "",
+                input: undefined,
+                progress: undefined,
+                result: payload.result,
+                ok: payload.ok !== false,
+                status: "complete",
+                timestamp: event.timestamp,
+              }));
+
+              tool.result = payload.result;
+              tool.ok = payload.ok !== false;
+              tool.status = "complete";
+              tool.timestamp = event.timestamp;
+              break;
+            }
+
+            case "turn.started":
+              pushEventLine(conversation, "Turn started", event.timestamp);
+              break;
+
+            case "turn.completed":
+              pushEventLine(conversation, "Turn completed", event.timestamp);
+              break;
+
+            case "turn.interrupted":
+              pushEventLine(conversation, "Turn interrupted", event.timestamp);
+              break;
+
+            case "turn.failed":
+              pushEventLine(conversation, "Turn failed", event.timestamp);
+              break;
+
+            case "session.status.changed":
+              updateLocalSession(sessionId, {
+                status: typeof payload.status === "string" ? payload.status : currentSessionStatus(sessionId),
+              });
+              pushEventLine(
+                conversation,
+                "Session status changed to " + humanizeStatus(currentSessionStatus(sessionId)),
+                event.timestamp,
+              );
+              break;
+
+            case "session.started":
+              updateLocalSession(sessionId, { status: "idle" });
+              pushEventLine(conversation, "Session started", event.timestamp);
+              break;
+
+            case "session.stopped":
+              updateLocalSession(sessionId, { status: "stopped" });
+              pushEventLine(conversation, "Session stopped", event.timestamp);
+              break;
+
+            case "session.errored":
+              updateLocalSession(sessionId, { status: "errored" });
+              pushEventLine(conversation, "Session errored", event.timestamp);
+              break;
+
+            case "session.terminated":
+              updateLocalSession(sessionId, { status: "terminated" });
+              pushEventLine(conversation, "Session terminated", event.timestamp);
+              break;
+
+            default:
+              break;
+          }
+
+          if (sessionId === state.selectedSessionId) {
+            renderSessions();
+            renderHeader();
+            renderConversation(false);
+            renderComposer();
+          }
+        }
+
+        function replaceConversationFromHistory(sessionId, entries) {
+          const conversation = {
+            items: [],
+            lookup: new Map(),
+          };
+
+          for (const entry of entries) {
+            if (entry.role === "tool" || entry.type === "tool") {
+              const tool = {
+                key: nextId("history:tool"),
+                kind: "tool",
+                toolName: entry.toolName || entry.type || "tool",
+                toolCallId: entry.toolCallId || "",
+                input: entry.metadata && entry.metadata.input,
+                progress: entry.metadata && entry.metadata.progress,
+                result: entry.text || (entry.metadata && entry.metadata.result),
+                ok: true,
+                status: "complete",
+                timestamp: entry.timestamp,
+              };
+              conversation.items.push(tool);
+              conversation.lookup.set(tool.key, tool);
+              continue;
+            }
+
+            const message = {
+              key: nextId("history:message"),
+              kind: "message",
+              role:
+                entry.role === "assistant" || entry.role === "system" || entry.role === "user"
+                  ? entry.role
+                  : "assistant",
+              text: entry.text || "",
+              timestamp: entry.timestamp,
+              status: "complete",
+            };
+            conversation.items.push(message);
+            conversation.lookup.set(message.key, message);
+          }
+
+          state.conversations.set(sessionId, conversation);
+        }
+
+        function getConversationState(sessionId) {
+          if (!state.conversations.has(sessionId)) {
+            state.conversations.set(sessionId, {
+              items: [],
+              lookup: new Map(),
+            });
+          }
+
+          return state.conversations.get(sessionId);
+        }
+
+        function upsertItem(conversation, key, factory) {
+          if (!conversation.lookup.has(key)) {
+            const item = factory();
+            conversation.lookup.set(key, item);
+            conversation.items.push(item);
+          }
+
+          return conversation.lookup.get(key);
+        }
+
+        function pushEventLine(conversation, text, timestamp) {
+          const item = {
+            key: nextId("event"),
+            kind: "event",
+            text,
+            timestamp,
+          };
+          conversation.items.push(item);
+          conversation.lookup.set(item.key, item);
+        }
+
+        function currentSession() {
+          return state.selectedSessionId ? state.sessionMap.get(state.selectedSessionId) || null : null;
+        }
+
+        function currentSessionStatus(sessionId) {
+          const session = state.sessionMap.get(sessionId);
+          return session ? session.status : "created";
+        }
+
+        function updateLocalSession(sessionId, patch) {
+          const session = state.sessionMap.get(sessionId);
+          if (!session) {
+            return;
+          }
+
+          Object.assign(session, patch, { updatedAt: new Date().toISOString() });
+          state.sessions = state.sessions.map((candidate) =>
+            candidate.id === sessionId ? session : candidate,
+          );
+        }
+
+        function canSend(session) {
+          return Boolean(session && (session.status === "idle" || session.status === "busy"));
+        }
+
+        function canStart(session) {
+          return Boolean(session && ["created", "stopped", "errored"].includes(session.status));
+        }
+
+        function canStop(session) {
+          return Boolean(
+            session &&
+              ["starting", "idle", "busy", "interrupting", "stopping"].includes(session.status),
+          );
+        }
+
+        function humanizeStatus(status) {
+          return String(status || "")
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (match) => match.toUpperCase());
+        }
+
+        function statusClass(status) {
+          return "status-" + status;
+        }
+
+        function statusDot(status) {
+          const dot = document.createElement("span");
+          dot.className = "session-dot " + statusClass(status);
+          return dot;
+        }
+
+        function createMetaPill(label, value, code) {
+          const pill = document.createElement("span");
+          pill.className = "meta-pill";
+
+          const name = document.createElement("span");
+          name.textContent = label;
+
+          const detail = code ? document.createElement("code") : document.createElement("span");
+          detail.textContent = value;
+
+          pill.append(name, detail);
+          return pill;
+        }
+
+        function createStatusPill(status) {
+          const pill = document.createElement("span");
+          pill.className = "meta-pill";
+          pill.append(statusDot(status));
+
+          const detail = document.createElement("span");
+          detail.textContent = humanizeStatus(status);
+          pill.appendChild(detail);
+
+          return pill;
+        }
+
+        function setBanner(text, tone) {
+          state.banner = {
+            text,
+            tone: tone || "info",
+          };
+          renderBanner();
+        }
+
+        async function requestJson(path, options) {
+          const requestOptions = {
+            method: options && options.method ? options.method : "GET",
+            headers: {
+              Accept: "application/json",
+            },
+          };
+
+          if (options && options.json !== undefined) {
+            requestOptions.body = JSON.stringify(options.json);
+            requestOptions.headers["Content-Type"] = "application/json";
+          }
+
+          const response = await fetch(path, requestOptions);
+          const contentType = response.headers.get("content-type") || "";
+          const isJson = contentType.includes("application/json");
+          const data = isJson ? await response.json() : await response.text();
+
+          if (!response.ok) {
+            if (data && typeof data === "object" && data.error && typeof data.error.message === "string") {
+              throw new Error(data.error.message);
+            }
+            if (data && typeof data === "object" && typeof data.message === "string") {
+              throw new Error(data.message);
+            }
+            if (typeof data === "string" && data.trim()) {
+              throw new Error(data);
+            }
+            throw new Error("Request failed with status " + response.status + ".");
+          }
+
+          return data;
+        }
+
+        function autosizeComposer() {
+          elements.messageInput.style.height = "auto";
+          elements.messageInput.style.height = Math.min(elements.messageInput.scrollHeight, 180) + "px";
+          renderComposer();
+        }
+
+        function isNearBottom(node) {
+          return node.scrollHeight - node.scrollTop - node.clientHeight < 72;
+        }
+
+        function clearReconnectTimer() {
+          if (state.reconnectTimer !== null) {
+            window.clearTimeout(state.reconnectTimer);
+            state.reconnectTimer = null;
+          }
+        }
+
+        function formatTimestamp(timestamp) {
+          const date = new Date(timestamp);
+          return date.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        }
+
+        function formatPayload(value) {
+          if (typeof value === "string") {
+            return value;
+          }
+
+          try {
+            return JSON.stringify(value, null, 2);
+          } catch {
+            return String(value);
+          }
+        }
+
+        function asObject(value) {
+          return value && typeof value === "object" ? value : {};
+        }
+
+        function toolKey(payload, fallback) {
+          return "tool:" + (typeof payload.toolCallId === "string" ? payload.toolCallId : fallback);
+        }
+
+        function nextId(prefix) {
+          state.nextId += 1;
+          return prefix + ":" + state.nextId;
+        }
+      })();
+    </script>
+  </body>
+</html>

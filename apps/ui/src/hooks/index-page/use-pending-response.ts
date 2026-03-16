@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { ConversationEntry } from '@middleman/protocol'
+import type { AgentStatus, ConversationEntry } from '@middleman/protocol'
+import { isWorkingAgentStatus } from '@/lib/agent-status'
 
 export interface PendingResponseStart {
   agentId: string
@@ -23,7 +24,7 @@ function isAssistantResponseSignal(entry: ConversationEntry): boolean {
 
 interface UsePendingResponseOptions {
   activeAgentId: string | null
-  activeAgentStatus: string | null
+  activeAgentStatus: AgentStatus | null
   messages: ConversationEntry[]
 }
 
@@ -49,7 +50,7 @@ export function usePendingResponse({
       return
     }
 
-    if (activeAgentStatus === 'streaming') {
+    if (activeAgentStatus && isWorkingAgentStatus(activeAgentStatus)) {
       setPendingResponseStart(null)
       return
     }

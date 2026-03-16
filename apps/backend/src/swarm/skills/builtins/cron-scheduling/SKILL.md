@@ -14,21 +14,15 @@ Before creating a schedule, confirm:
 
 If the request is ambiguous, ask a follow-up question before adding a schedule.
 
-## Storage
-
-Schedules are stored at:
-- `${SWARM_DATA_DIR}/schedules/<managerId>.json`
-
 ## Commands
 
-Use the packaged CLI:
+Use the embedded CLI. It talks to the backend schedule service and stores schedules in SQLite.
 
 ```bash
 middleman schedule add \
-  --manager "manager" \
-  --name "Daily standup reminder" \
   --cron "0 9 * * 1-5" \
   --message "Remind me about the daily standup" \
+  --description "Daily standup reminder" \
   --timezone "America/Los_Angeles"
 ```
 
@@ -36,10 +30,9 @@ One-shot schedule (fires once at the next matching cron time):
 
 ```bash
 middleman schedule add \
-  --manager "manager" \
-  --name "One-time deployment check" \
   --cron "30 14 * * *" \
   --message "Check deployment status" \
+  --description "One-time deployment check" \
   --timezone "America/Los_Angeles" \
   --one-shot
 ```
@@ -48,17 +41,19 @@ Remove a schedule:
 
 ```bash
 middleman schedule remove \
-  --manager "manager" \
-  --id "<schedule-id>"
+  "<schedule-id>"
 ```
 
 List schedules:
 
 ```bash
-middleman schedule list --manager "manager"
+middleman schedule list
+```
 
-`--manager` is optional. If omitted, the CLI will auto-select a manager when there is only one manager
-or when a known default manager is detected.
+Override manager context manually when needed:
+
+```bash
+middleman schedule list --manager "manager"
 ```
 
 ## Output

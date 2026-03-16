@@ -10,7 +10,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { MESSAGE_DRAFTS_STORAGE_KEY } from '@/lib/message-drafts'
 import { IndexPage } from './index'
 
-const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus'] as const
+const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus', 'codex-app'] as const
 
 type ListenerMap = Record<string, Array<(event?: any) => void>>
 const faviconEmojiByCanvas = new WeakMap<HTMLCanvasElement, string>()
@@ -105,7 +105,6 @@ function buildManager(agentId: string, cwd: string) {
       modelId: 'gpt-5.3-codex',
       thinkingLevel: 'high',
     },
-    sessionFile: `/tmp/${agentId}.jsonl`,
   }
 }
 
@@ -124,7 +123,6 @@ function buildWorker(agentId: string, managerId: string, cwd: string) {
       modelId: 'gpt-5.3-codex',
       thinkingLevel: 'high',
     },
-    sessionFile: `/tmp/${agentId}.jsonl`,
   }
 }
 
@@ -338,13 +336,13 @@ function getFaviconHref(): string | null {
 }
 
 describe('IndexPage create manager model selection', () => {
-  it('shows only allowed model presets and defaults to pi-codex', async () => {
+  it('shows only allowed model presets and defaults to codex-app', async () => {
     await renderPage()
 
     click(getAllByRole(container, 'button', { name: 'Add manager' })[0]!)
 
     const modelSelect = getByRole(document.body, 'combobox', { name: 'Model' })
-    expect(modelSelect.textContent).toContain('pi-codex')
+    expect(modelSelect.textContent).toContain('codex-app')
 
     click(modelSelect as HTMLElement)
 
@@ -521,7 +519,7 @@ describe('IndexPage create manager model selection', () => {
     expect(queryByText(container, /foreign-call/)).toBeNull()
   })
 
-  it('swaps the favicon when any agent starts or stops streaming', async () => {
+  it('swaps the favicon when any agent starts or stops work', async () => {
     const socket = await renderPage()
 
     emitServerEvent(socket, {
@@ -541,7 +539,7 @@ describe('IndexPage create manager model selection', () => {
     emitServerEvent(socket, {
       type: 'agent_status',
       agentId: 'worker-foreign',
-      status: 'streaming',
+      status: 'busy',
       pendingCount: 1,
     })
 

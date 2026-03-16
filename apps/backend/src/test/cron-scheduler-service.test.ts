@@ -1,199 +1,220 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
-import { CronSchedulerService, type ScheduledTask } from '../scheduler/cron-scheduler-service.js'
-import type { SwarmManager } from '../swarm/swarm-manager.js'
-
-interface SchedulesPayload {
-  schedules: ScheduledTask[]
-}
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CronSchedulerService } from "../scheduler/cron-scheduler-service.js";
+import type { ScheduledTask } from "../scheduler/schedule-types.js";
+import type { SwarmManager } from "../swarm/swarm-manager.js";
 
 function createSchedule(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
   return {
-    id: 'schedule-1',
-    name: 'Daily summary',
-    cron: '* * * * *',
-    message: 'Summarize unresolved issues from the board.',
+    id: "schedule-1",
+    managerId: "manager",
+    name: "Daily summary",
+    description: "Daily summary",
+    cron: "* * * * *",
+    message: "Summarize unresolved issues from the board.",
+    enabled: true,
     oneShot: false,
-    timezone: 'UTC',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    nextFireAt: '2025-12-31T23:59:00.000Z',
+    timezone: "UTC",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    nextFireAt: "2025-12-31T23:59:00.000Z",
     ...overrides,
-  }
+  };
 }
 
-async function readSchedulesFile(path: string): Promise<SchedulesPayload> {
-  return JSON.parse(await readFile(path, 'utf8')) as SchedulesPayload
+function createFakeSwarmManager(
+  initialSchedules: ScheduledTask[],
+  handleUserMessage = vi.fn(async () => undefined),
+) {
+  const schedules = new Map(
+    initialSchedules.map((schedule) => [schedule.id, { ...schedule }]),
+  );
+
+  const listSchedulesForManager = vi.fn(async (managerId: string) =>
+    [...schedules.values()]
+      .filter((schedule) => schedule.managerId === managerId)
+      .sort((left, right) => left.nextFireAt.localeCompare(right.nextFireAt))
+      .map((schedule) => ({ ...schedule })),
+  );
+
+  const updateScheduleForManager = vi.fn(async (managerId: string, schedule: ScheduledTask) => {
+    if (schedule.managerId !== managerId) {
+      throw new Error(`Schedule ${schedule.id} does not belong to manager ${managerId}.`);
+    }
+    schedules.set(schedule.id, { ...schedule });
+    return { ...schedule };
+  });
+
+  const removeScheduleForManager = vi.fn(async (managerId: string, scheduleId: string) => {
+    const schedule = schedules.get(scheduleId);
+    if (!schedule || schedule.managerId !== managerId) {
+      throw new Error(`Unknown schedule: ${scheduleId}`);
+    }
+    schedules.delete(scheduleId);
+    return { ...schedule };
+  });
+
+  const swarmManager = {
+    handleUserMessage,
+    listSchedulesForManager,
+    removeScheduleForManager,
+    updateScheduleForManager,
+  } as unknown as SwarmManager;
+
+  return {
+    swarmManager,
+    handleUserMessage,
+    listSchedulesForManager,
+    removeScheduleForManager,
+    updateScheduleForManager,
+    snapshot() {
+      return [...schedules.values()]
+        .sort((left, right) => left.nextFireAt.localeCompare(right.nextFireAt))
+        .map((schedule) => ({ ...schedule }));
+    },
+    upsert(schedule: ScheduledTask) {
+      schedules.set(schedule.id, { ...schedule });
+    },
+  };
 }
 
-async function writeSchedulesFile(path: string, payload: SchedulesPayload): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, JSON.stringify(payload, null, 2), 'utf8')
-}
+describe("CronSchedulerService", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
-describe('CronSchedulerService', () => {
-  it('fires due one-shot schedules on startup and removes them', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'swarm-cron-test-'))
-    const schedulesFile = join(root, 'schedules', 'manager.json')
-    const now = new Date('2026-01-01T00:00:00.000Z')
-    const dueAt = new Date('2025-12-31T23:59:00.000Z').toISOString()
-
-    await writeSchedulesFile(schedulesFile, {
-      schedules: [
-        createSchedule({
-          oneShot: true,
-          nextFireAt: dueAt,
-        }),
-      ],
-    })
-
-    const handleUserMessage = vi.fn(async () => undefined)
+  it("fires due one-shot schedules on startup and removes them", async () => {
+    const dueAt = new Date("2025-12-31T23:59:00.000Z").toISOString();
+    const fakeManager = createFakeSwarmManager([
+      createSchedule({
+        oneShot: true,
+        nextFireAt: dueAt,
+      }),
+    ]);
 
     const service = new CronSchedulerService({
-      swarmManager: {
-        handleUserMessage,
-      } as unknown as SwarmManager,
-      schedulesFile,
-      managerId: 'manager',
-      now: () => now,
+      swarmManager: fakeManager.swarmManager,
+      managerId: "manager",
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
       pollIntervalMs: 5_000,
-    })
+    });
 
-    await service.start()
-    await service.stop()
+    await service.start();
+    await service.stop();
 
-    expect(handleUserMessage).toHaveBeenCalledTimes(1)
-
-    const firstCall = handleUserMessage.mock.calls[0]
-    expect(firstCall).toBeDefined()
-    const [message, options] = firstCall as unknown as [
+    expect(fakeManager.handleUserMessage).toHaveBeenCalledTimes(1);
+    const [message, options] = fakeManager.handleUserMessage.mock.calls[0] as unknown as [
       string,
       { targetAgentId: string; sourceContext: { channel: string } },
-    ]
-    expect(message).toContain('[Scheduled Task: Daily summary]')
-    expect(message).toContain('"scheduleId":"schedule-1"')
+    ];
+    expect(message).toContain("[Scheduled Task: Daily summary]");
+    expect(message).toContain("\"scheduleId\":\"schedule-1\"");
     expect(options).toEqual({
-      targetAgentId: 'manager',
-      sourceContext: { channel: 'web' },
-    })
+      targetAgentId: "manager",
+      sourceContext: { channel: "web" },
+    });
+    expect(fakeManager.snapshot()).toEqual([]);
+  });
 
-    const stored = await readSchedulesFile(schedulesFile)
-    expect(stored.schedules).toEqual([])
-  })
-
-  it('advances recurring schedules and records lastFiredAt after a successful dispatch', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'swarm-cron-test-'))
-    const schedulesFile = join(root, 'schedules', 'manager.json')
-    const now = new Date('2026-01-01T00:00:00.000Z')
-    const dueAt = new Date('2025-12-31T23:59:00.000Z').toISOString()
-
-    await writeSchedulesFile(schedulesFile, {
-      schedules: [
-        createSchedule({
-          oneShot: false,
-          nextFireAt: dueAt,
-        }),
-      ],
-    })
-
-    const handleUserMessage = vi.fn(async () => undefined)
+  it("advances recurring schedules and records lastFiredAt after a successful dispatch", async () => {
+    const dueAt = new Date("2025-12-31T23:59:00.000Z").toISOString();
+    const fakeManager = createFakeSwarmManager([
+      createSchedule({
+        nextFireAt: dueAt,
+      }),
+    ]);
 
     const service = new CronSchedulerService({
-      swarmManager: {
-        handleUserMessage,
-      } as unknown as SwarmManager,
-      schedulesFile,
-      managerId: 'manager',
-      now: () => now,
+      swarmManager: fakeManager.swarmManager,
+      managerId: "manager",
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
       pollIntervalMs: 5_000,
-    })
+    });
 
-    await service.start()
-    await service.stop()
+    await service.start();
+    await service.stop();
 
-    expect(handleUserMessage).toHaveBeenCalledTimes(1)
+    const schedules = fakeManager.snapshot();
+    expect(fakeManager.handleUserMessage).toHaveBeenCalledTimes(1);
+    expect(schedules).toHaveLength(1);
+    expect(schedules[0]?.lastFiredAt).toBe(dueAt);
+    expect(Date.parse(schedules[0]?.nextFireAt ?? "")).toBeGreaterThan(Date.parse(dueAt));
+  });
 
-    const stored = await readSchedulesFile(schedulesFile)
-    expect(stored.schedules).toHaveLength(1)
-    expect(stored.schedules[0]?.lastFiredAt).toBe(dueAt)
-    expect(Date.parse(stored.schedules[0]?.nextFireAt ?? '')).toBeGreaterThan(Date.parse(dueAt))
-  })
-
-  it('does not mutate schedule state when dispatch fails', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'swarm-cron-test-'))
-    const schedulesFile = join(root, 'schedules', 'manager.json')
-    const now = new Date('2026-01-01T00:00:00.000Z')
-    const dueAt = new Date('2025-12-31T23:59:00.000Z').toISOString()
-
+  it("does not mutate schedule state when dispatch fails", async () => {
+    const dueAt = new Date("2025-12-31T23:59:00.000Z").toISOString();
     const original = createSchedule({
-      oneShot: false,
       nextFireAt: dueAt,
-    })
-
-    await writeSchedulesFile(schedulesFile, {
-      schedules: [original],
-    })
-
-    const handleUserMessage = vi.fn(async () => {
-      throw new Error('manager unavailable')
-    })
+    });
+    const fakeManager = createFakeSwarmManager(
+      [original],
+      vi.fn(async () => {
+        throw new Error("manager unavailable");
+      }),
+    );
 
     const service = new CronSchedulerService({
-      swarmManager: {
-        handleUserMessage,
-      } as unknown as SwarmManager,
-      schedulesFile,
-      managerId: 'manager',
-      now: () => now,
+      swarmManager: fakeManager.swarmManager,
+      managerId: "manager",
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
       pollIntervalMs: 5_000,
-    })
+    });
 
-    await service.start()
-    await service.stop()
+    await service.start();
+    await service.stop();
 
-    expect(handleUserMessage).toHaveBeenCalledTimes(1)
+    expect(fakeManager.handleUserMessage).toHaveBeenCalledTimes(1);
+    expect(fakeManager.snapshot()).toEqual([original]);
+  });
 
-    const stored = await readSchedulesFile(schedulesFile)
-    expect(stored.schedules).toEqual([original])
-  })
-
-  it('suppresses duplicate recurring occurrences already marked as fired', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'swarm-cron-test-'))
-    const schedulesFile = join(root, 'schedules', 'manager.json')
-    const now = new Date('2026-01-01T00:00:00.000Z')
-    const dueAt = new Date('2025-12-31T23:59:00.000Z').toISOString()
-
-    await writeSchedulesFile(schedulesFile, {
-      schedules: [
-        createSchedule({
-          oneShot: false,
-          nextFireAt: dueAt,
-          lastFiredAt: dueAt,
-        }),
-      ],
-    })
-
-    const handleUserMessage = vi.fn(async () => undefined)
+  it("suppresses duplicate recurring occurrences already marked as fired", async () => {
+    const dueAt = new Date("2025-12-31T23:59:00.000Z").toISOString();
+    const fakeManager = createFakeSwarmManager([
+      createSchedule({
+        nextFireAt: dueAt,
+        lastFiredAt: dueAt,
+      }),
+    ]);
 
     const service = new CronSchedulerService({
-      swarmManager: {
-        handleUserMessage,
-      } as unknown as SwarmManager,
-      schedulesFile,
-      managerId: 'manager',
-      now: () => now,
+      swarmManager: fakeManager.swarmManager,
+      managerId: "manager",
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
       pollIntervalMs: 5_000,
-    })
+    });
 
-    await service.start()
-    await service.stop()
+    await service.start();
+    await service.stop();
 
-    expect(handleUserMessage).toHaveBeenCalledTimes(0)
+    const schedules = fakeManager.snapshot();
+    expect(fakeManager.handleUserMessage).toHaveBeenCalledTimes(0);
+    expect(schedules).toHaveLength(1);
+    expect(schedules[0]?.lastFiredAt).toBe(dueAt);
+    expect(Date.parse(schedules[0]?.nextFireAt ?? "")).toBeGreaterThan(Date.parse(dueAt));
+  });
 
-    const stored = await readSchedulesFile(schedulesFile)
-    expect(stored.schedules).toHaveLength(1)
-    expect(stored.schedules[0]?.lastFiredAt).toBe(dueAt)
-    expect(Date.parse(stored.schedules[0]?.nextFireAt ?? '')).toBeGreaterThan(Date.parse(dueAt))
-  })
-})
+  it("refreshes immediately after a new due schedule is added", async () => {
+    const fakeManager = createFakeSwarmManager([]);
+    const service = new CronSchedulerService({
+      swarmManager: fakeManager.swarmManager,
+      managerId: "manager",
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+      pollIntervalMs: 60_000,
+    });
+
+    await service.start();
+    fakeManager.upsert(
+      createSchedule({
+        id: "schedule-2",
+        nextFireAt: "2025-12-31T23:59:00.000Z",
+        oneShot: true,
+      }),
+    );
+
+    service.refresh();
+    await service.stop();
+
+    expect(fakeManager.handleUserMessage).toHaveBeenCalledTimes(1);
+    expect(fakeManager.removeScheduleForManager).toHaveBeenCalledWith("manager", "schedule-2");
+    expect(fakeManager.snapshot()).toEqual([]);
+  });
+});

@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  CircleDot,
   Clock3,
   Code2,
   Database,
   FileCode2,
   FileText,
   Image,
-  ListTodo,
   Loader2,
   X,
 } from 'lucide-react'
@@ -21,17 +19,14 @@ import {
 } from '@/lib/collect-artifacts'
 import { resolveApiEndpoint } from '@/lib/api-endpoint'
 import { cn } from '@/lib/utils'
-import type { UserEscalation } from '@middleman/protocol'
 
 interface ArtifactsSidebarProps {
   wsUrl: string
   managerId: string
   artifacts: ArtifactReference[]
-  escalations: UserEscalation[]
   isOpen: boolean
   onClose: () => void
   onArtifactClick: (artifact: ArtifactReference) => void
-  onEscalationClick: (escalation: UserEscalation) => void
 }
 
 interface ScheduleRecord {
@@ -46,7 +41,7 @@ interface ScheduleRecord {
   lastFiredAt?: string
 }
 
-type SidebarTab = 'artifacts' | 'escalations' | 'schedules'
+type SidebarTab = 'artifacts' | 'schedules'
 
 function getCategoryIcon(category: ArtifactCategory) {
   switch (category) {
@@ -277,30 +272,16 @@ function describeCronExpression(cron: string): string {
 }
 
 function isSidebarTab(value: string): value is SidebarTab {
-  return value === 'artifacts' || value === 'escalations' || value === 'schedules'
-}
-
-function compareEscalations(left: UserEscalation, right: UserEscalation): number {
-  if (left.status !== right.status) {
-    return left.status === 'open' ? -1 : 1
-  }
-
-  if (left.createdAt !== right.createdAt) {
-    return right.createdAt.localeCompare(left.createdAt)
-  }
-
-  return right.id.localeCompare(left.id)
+  return value === 'artifacts' || value === 'schedules'
 }
 
 export function ArtifactsSidebar({
   wsUrl,
   managerId,
   artifacts,
-  escalations,
   isOpen,
   onClose,
   onArtifactClick,
-  onEscalationClick,
 }: ArtifactsSidebarProps) {
   const [activeTab, setActiveTab] = useState<SidebarTab>('artifacts')
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([])
@@ -312,14 +293,6 @@ export function ArtifactsSidebar({
     () => [...schedules].sort(sortSchedules),
     [schedules],
   )
-  const managerEscalations = useMemo(
-    () =>
-      escalations
-        .filter((escalation) => escalation.managerId === managerId)
-        .sort(compareEscalations),
-    [escalations, managerId],
-  )
-  const openEscalationCount = managerEscalations.filter((escalation) => escalation.status === 'open').length
 
   const selectedSchedule = useMemo(() => {
     if (sortedSchedules.length === 0) return null
@@ -404,12 +377,6 @@ export function ArtifactsSidebar({
               Artifacts
             </TabsTrigger>
             <TabsTrigger
-              value="escalations"
-              className="h-6 rounded-sm px-2.5 text-[11px] font-medium data-active:bg-background data-active:text-foreground data-active:shadow-sm"
-            >
-              Tasks
-            </TabsTrigger>
-            <TabsTrigger
               value="schedules"
               className="h-6 rounded-sm px-2.5 text-[11px] font-medium data-active:bg-background data-active:text-foreground data-active:shadow-sm"
             >
@@ -455,72 +422,6 @@ export function ArtifactsSidebar({
                     artifact={artifact}
                     onClick={onArtifactClick}
                   />
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="escalations" className="mt-0 min-h-0 flex-1">
-          <ScrollArea
-            className={cn(
-              'min-h-0 flex-1',
-              '[&>[data-slot=scroll-area-scrollbar]]:w-1.5',
-              '[&>[data-slot=scroll-area-scrollbar]>[data-slot=scroll-area-thumb]]:bg-transparent',
-              'hover:[&>[data-slot=scroll-area-scrollbar]>[data-slot=scroll-area-thumb]]:bg-border',
-            )}
-          >
-            {managerEscalations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
-                <ListTodo className="mb-2 size-8 text-muted-foreground/40" aria-hidden="true" />
-                <p className="text-xs text-muted-foreground">
-                  No tasks yet
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground/70">
-                  Requests and approvals from this manager will appear here.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-0.5 p-2">
-                <div className="px-2 py-1 text-[11px] text-muted-foreground">
-                  {openEscalationCount > 0
-                    ? `${openEscalationCount} open of ${managerEscalations.length}`
-                    : `${managerEscalations.length} resolved`}
-                </div>
-                {managerEscalations.map((escalation) => (
-                  <button
-                    key={escalation.id}
-                    type="button"
-                    className={cn(
-                      'group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left',
-                      'transition-colors duration-100',
-                      'hover:bg-accent/70',
-                      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60',
-                    )}
-                    onClick={() => onEscalationClick(escalation)}
-                    title={escalation.title}
-                  >
-                    <span
-                      className={cn(
-                        'inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors',
-                        escalation.status === 'open'
-                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                          : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
-                      )}
-                    >
-                      <CircleDot className="size-3.5" aria-hidden="true" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-medium text-foreground">
-                        {escalation.title}
-                      </span>
-                      <span className="block truncate text-[10px] text-muted-foreground/70">
-                        {escalation.status === 'open'
-                          ? 'Awaiting response'
-                          : escalation.response?.choice ?? 'Resolved'}
-                      </span>
-                    </span>
-                  </button>
                 ))}
               </div>
             )}

@@ -14,14 +14,17 @@
     "apps/backend",
     "apps/ui",
     "apps/site",
-    "packages/protocol"
+    "packages/protocol",
+    "packages/swarmd"
   ],
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --names backend,ui \"pnpm --filter @middleman/backend dev\" \"pnpm --filter @middleman/ui dev -- --host ${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)}\"",
-    "dev:backend": "pnpm --filter @middleman/backend dev",
-    "dev:ui": "pnpm --filter @middleman/ui dev -- --host ${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)}",
+    "dev": "concurrently --kill-others-on-fail --names swarmd,backend,ui \"pnpm dev:swarmd\" \"pnpm dev:backend\" \"pnpm dev:ui\"",
+    "dev:swarmd": "pnpm --filter swarmd dev",
+    "dev:backend": "MIDDLEMAN_INSTALL_DIR=$(pwd) MIDDLEMAN_PROJECT_ROOT=$(pwd) pnpm --filter @middleman/backend dev",
+    "dev:ui": "MIDDLEMAN_INSTALL_DIR=$(pwd) MIDDLEMAN_PROJECT_ROOT=$(pwd) VITE_MIDDLEMAN_WS_URL=${VITE_MIDDLEMAN_WS_URL:-ws://${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)}:${MIDDLEMAN_PORT:-47187}} pnpm --filter @middleman/ui dev -- --host ${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)}",
     "dev:site": "pnpm --filter @middleman/site dev",
-    "build": "pnpm --filter @middleman/cli build && pnpm --filter @middleman/backend build && pnpm --filter @middleman/ui build && pnpm build:npm-package && pnpm --filter @middleman/site build",
+    "predev": "pnpm --filter swarmd build",
+    "build": "pnpm --filter swarmd build && pnpm --filter @middleman/cli build && pnpm --filter @middleman/backend build && pnpm --filter @middleman/ui build && pnpm build:npm-package && pnpm --filter @middleman/site build",
     "build:npm-package": "node scripts/build-npm-package.mjs",
     "prod": "pnpm build && pnpm prod:start",
     "prod:debug": "MINIFY=false pnpm build && pnpm prod:start",
@@ -30,7 +33,8 @@
     "prod:debug:daemon": "SWARM_PROD_DAEMON_COMMAND='pnpm prod:debug' pnpm prod:daemon",
     "prod:restart": "node scripts/prod-daemon-restart.mjs",
     "sessions:prune": "node scripts/prune-session-jsonl.mjs",
-    "test": "pnpm --filter @middleman/backend test && pnpm --filter @middleman/ui test"
+    "pretest": "pnpm --filter swarmd build",
+    "test": "pnpm --filter swarmd test && pnpm --filter @middleman/backend test && pnpm --filter @middleman/ui test"
   },
   "pnpm": {
     "overrides": {

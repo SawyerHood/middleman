@@ -86,53 +86,6 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
     };
   }
 
-  if (maybe.type === "get_all_escalations") {
-    const requestId = (maybe as { requestId?: unknown }).requestId;
-
-    if (requestId !== undefined && typeof requestId !== "string") {
-      return { ok: false, error: "get_all_escalations.requestId must be a string when provided" };
-    }
-
-    return {
-      ok: true,
-      command: {
-        type: "get_all_escalations",
-        requestId
-      }
-    };
-  }
-
-  if (maybe.type === "resolve_escalation") {
-    const escalationId = (maybe as { escalationId?: unknown }).escalationId;
-    const choice = (maybe as { choice?: unknown }).choice;
-    const isCustom = (maybe as { isCustom?: unknown }).isCustom;
-    const requestId = (maybe as { requestId?: unknown }).requestId;
-
-    if (typeof escalationId !== "string" || escalationId.trim().length === 0) {
-      return { ok: false, error: "resolve_escalation.escalationId must be a non-empty string" };
-    }
-    if (typeof choice !== "string" || choice.trim().length === 0) {
-      return { ok: false, error: "resolve_escalation.choice must be a non-empty string" };
-    }
-    if (typeof isCustom !== "boolean") {
-      return { ok: false, error: "resolve_escalation.isCustom must be a boolean" };
-    }
-    if (requestId !== undefined && typeof requestId !== "string") {
-      return { ok: false, error: "resolve_escalation.requestId must be a string when provided" };
-    }
-
-    return {
-      ok: true,
-      command: {
-        type: "resolve_escalation",
-        escalationId: escalationId.trim(),
-        choice: choice.trim(),
-        isCustom,
-        requestId
-      }
-    };
-  }
-
   if (maybe.type === "kill_agent") {
     if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
       return { ok: false, error: "kill_agent.agentId must be a non-empty string" };
@@ -344,8 +297,6 @@ export function extractRequestId(command: ClientCommand): string | undefined {
     case "list_directories":
     case "validate_directory":
     case "pick_directory":
-    case "get_all_escalations":
-    case "resolve_escalation":
       return command.requestId;
 
     case "subscribe":

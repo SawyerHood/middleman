@@ -187,10 +187,6 @@ function classifyLine(line) {
     return { keep: true };
   }
 
-  if (data.type === "conversation_escalation") {
-    return { keep: true };
-  }
-
   if (data.type === "conversation_message") {
     if (data.source === "user_input" || data.source === "speak_to_user") {
       return { keep: true };
@@ -391,7 +387,7 @@ Behavior:
   session files: agent tool activity, internal agent messages, conversation logs, and
   non-user-visible conversation messages. It preserves session headers, real message entries,
   runtime state custom entries, user_input transcript entries, speak_to_user transcript entries,
-  and conversation escalations.
+  and other user-visible transcript entries.
 
 Warning:
   Pi session files are append-only trees. Deleting intermediate nodes can break parentId chains

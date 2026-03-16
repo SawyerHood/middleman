@@ -8,7 +8,11 @@ export interface ParsedSkillEnvDeclaration {
   helpUrl?: string;
 }
 
-export function parseSkillFrontmatter(markdown: string): { name?: string; env: ParsedSkillEnvDeclaration[] } {
+export function parseSkillFrontmatter(markdown: string): {
+  name?: string;
+  description?: string;
+  env: ParsedSkillEnvDeclaration[];
+} {
   const match = SKILL_FRONTMATTER_BLOCK_PATTERN.exec(markdown);
   if (!match) {
     return { env: [] };
@@ -16,6 +20,7 @@ export function parseSkillFrontmatter(markdown: string): { name?: string; env: P
 
   const lines = match[1].split(/\r?\n/);
   let skillName: string | undefined;
+  let skillDescription: string | undefined;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -33,12 +38,20 @@ export function parseSkillFrontmatter(markdown: string): { name?: string; env: P
       if (candidate) {
         skillName = candidate;
       }
-      break;
+      continue;
+    }
+
+    if (parsed.key === "description") {
+      const candidate = parseYamlStringValue(parsed.value);
+      if (candidate) {
+        skillDescription = candidate;
+      }
     }
   }
 
   return {
     name: skillName,
+    description: skillDescription,
     env: parseSkillEnvDeclarations(lines)
   };
 }

@@ -1,10 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getSlackConfigPath } from '../integrations/slack/slack-config.js'
-import { getTelegramConfigPath } from '../integrations/telegram/telegram-config.js'
 
 const mockState = vi.hoisted(() => ({
   slackInstances: [] as any[],
@@ -122,13 +117,12 @@ import { IntegrationRegistryService } from '../integrations/registry.js'
 interface FakeManagerOptions {
   configuredManagerId?: string
   listedManagerIds?: string[]
+  integrationProfileManagerIds?: string[]
 }
 
-function createFakeSwarmManager(options: FakeManagerOptions = {}): {
-  getConfig: () => { managerId?: string }
-  listAgents: () => Array<{ agentId: string; role: 'manager' }>
-} {
+function createFakeSwarmManager(options: FakeManagerOptions = {}) {
   const listedManagerIds = options.listedManagerIds ?? []
+  const integrationProfileManagerIds = options.integrationProfileManagerIds ?? []
 
   return {
     getConfig: () => ({
@@ -137,14 +131,17 @@ function createFakeSwarmManager(options: FakeManagerOptions = {}): {
     listAgents: () =>
       listedManagerIds.map((managerId) => ({
         agentId: managerId,
-        role: 'manager',
+        role: 'manager' as const,
+      })),
+    listIntegrationProfiles: () =>
+      integrationProfileManagerIds.map((managerId) => ({
+        id: `slack:${managerId}`,
+        managerId,
+        provider: 'slack' as const,
+        config: {},
+        updatedAt: '2026-01-01T00:00:00.000Z',
       })),
   }
-}
-
-async function writeJsonFile(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, JSON.stringify(value, null, 2), 'utf8')
 }
 
 afterEach(() => {
@@ -154,14 +151,11 @@ afterEach(() => {
 
 describe('IntegrationRegistryService', () => {
   it('starts manager-scoped integration profiles for configured managers', async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), 'swarm-registry-test-'))
-
     const registry = new IntegrationRegistryService({
       swarmManager: createFakeSwarmManager({
         configuredManagerId: 'primary-manager',
         listedManagerIds: ['primary-manager'],
       }) as any,
-      dataDir,
     })
 
     await registry.start()
@@ -175,16 +169,13 @@ describe('IntegrationRegistryService', () => {
     expect(mockState.telegramInstances[0]?.stop).toHaveBeenCalledTimes(1)
   })
 
-  it('discovers managers from config, in-memory descriptors, and on-disk profiles', async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), 'swarm-registry-test-'))
-    await writeJsonFile(getSlackConfigPath(dataDir, 'disk-manager'), {})
-
+  it('discovers managers from config, live descriptors, and stored integration profiles', async () => {
     const registry = new IntegrationRegistryService({
       swarmManager: createFakeSwarmManager({
         configuredManagerId: 'configured-manager',
         listedManagerIds: ['live-manager'],
+        integrationProfileManagerIds: ['stored-manager'],
       }) as any,
-      dataDir,
     })
 
     await registry.start()
@@ -192,25 +183,15 @@ describe('IntegrationRegistryService', () => {
     const slackManagers = new Set(mockState.slackInstances.map((instance) => instance.managerId))
     const telegramManagers = new Set(mockState.telegramInstances.map((instance) => instance.managerId))
 
-    expect(slackManagers).toEqual(new Set(['configured-manager', 'live-manager', 'disk-manager']))
-    expect(telegramManagers).toEqual(new Set(['configured-manager', 'live-manager', 'disk-manager']))
-
-    for (const instance of mockState.slackInstances) {
-      expect(instance.start).toHaveBeenCalledTimes(1)
-    }
-    for (const instance of mockState.telegramInstances) {
-      expect(instance.start).toHaveBeenCalledTimes(1)
-    }
+    expect(slackManagers).toEqual(new Set(['configured-manager', 'live-manager', 'stored-manager']))
+    expect(telegramManagers).toEqual(new Set(['configured-manager', 'live-manager', 'stored-manager']))
   })
 
   it('forwards status events from started profiles', async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), 'swarm-registry-test-'))
-
     const registry = new IntegrationRegistryService({
       swarmManager: createFakeSwarmManager({
         configuredManagerId: 'manager',
       }) as any,
-      dataDir,
     })
 
     await registry.start()
@@ -253,5 +234,24 @@ describe('IntegrationRegistryService', () => {
         state: 'connected',
       }),
     )
+  })
+
+  it('unregisters integrations when a manager disappears from the live manager set', async () => {
+    const registry = new IntegrationRegistryService({
+      swarmManager: createFakeSwarmManager({
+        listedManagerIds: ['manager-a'],
+      }) as any,
+    })
+
+    await registry.start()
+    await registry.syncManagers(new Set(['manager-b']))
+
+    const slackA = mockState.slackInstances.find((instance) => instance.managerId === 'manager-a')
+    const telegramA = mockState.telegramInstances.find((instance) => instance.managerId === 'manager-a')
+
+    expect(slackA?.stop).toHaveBeenCalledTimes(1)
+    expect(telegramA?.stop).toHaveBeenCalledTimes(1)
+    expect(mockState.slackInstances.map((instance) => instance.managerId)).toEqual(['manager-a', 'manager-b'])
+    expect(mockState.telegramInstances.map((instance) => instance.managerId)).toEqual(['manager-a', 'manager-b'])
   })
 })

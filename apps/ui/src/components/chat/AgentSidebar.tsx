@@ -13,33 +13,30 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { ChevronDown, ChevronRight, CircleDashed, FileText, ListTodo, Settings, SquarePen, UserStar, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleDashed, FileText, Settings, SquarePen, UserStar, X } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { buildManagerTreeRows } from '@/lib/agent-hierarchy'
+import { isWorkingAgentStatus } from '@/lib/agent-status'
 import { moveVisibleManagersWithinOrder, normalizeManagerOrder } from '@/lib/manager-order'
 import { inferModelPreset } from '@/lib/model-preset'
 import { cn } from '@/lib/utils'
 import type {
-  AgentContextUsage,
   AgentDescriptor,
   AgentStatus,
   ManagerModelPreset,
-  UserEscalation,
 } from '@middleman/protocol'
 
 interface AgentSidebarProps {
   connected: boolean
   agents: AgentDescriptor[]
   managerOrder: string[]
-  statuses: Record<string, { status: AgentStatus; pendingCount: number; contextUsage?: AgentContextUsage }>
+  statuses: Record<string, { status: AgentStatus; pendingCount: number }>
   selectedAgentId: string | null
   isSettingsActive: boolean
-  isEscalationsActive: boolean
   isNotesActive: boolean
-  escalations: UserEscalation[]
   isMobileOpen?: boolean
   onMobileClose?: () => void
   onAddManager: () => void
@@ -48,7 +45,6 @@ interface AgentSidebarProps {
   onDeleteManager: (managerId: string) => void
   onReorderManagers: (managerIds: string[]) => void
   onOpenNotes: () => void
-  onOpenEscalations: () => void
   onOpenSettings: () => void
 }
 
@@ -68,7 +64,7 @@ function ClaudeCodeIconPair({ className }: { className?: string }) {
 
 function getAgentLiveStatus(
   agent: AgentDescriptor,
-  statuses: Record<string, { status: AgentStatus; pendingCount: number; contextUsage?: AgentContextUsage }>,
+  statuses: Record<string, { status: AgentStatus; pendingCount: number }>,
 ): AgentLiveStatus {
   const live = statuses[agent.agentId]
   return {
@@ -231,7 +227,7 @@ function AgentRow({
   streamingWorkerCount?: number
 }) {
   const title = agent.displayName || agent.agentId
-  const isActive = liveStatus.status === 'streaming'
+  const isActive = isWorkingAgentStatus(liveStatus.status)
   const preset = inferModelPreset(agent)
   const modelLabel = getModelLabel(agent, preset)
   const modelDescription = `${agent.model.provider}/${agent.model.modelId}`
@@ -311,7 +307,7 @@ function SortableManagerRow({
 }: {
   manager: AgentDescriptor
   workers: AgentDescriptor[]
-  statuses: Record<string, { status: AgentStatus; pendingCount: number; contextUsage?: AgentContextUsage }>
+  statuses: Record<string, { status: AgentStatus; pendingCount: number }>
   selectedAgentId: string | null
   isSelectionSuppressed: boolean
   isCollapsed: boolean
@@ -336,7 +332,7 @@ function SortableManagerRow({
   const managerLiveStatus = getAgentLiveStatus(manager, statuses)
   const managerIsSelected = !isSelectionSuppressed && selectedAgentId === manager.agentId
   const streamingWorkerCount = isCollapsed
-    ? workers.filter((worker) => getAgentLiveStatus(worker, statuses).status === 'streaming').length
+    ? workers.filter((worker) => isWorkingAgentStatus(getAgentLiveStatus(worker, statuses).status)).length
     : 0
 
   return (
@@ -446,9 +442,7 @@ export function AgentSidebar({
   statuses,
   selectedAgentId,
   isSettingsActive,
-  isEscalationsActive,
   isNotesActive,
-  escalations,
   isMobileOpen = false,
   onMobileClose,
   onAddManager,
@@ -457,16 +451,14 @@ export function AgentSidebar({
   onDeleteManager,
   onReorderManagers,
   onOpenNotes,
-  onOpenEscalations,
   onOpenSettings,
 }: AgentSidebarProps) {
   const normalizedManagerOrder = normalizeManagerOrder(managerOrder, agents)
   const { managerRows, orphanWorkers } = buildManagerTreeRows(agents, normalizedManagerOrder)
   const [expandedManagerIds, setExpandedManagerIds] = useState<Set<string>>(() => new Set())
-  const openEscalationCount = escalations.filter((escalation) => escalation.status === 'open').length
   const visibleManagerIds = managerRows.map(({ manager }) => manager.agentId)
   const canDragManagers = visibleManagerIds.length > 1
-  const isSelectionSuppressed = isSettingsActive || isEscalationsActive || isNotesActive
+  const isSelectionSuppressed = isSettingsActive || isNotesActive
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -502,11 +494,6 @@ export function AgentSidebar({
 
   const handleOpenNotes = () => {
     onOpenNotes()
-    onMobileClose?.()
-  }
-
-  const handleOpenEscalations = () => {
-    onOpenEscalations()
     onMobileClose?.()
   }
 
@@ -595,7 +582,7 @@ export function AgentSidebar({
       >
         {managerRows.length === 0 ? (
           <p className="rounded-md bg-sidebar-accent/50 px-3 py-4 text-center text-xs text-muted-foreground">
-            No active agents.
+            No agents yet.
           </p>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -667,27 +654,6 @@ export function AgentSidebar({
           >
             <FileText aria-hidden="true" className="size-4" />
             <span className="flex-1 text-left">Notes</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenEscalations}
-            className={cn(
-              'flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
-              isEscalationsActive
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
-            )}
-            aria-pressed={isEscalationsActive}
-          >
-            <ListTodo aria-hidden="true" className="size-4" />
-            <span className="flex-1 text-left">Your Tasks</span>
-            {openEscalationCount > 0 ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium tabular-nums text-amber-600 dark:text-amber-400">
-                <span className="size-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
-                {openEscalationCount}
-              </span>
-            ) : null}
           </button>
 
           <button

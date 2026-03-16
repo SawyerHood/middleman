@@ -20,13 +20,16 @@ export interface BaseIntegrationServiceOptions<
   TStatusUpdate
 > {
   swarmManager: SwarmManager;
-  dataDir: string;
   managerId: string;
   defaultConfig: TConfig;
   statusTracker: IntegrationStatusTracker<TStatusEvent, TStatusUpdate>;
   statusEventName: string;
-  loadConfig: (options: { dataDir: string; managerId: string }) => Promise<TConfig>;
-  saveConfig: (options: { dataDir: string; managerId: string; config: TConfig }) => Promise<void>;
+  loadConfig: (options: { swarmManager: SwarmManager; managerId: string }) => Promise<TConfig>;
+  saveConfig: (options: {
+    swarmManager: SwarmManager;
+    managerId: string;
+    config: TConfig;
+  }) => Promise<void>;
   mergeConfig: (base: TConfig, patch: unknown) => TConfig;
   maskConfig: (config: TConfig) => TPublicConfig;
 }
@@ -38,15 +41,17 @@ export abstract class BaseIntegrationService<
   TStatusUpdate
 > extends EventEmitter {
   protected readonly swarmManager: SwarmManager;
-  protected readonly dataDir: string;
   protected readonly managerId: string;
   protected config: TConfig;
   protected readonly statusTracker: IntegrationStatusTracker<TStatusEvent, TStatusUpdate>;
 
   private readonly statusEventName: string;
-  private readonly loadConfigFn: (options: { dataDir: string; managerId: string }) => Promise<TConfig>;
+  private readonly loadConfigFn: (options: {
+    swarmManager: SwarmManager;
+    managerId: string;
+  }) => Promise<TConfig>;
   private readonly saveConfigFn: (options: {
-    dataDir: string;
+    swarmManager: SwarmManager;
     managerId: string;
     config: TConfig;
   }) => Promise<void>;
@@ -62,7 +67,6 @@ export abstract class BaseIntegrationService<
     super();
 
     this.swarmManager = options.swarmManager;
-    this.dataDir = options.dataDir;
     this.managerId = normalizeManagerId(options.managerId);
     this.config = options.defaultConfig;
     this.statusTracker = options.statusTracker;
@@ -88,7 +92,7 @@ export abstract class BaseIntegrationService<
 
       try {
         this.config = await this.loadConfigFn({
-          dataDir: this.dataDir,
+          swarmManager: this.swarmManager,
           managerId: this.managerId
         });
       } catch (error) {
@@ -143,7 +147,7 @@ export abstract class BaseIntegrationService<
       const nextConfig = this.mergeConfigFn(this.config, patch);
 
       await this.saveConfigFn({
-        dataDir: this.dataDir,
+        swarmManager: this.swarmManager,
         managerId: this.managerId,
         config: nextConfig
       });

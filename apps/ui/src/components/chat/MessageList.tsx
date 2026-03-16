@@ -11,14 +11,12 @@ import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { ArtifactReference } from '@/lib/artifacts'
 import { cn } from '@/lib/utils'
-import type { ConversationEntry, UserEscalation } from '@middleman/protocol'
+import type { ConversationEntry } from '@middleman/protocol'
 import { AgentMessageRow } from './message-list/AgentMessageRow'
 import { ConversationMessageRow } from './message-list/ConversationMessageRow'
 import { EmptyState } from './message-list/EmptyState'
-import { EscalationMessageRow } from './message-list/EscalationMessageRow'
 import { ToolLogRow } from './message-list/ToolLogRow'
 import type {
-  ConversationEscalationEntry,
   ConversationLogEntry,
   ToolExecutionDisplayEntry,
   ToolExecutionEvent,
@@ -32,13 +30,6 @@ interface MessageListProps {
   isWorkerDetailView?: boolean
   onSuggestionClick?: (suggestion: string) => void
   onArtifactClick?: (artifact: ArtifactReference) => void
-  escalations?: UserEscalation[]
-  onResolveEscalation?: (input: {
-    escalationId: string
-    choice: string
-    isCustom: boolean
-  }) => Promise<void>
-  onOpenEscalationsView?: () => void
   wsUrl?: string
 }
 
@@ -53,11 +44,6 @@ type DisplayEntry =
       type: 'conversation_message'
       id: string
       message: Extract<ConversationEntry, { type: 'conversation_message' }>
-    }
-  | {
-      type: 'conversation_escalation'
-      id: string
-      message: ConversationEscalationEntry
     }
   | {
       type: 'agent_message'
@@ -228,15 +214,6 @@ function buildDisplayEntries(messages: ConversationEntry[]): DisplayEntry[] {
       continue
     }
 
-    if (message.type === 'conversation_escalation') {
-      displayEntries.push({
-        type: 'conversation_escalation',
-        id: `escalation-${message.escalation.id}-${message.timestamp}-${index}`,
-        message,
-      })
-      continue
-    }
-
     if (message.type === 'agent_message') {
       displayEntries.push({
         type: 'agent_message',
@@ -391,9 +368,6 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
   isWorkerDetailView = false,
   onSuggestionClick,
   onArtifactClick,
-  escalations = [],
-  onResolveEscalation,
-  onOpenEscalationsView,
   wsUrl,
 }, ref) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -406,10 +380,6 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
   const [showScrollButton, setShowScrollButton] = useState(false)
 
   const displayEntries = useMemo(() => buildDisplayEntries(messages), [messages])
-  const escalationById = useMemo(
-    () => new Map(escalations.map((escalation) => [escalation.id, escalation])),
-    [escalations],
-  )
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = scrollContainerRef.current
@@ -511,7 +481,6 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
         )}
       >
         <div className="p-2 md:p-3">
-          {/* Keep rows fully laid out so bottom scroll calculations stay accurate across thread switches. */}
           {displayEntries.map((entry, index) => {
             const previousEntry = index > 0 ? displayEntries[index - 1] : undefined
             const rowSpacingClass = getDisplayEntrySpacingClass(
@@ -530,21 +499,6 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
                     message={entry.message}
                     onArtifactClick={onArtifactClick}
                     wsUrl={wsUrl}
-                  />
-                </div>
-              )
-            }
-
-            if (entry.type === 'conversation_escalation') {
-              return (
-                <div
-                  key={entry.id}
-                  className={rowSpacingClass}
-                >
-                  <EscalationMessageRow
-                    escalation={escalationById.get(entry.message.escalation.id) ?? entry.message.escalation}
-                    onResolveEscalation={onResolveEscalation}
-                    onOpenEscalationsView={onOpenEscalationsView}
                   />
                 </div>
               )

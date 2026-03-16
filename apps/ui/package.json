@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 47188 --strictPort",
+    "dev": "vite dev --port ${MIDDLEMAN_UI_PORT:-47188} --strictPort",
     "build": "vite build",
     "preview": "vite preview --port 47189 --strictPort",
     "test": "vitest run"

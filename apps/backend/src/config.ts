@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -29,23 +29,16 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
   const configEnvFile = resolve(dataDir, "config.env");
   const runDir = resolve(dataDir, "run");
   const logsDir = resolve(dataDir, "logs");
-  const schedulesDir = resolve(dataDir, "schedules");
-  const integrationsDir = resolve(dataDir, "integrations");
-  const swarmDir = resolve(dataDir, "swarm");
-  const sessionsDir = resolve(dataDir, "sessions");
+  const swarmdDbFile = resolve(dataDir, "swarmd.db");
+  const runtimeScratchDir = resolve(dataDir, "runtime");
   const uploadsDir = resolve(dataDir, "uploads");
   const authDir = resolve(dataDir, "auth");
   const authFile = resolve(authDir, "auth.json");
-  migrateLegacyPiAuthFileIfNeeded(authFile);
-  const agentDir = resolve(dataDir, "agent");
-  const managerAgentDir = resolve(agentDir, "manager");
   const projectSwarmDir = resolve(projectRoot, ".swarm");
   const projectArchetypesDir = resolve(projectSwarmDir, "archetypes");
   const projectSkillsDir = resolve(projectSwarmDir, "skills");
   const memoryDir = getMemoryDirPath(dataDir);
-  const memoryFile = undefined;
   const projectMemorySkillFile = resolve(projectSkillsDir, "memory", "SKILL.md");
-  const secretsFile = resolve(dataDir, "secrets.json");
   const defaultCwd = projectRoot;
 
   const cwdAllowlistRoots = normalizeAllowlistRoots([
@@ -59,10 +52,9 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
     debug: true,
     allowNonManagerSubscriptions: true,
     managerId,
-    managerDisplayName: "Manager",
     defaultModel: {
-      provider: "openai-codex",
-      modelId: "gpt-5.3-codex",
+      provider: "openai-codex-app-server",
+      modelId: "gpt-5.4",
       thinkingLevel: "xhigh"
     },
     defaultCwd,
@@ -80,24 +72,16 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
       projectSkillsDir,
       projectMemorySkillFile,
       dataDir,
+      swarmdDbFile,
+      runtimeScratchDir,
       configFile,
       configEnvFile,
       runDir,
       logsDir,
-      schedulesDir,
-      integrationsDir,
-      swarmDir,
-      sessionsDir,
       uploadsDir,
       authDir,
       authFile,
-      agentDir,
-      managerAgentDir,
       memoryDir,
-      memoryFile,
-      agentsStoreFile: resolve(swarmDir, "agents.json"),
-      secretsFile,
-      schedulesFile: undefined
     }
   };
 }
@@ -213,24 +197,5 @@ function readPackageName(packageJsonPath: string): string | undefined {
     return typeof packageJson.name === "string" ? packageJson.name : undefined;
   } catch {
     return undefined;
-  }
-}
-
-function migrateLegacyPiAuthFileIfNeeded(targetAuthFile: string): void {
-  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
-    return;
-  }
-
-  const legacyPiAuthFile = resolve(homedir(), ".pi", "agent", "auth.json");
-  if (existsSync(targetAuthFile) || !existsSync(legacyPiAuthFile)) {
-    return;
-  }
-
-  try {
-    mkdirSync(dirname(targetAuthFile), { recursive: true });
-    copyFileSync(legacyPiAuthFile, targetAuthFile);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[swarm] Failed to migrate legacy Pi auth file: ${message}`);
   }
 }

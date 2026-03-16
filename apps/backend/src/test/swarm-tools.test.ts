@@ -18,7 +18,6 @@ function makeManagerDescriptor(agentId = 'manager'): AgentDescriptor {
       modelId: 'gpt-5.3-codex',
       thinkingLevel: 'xhigh',
     },
-    sessionFile: `/tmp/swarm/${agentId}.jsonl`,
   }
 }
 
@@ -37,7 +36,6 @@ function makeWorkerDescriptor(agentId: string, managerId = 'manager'): AgentDesc
       modelId: 'claude-opus-4-6',
       thinkingLevel: 'xhigh',
     },
-    sessionFile: `/tmp/swarm/${agentId}.jsonl`,
   }
 }
 
@@ -297,6 +295,125 @@ describe('buildSwarmTools', () => {
     expect(textContent?.text).toContain('"agentId": "manager-two"')
     expect(textContent?.text).toContain('"isExternal": true')
     expect(textContent?.text).not.toContain('worker-external')
+  })
+
+  it('passes includeArchived through to the host and still hides archived agents by default', async () => {
+    const archivedWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor('worker-archived'),
+      status: 'terminated',
+    }
+    const listCalls: Array<{ includeArchived?: boolean } | undefined> = []
+
+    const host: SwarmToolHost = {
+      listAgents: (options) => {
+        listCalls.push(options)
+        return [
+          makeManagerDescriptor(),
+          makeWorkerDescriptor('worker-active'),
+          ...(options?.includeArchived ? [archivedWorker] : []),
+        ]
+      },
+      spawnAgent: async () => makeWorkerDescriptor('worker'),
+      killAgent: async () => {},
+      sendMessage: async () => ({
+        targetAgentId: 'worker',
+        deliveryId: 'delivery-1',
+        acceptedMode: 'prompt',
+      }),
+      publishToUser: async () => ({
+        targetContext: { channel: 'web' },
+      }),
+    }
+
+    const tools = buildSwarmTools(host, makeManagerDescriptor())
+    const listAgentsTool = tools.find((tool) => tool.name === 'list_agents')
+    expect(listAgentsTool).toBeDefined()
+
+    const defaultResult = await listAgentsTool!.execute(
+      'tool-call',
+      {},
+      undefined,
+      undefined,
+      undefined as any,
+    )
+
+    expect(listCalls[0]).toEqual({ includeArchived: false })
+    expect(defaultResult.details).toEqual({
+      agents: [
+        {
+          agentId: 'manager',
+          role: 'manager',
+          managerId: 'manager',
+          status: 'idle',
+          model: {
+            provider: 'openai-codex',
+            modelId: 'gpt-5.3-codex',
+            thinkingLevel: 'xhigh',
+          },
+        },
+        {
+          agentId: 'worker-active',
+          role: 'worker',
+          managerId: 'manager',
+          status: 'idle',
+          model: {
+            provider: 'anthropic',
+            modelId: 'claude-opus-4-6',
+            thinkingLevel: 'xhigh',
+          },
+        },
+      ],
+    })
+
+    const archivedResult = await listAgentsTool!.execute(
+      'tool-call',
+      {
+        includeArchived: true,
+        includeTerminated: true,
+      },
+      undefined,
+      undefined,
+      undefined as any,
+    )
+
+    expect(listCalls[1]).toEqual({ includeArchived: true })
+    expect(archivedResult.details).toEqual({
+      agents: [
+        {
+          agentId: 'manager',
+          role: 'manager',
+          managerId: 'manager',
+          status: 'idle',
+          model: {
+            provider: 'openai-codex',
+            modelId: 'gpt-5.3-codex',
+            thinkingLevel: 'xhigh',
+          },
+        },
+        {
+          agentId: 'worker-active',
+          role: 'worker',
+          managerId: 'manager',
+          status: 'idle',
+          model: {
+            provider: 'anthropic',
+            modelId: 'claude-opus-4-6',
+            thinkingLevel: 'xhigh',
+          },
+        },
+        {
+          agentId: 'worker-archived',
+          role: 'worker',
+          managerId: 'manager',
+          status: 'terminated',
+          model: {
+            provider: 'anthropic',
+            modelId: 'claude-opus-4-6',
+            thinkingLevel: 'xhigh',
+          },
+        },
+      ],
+    })
   })
 
   it('propagates spawn_agent model preset to host.spawnAgent', async () => {

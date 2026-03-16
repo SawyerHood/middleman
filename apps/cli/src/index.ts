@@ -9,10 +9,15 @@ interface ParsedCommand {
   options: Map<string, string[]>
 }
 
-interface EscalationResponse<T = unknown> {
-  escalation?: T
-  escalations?: T[]
+interface ScheduleResponse<T = unknown> {
+  action?: 'add' | 'list' | 'remove'
+  count?: number
   error?: string
+  managerId?: string
+  ok?: boolean
+  removed?: boolean
+  schedule?: T
+  schedules?: T[]
 }
 
 interface StartCommandOptions {
@@ -66,13 +71,9 @@ export async function runCli(argv: string[]): Promise<void> {
       await handleDoctor()
       return
     case 'task':
-      throw new Error('`middleman task` has been removed. Use `middleman escalation ...` instead.')
-    case 'escalation':
-    case 'escalate':
-      await handleEscalation(argv.slice(1))
-      return
+      throw new Error('`middleman task` has been removed.')
     case 'schedule':
-      await runHelperScript(resolveSkillScriptPath('cron-scheduling', 'schedule.js'), argv.slice(1))
+      await handleSchedule(argv.slice(1))
       return
     case 'image':
       if (subcommand !== 'generate') {
@@ -160,92 +161,82 @@ async function handleDoctor(): Promise<void> {
   })
 }
 
-async function handleEscalation(argv: string[]): Promise<void> {
+async function handleSchedule(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv)
 
   if (parsed.commandPath.length === 0 || hasHelpFlag(parsed)) {
-    printEscalationUsage()
+    printScheduleUsage()
     return
   }
 
-  const [action, maybeEscalationId] = parsed.commandPath
+  const managerId = requireScheduleManagerId(parsed)
+  const [action, maybeScheduleId] = parsed.commandPath
+
   switch (action) {
     case 'add':
-      await handleEscalationAdd(parsed)
+      await handleScheduleAdd(managerId, parsed)
       return
     case 'list':
-      await handleEscalationList(parsed)
+      await handleScheduleList(managerId)
       return
-    case 'get':
-      if (!maybeEscalationId) {
-        throw new Error('escalation get requires an escalation id')
+    case 'remove':
+      if (!maybeScheduleId) {
+        throw new Error('schedule remove requires a schedule id')
       }
-      await handleEscalationGet(maybeEscalationId)
-      return
-    case 'close':
-      if (!maybeEscalationId) {
-        throw new Error('escalation close requires an escalation id')
-      }
-      await handleEscalationClose(maybeEscalationId, parsed)
+      await handleScheduleRemove(managerId, maybeScheduleId)
       return
     default:
-      throw new Error(`Unknown escalation command: ${action ?? '(missing)'}`)
+      throw new Error(`Unknown schedule command: ${action ?? '(missing)'}`)
   }
 }
 
-async function handleEscalationAdd(parsed: ParsedCommand): Promise<void> {
-  const title = requireSingleOption(parsed, 'title')
-  const description = requireSingleOption(parsed, 'description')
-  const options = requireMultiOption(parsed, 'options')
+async function handleScheduleAdd(managerId: string, parsed: ParsedCommand): Promise<void> {
+  const cron = requireSingleOption(parsed, 'cron')
+  const message = requireSingleOption(parsed, 'message')
+  const name = getOptionalSingleOption(parsed, 'name')
+  const description = getOptionalSingleOption(parsed, 'description')
+  const timezone = getOptionalSingleOption(parsed, 'timezone')
+  const oneShot = getBooleanOption(parsed, 'one-shot')
+  const enabled = !getBooleanOption(parsed, 'disabled')
 
-  const response = await requestJson<EscalationResponse>('POST', '/api/escalations', {
-    managerId: requireManagerId(),
-    title,
-    description,
-    options,
-  })
-
-  printJson(response)
-}
-
-async function handleEscalationList(parsed: ParsedCommand): Promise<void> {
-  const managerId = requireManagerId()
-  const status = getOptionalSingleOption(parsed, 'status')
-  if (status !== undefined && status !== 'open' && status !== 'resolved' && status !== 'all') {
-    throw new Error('--status must be one of open, resolved, or all')
-  }
-
-  const url = new URL('/api/escalations', resolveApiBaseUrl())
-  url.searchParams.set('managerId', managerId)
-  if (status) {
-    url.searchParams.set('status', status)
-  }
-
-  const response = await requestJson<EscalationResponse>('GET', url.pathname + url.search, undefined)
-  printJson(response)
-}
-
-async function handleEscalationGet(escalationId: string): Promise<void> {
-  const url = new URL(`/api/escalations/${encodeURIComponent(escalationId)}`, resolveApiBaseUrl())
-  url.searchParams.set('managerId', requireManagerId())
-
-  const response = await requestJson<EscalationResponse>('GET', url.pathname + url.search, undefined)
-  printJson(response)
-}
-
-async function handleEscalationClose(escalationId: string, parsed: ParsedCommand): Promise<void> {
-  const comment = getOptionalSingleOption(parsed, 'comment')
-
-  const response = await requestJson<EscalationResponse>(
-    'PATCH',
-    `/api/escalations/${encodeURIComponent(escalationId)}`,
+  const response = await requestJson<ScheduleResponse>(
+    'POST',
+    `/api/managers/${encodeURIComponent(managerId)}/schedules`,
     {
-      managerId: requireManagerId(),
-      status: 'resolved',
-      ...(comment !== undefined ? { comment } : {}),
+      cron,
+      message,
+      ...(name !== undefined ? { name } : {}),
+      ...(description !== undefined ? { description } : {}),
+      ...(timezone !== undefined ? { timezone } : {}),
+      ...(oneShot ? { oneShot: true } : {}),
+      ...(enabled ? {} : { enabled: false }),
     },
   )
 
+  printJson(response)
+}
+
+async function handleScheduleList(managerId: string): Promise<void> {
+  const response = await requestJson<ScheduleResponse>(
+    'GET',
+    `/api/managers/${encodeURIComponent(managerId)}/schedules`,
+    undefined,
+  )
+  printJson({
+    ok: true,
+    action: 'list',
+    managerId,
+    count: Array.isArray(response.schedules) ? response.schedules.length : 0,
+    schedules: response.schedules ?? [],
+  })
+}
+
+async function handleScheduleRemove(managerId: string, scheduleId: string): Promise<void> {
+  const response = await requestJson<ScheduleResponse>(
+    'DELETE',
+    `/api/managers/${encodeURIComponent(managerId)}/schedules/${encodeURIComponent(scheduleId)}`,
+    undefined,
+  )
   printJson(response)
 }
 
@@ -310,6 +301,7 @@ function requireOptionValue(argv: string[], index: number, optionName: string): 
 function parseArgs(argv: string[]): ParsedCommand {
   const commandPath: string[] = []
   const options = new Map<string, string[]>()
+  const booleanOptions = new Set(['help', 'one-shot', 'disabled'])
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index]
@@ -323,7 +315,7 @@ function parseArgs(argv: string[]): ParsedCommand {
       throw new Error('Invalid empty option name')
     }
 
-    if (optionName === 'help') {
+    if (booleanOptions.has(optionName)) {
       options.set(optionName, ['true'])
       continue
     }
@@ -402,13 +394,27 @@ function requireMultiOption(parsed: ParsedCommand, name: string): string[] {
   })
 }
 
-function requireManagerId(): string {
-  const managerId = process.env.MIDDLEMAN_AGENT_ID?.trim()
-  if (!managerId) {
-    throw new Error('MIDDLEMAN_AGENT_ID is required')
+function requireScheduleManagerId(parsed: ParsedCommand): string {
+  const explicitManagerId = getOptionalSingleOption(parsed, 'manager')
+  if (explicitManagerId) {
+    return explicitManagerId
   }
 
-  return managerId
+  const managerId = process.env.MIDDLEMAN_MANAGER_ID?.trim()
+  if (managerId) {
+    return managerId
+  }
+
+  const fallbackAgentId = process.env.MIDDLEMAN_AGENT_ID?.trim()
+  if (fallbackAgentId) {
+    return fallbackAgentId
+  }
+
+  throw new Error('Pass --manager <id> or set MIDDLEMAN_MANAGER_ID/MIDDLEMAN_AGENT_ID')
+}
+
+function getBooleanOption(parsed: ParsedCommand, name: string): boolean {
+  return parsed.options.get(name)?.[0] === 'true'
 }
 
 function resolveApiBaseUrl(): string {
@@ -615,13 +621,12 @@ function printGeneralUsage(): void {
     'Usage:',
     '  middleman',
     '  middleman start [--project <path>] [--home <path>] [--host <host>] [--port <port>] [--open]',
-    '  middleman escalation <add|list|get|close> ...',
     '  middleman schedule <add|remove|list> ...',
     '  middleman image generate ...',
     '  middleman brave-search <search|content> ...',
     '  middleman doctor',
     '',
-    'Run `middleman start --help` or `middleman escalation --help` for command-specific help.',
+    'Run `middleman start --help` or `middleman schedule --help` for command-specific help.',
   ].join('\n')
 
   process.stdout.write(`${usage}\n`)
@@ -645,17 +650,16 @@ function printStartUsage(): void {
   process.stdout.write(`${usage}\n`)
 }
 
-function printEscalationUsage(): void {
+function printScheduleUsage(): void {
   const usage = [
     'Usage:',
-    '  middleman escalation add --title "..." --description "..." --options "Option A" "Option B"',
-    '  middleman escalation list [--status open|resolved|all]',
-    '  middleman escalation get <id>',
-    '  middleman escalation close <id> [--comment "..."]',
-    '  middleman escalate <same-subcommands-as-escalation>',
+    '  middleman schedule add --cron "..." --message "..." [--description "..."] [--name "..."] [--timezone "America/Los_Angeles"] [--one-shot] [--manager "<id>"]',
+    '  middleman schedule list [--manager "<id>"]',
+    '  middleman schedule remove <id> [--manager "<id>"]',
     '',
     'Environment:',
-    '  MIDDLEMAN_AGENT_ID   Manager/agent id used for escalation requests',
+    '  MIDDLEMAN_MANAGER_ID   Preferred manager id when running inside an agent session',
+    '  MIDDLEMAN_AGENT_ID     Fallback manager/agent id when no explicit manager is provided',
     `  MIDDLEMAN_API_BASE_URL   Backend base URL (default: ${DEFAULT_API_BASE_URL})`,
   ].join('\n')
 

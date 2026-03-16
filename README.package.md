@@ -14,8 +14,6 @@ That starts one local server, serves the built dashboard UI from the same origin
 
 ```bash
 middleman start --project /path/to/repo --port 48100 --no-open
-middleman escalation list
-middleman escalation add --title "..." --description "..." --options "Option A" "Option B"
 middleman schedule list
 middleman image generate --prompt "..." --output /tmp/output.png
 middleman brave-search search "query"

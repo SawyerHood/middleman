@@ -1,31 +1,12 @@
-import { watch, type FSWatcher } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { basename, dirname } from "node:path";
-import { CronExpressionParser } from "cron-parser";
+import { computeNextFireAt } from "./schedule-utils.js";
+import type { ScheduledTask } from "./schedule-types.js";
 import type { SwarmManager } from "../swarm/swarm-manager.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 30_000;
 const MIN_POLL_INTERVAL_MS = 5_000;
 
-export interface ScheduledTask {
-  id: string;
-  name: string;
-  cron: string;
-  message: string;
-  oneShot: boolean;
-  timezone: string;
-  createdAt: string;
-  nextFireAt: string;
-  lastFiredAt?: string;
-}
-
-interface SchedulesFile {
-  schedules: ScheduledTask[];
-}
-
 interface CronSchedulerServiceOptions {
   swarmManager: SwarmManager;
-  schedulesFile: string;
   managerId: string;
   pollIntervalMs?: number;
   now?: () => Date;
@@ -33,7 +14,6 @@ interface CronSchedulerServiceOptions {
 
 export class CronSchedulerService {
   private readonly swarmManager: SwarmManager;
-  private readonly schedulesFile: string;
   private readonly managerId: string;
   private readonly pollIntervalMs: number;
   private readonly now: () => Date;
@@ -42,13 +22,11 @@ export class CronSchedulerService {
   private processing = false;
   private pendingProcess = false;
   private pollTimer?: NodeJS.Timeout;
-  private watcher?: FSWatcher;
   private activeRunPromise?: Promise<void>;
   private readonly firedOccurrenceKeys = new Set<string>();
 
   constructor(options: CronSchedulerServiceOptions) {
     this.swarmManager = options.swarmManager;
-    this.schedulesFile = options.schedulesFile;
     this.managerId = options.managerId;
     this.pollIntervalMs = normalizePollIntervalMs(options.pollIntervalMs);
     this.now = options.now ?? (() => new Date());
@@ -60,9 +38,7 @@ export class CronSchedulerService {
     }
 
     this.running = true;
-    await this.ensureSchedulesFile();
     await this.processDueSchedules("startup");
-    this.startWatcher();
     this.startPolling();
   }
 
@@ -78,12 +54,11 @@ export class CronSchedulerService {
       this.pollTimer = undefined;
     }
 
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = undefined;
-    }
-
     await this.activeRunPromise;
+  }
+
+  refresh(): void {
+    this.requestProcess("refresh");
   }
 
   private startPolling(): void {
@@ -91,26 +66,6 @@ export class CronSchedulerService {
       this.requestProcess("poll");
     }, this.pollIntervalMs);
     this.pollTimer.unref?.();
-  }
-
-  private startWatcher(): void {
-    const schedulesDir = dirname(this.schedulesFile);
-    const schedulesBasename = basename(this.schedulesFile);
-
-    this.watcher = watch(schedulesDir, (eventType, fileName) => {
-      if (!this.running) {
-        return;
-      }
-
-      if (!fileName || fileName.toString() === schedulesBasename) {
-        this.requestProcess(`watch:${eventType}`);
-      }
-    });
-
-    this.watcher.on("error", (error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`[scheduler] File watcher error: ${message}`);
-    });
   }
 
   private requestProcess(reason: string): void {
@@ -145,29 +100,27 @@ export class CronSchedulerService {
   }
 
   private async processDueSchedules(_reason: string): Promise<void> {
-    const snapshot = await this.readSchedulesFile();
-    if (snapshot.schedules.length === 0) {
+    const snapshot = await this.swarmManager.listSchedulesForManager(this.managerId);
+    if (snapshot.length === 0) {
       return;
     }
 
     const now = this.now();
-    const updates = new Map<string, ScheduledTask>();
-    const removals = new Set<string>();
 
-    for (const schedule of snapshot.schedules) {
+    for (const schedule of snapshot) {
+      if (!schedule.enabled) {
+        continue;
+      }
+
       const normalized = this.ensureValidNextFireAt(schedule, now);
       let activeSchedule = normalized.schedule;
 
       if (normalized.changed) {
-        updates.set(activeSchedule.id, activeSchedule);
+        await this.swarmManager.updateScheduleForManager(this.managerId, activeSchedule);
       }
 
       const scheduledFor = parseIsoDate(activeSchedule.nextFireAt);
-      if (!scheduledFor) {
-        continue;
-      }
-
-      if (scheduledFor.getTime() > now.getTime()) {
+      if (!scheduledFor || scheduledFor.getTime() > now.getTime()) {
         continue;
       }
 
@@ -178,11 +131,12 @@ export class CronSchedulerService {
         this.firedOccurrenceKeys.has(occurrenceKey)
       ) {
         if (activeSchedule.oneShot) {
-          removals.add(activeSchedule.id);
-          updates.delete(activeSchedule.id);
+          await this.swarmManager.removeScheduleForManager(this.managerId, activeSchedule.id);
         } else {
-          activeSchedule = this.advanceRecurringSchedule(activeSchedule, scheduledFor);
-          updates.set(activeSchedule.id, activeSchedule);
+          await this.swarmManager.updateScheduleForManager(
+            this.managerId,
+            this.advanceRecurringSchedule(activeSchedule, scheduledFor),
+          );
         }
         continue;
       }
@@ -198,20 +152,13 @@ export class CronSchedulerService {
       }
 
       if (activeSchedule.oneShot) {
-        removals.add(activeSchedule.id);
-        updates.delete(activeSchedule.id);
+        await this.swarmManager.removeScheduleForManager(this.managerId, activeSchedule.id);
         continue;
       }
 
       activeSchedule = this.advanceRecurringSchedule(activeSchedule, scheduledFor);
-      updates.set(activeSchedule.id, activeSchedule);
+      await this.swarmManager.updateScheduleForManager(this.managerId, activeSchedule);
     }
-
-    if (updates.size === 0 && removals.size === 0) {
-      return;
-    }
-
-    await this.applyMutations(updates, removals);
   }
 
   private async dispatchSchedule(schedule: ScheduledTask, scheduledForIso: string): Promise<boolean> {
@@ -221,30 +168,30 @@ export class CronSchedulerService {
       cron: schedule.cron,
       timezone: schedule.timezone,
       oneShot: schedule.oneShot,
-      scheduledFor: scheduledForIso
+      scheduledFor: scheduledForIso,
     };
 
     const message = [
       `[Scheduled Task: ${schedule.name}]`,
       `[scheduleContext] ${JSON.stringify(scheduleContext)}`,
       "",
-      schedule.message
+      schedule.message,
     ].join("\n");
 
     try {
       await this.swarmManager.handleUserMessage(message, {
         targetAgentId: this.managerId,
-        sourceContext: { channel: "web" }
+        sourceContext: { channel: "web" },
       });
 
       console.log(
-        `[scheduler] Fired schedule ${schedule.id} (${schedule.name}) for ${scheduledForIso}`
+        `[scheduler] Fired schedule ${schedule.id} (${schedule.name}) for ${scheduledForIso}`,
       );
       return true;
     } catch (error) {
       const messageText = error instanceof Error ? error.message : String(error);
       console.error(
-        `[scheduler] Failed to dispatch schedule ${schedule.id} (${schedule.name}): ${messageText}`
+        `[scheduler] Failed to dispatch schedule ${schedule.id} (${schedule.name}): ${messageText}`,
       );
       return false;
     }
@@ -260,7 +207,7 @@ export class CronSchedulerService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(
-        `[scheduler] Failed to compute next run for ${schedule.id} (${schedule.name}): ${message}`
+        `[scheduler] Failed to compute next run for ${schedule.id} (${schedule.name}): ${message}`,
       );
       nextFireAt = computeNextFireAt(schedule.cron, schedule.timezone, fallbackAfter);
     }
@@ -268,13 +215,14 @@ export class CronSchedulerService {
     return {
       ...schedule,
       nextFireAt,
-      lastFiredAt: scheduledFor.toISOString()
+      lastFiredAt: scheduledFor.toISOString(),
+      updatedAt: this.now().toISOString(),
     };
   }
 
   private ensureValidNextFireAt(
     schedule: ScheduledTask,
-    now: Date
+    now: Date,
   ): { schedule: ScheduledTask; changed: boolean } {
     if (parseIsoDate(schedule.nextFireAt)) {
       return { schedule, changed: false };
@@ -284,96 +232,16 @@ export class CronSchedulerService {
       return {
         schedule: {
           ...schedule,
-          nextFireAt: computeNextFireAt(schedule.cron, schedule.timezone, now)
+          nextFireAt: computeNextFireAt(schedule.cron, schedule.timezone, now),
+          updatedAt: this.now().toISOString(),
         },
-        changed: true
+        changed: true,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[scheduler] Invalid schedule ${schedule.id}: ${message}`);
       return { schedule, changed: false };
     }
-  }
-
-  private async applyMutations(
-    updates: Map<string, ScheduledTask>,
-    removals: Set<string>
-  ): Promise<void> {
-    const latest = await this.readSchedulesFile();
-    const nextSchedules: ScheduledTask[] = [];
-    let changed = false;
-
-    for (const schedule of latest.schedules) {
-      if (removals.has(schedule.id)) {
-        changed = true;
-        continue;
-      }
-
-      const updated = updates.get(schedule.id);
-      if (updated) {
-        nextSchedules.push(updated);
-        updates.delete(schedule.id);
-        if (!areSchedulesEqual(schedule, updated)) {
-          changed = true;
-        }
-        continue;
-      }
-
-      nextSchedules.push(schedule);
-    }
-
-    if (!changed) {
-      return;
-    }
-
-    await this.writeSchedulesFile({ schedules: nextSchedules });
-  }
-
-  private async ensureSchedulesFile(): Promise<void> {
-    try {
-      await readFile(this.schedulesFile, "utf8");
-      return;
-    } catch (error) {
-      if (!isEnoentError(error)) {
-        throw error;
-      }
-    }
-
-    await this.writeSchedulesFile({ schedules: [] });
-  }
-
-  private async readSchedulesFile(): Promise<SchedulesFile> {
-    try {
-      const raw = await readFile(this.schedulesFile, "utf8");
-      const parsed = JSON.parse(raw) as { schedules?: unknown };
-
-      if (!parsed || !Array.isArray(parsed.schedules)) {
-        return { schedules: [] };
-      }
-
-      const schedules = parsed.schedules
-        .map((entry) => normalizeScheduledTask(entry))
-        .filter((entry): entry is ScheduledTask => entry !== undefined);
-
-      return { schedules };
-    } catch (error) {
-      if (isEnoentError(error)) {
-        return { schedules: [] };
-      }
-
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`[scheduler] Failed to read schedules file: ${message}`);
-      return { schedules: [] };
-    }
-  }
-
-  private async writeSchedulesFile(payload: SchedulesFile): Promise<void> {
-    const target = this.schedulesFile;
-    const temp = `${target}.tmp`;
-
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(temp, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-    await rename(temp, target);
   }
 }
 
@@ -383,71 +251,6 @@ function normalizePollIntervalMs(value: number | undefined): number {
   }
 
   return Math.max(MIN_POLL_INTERVAL_MS, Math.floor(value));
-}
-
-function normalizeScheduledTask(entry: unknown): ScheduledTask | undefined {
-  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-    return undefined;
-  }
-
-  const maybe = entry as Partial<ScheduledTask>;
-  const id = normalizeRequiredString(maybe.id);
-  const name = normalizeRequiredString(maybe.name);
-  const cron = normalizeRequiredString(maybe.cron);
-  const message = normalizeRequiredString(maybe.message);
-  const timezone = normalizeRequiredString(maybe.timezone);
-  const createdAt = normalizeRequiredString(maybe.createdAt);
-  const nextFireAt = normalizeRequiredString(maybe.nextFireAt);
-  const oneShot = typeof maybe.oneShot === "boolean" ? maybe.oneShot : false;
-  const lastFiredAt =
-    typeof maybe.lastFiredAt === "string" && maybe.lastFiredAt.trim().length > 0
-      ? maybe.lastFiredAt
-      : undefined;
-
-  if (!id || !name || !cron || !message || !timezone || !createdAt || !nextFireAt) {
-    return undefined;
-  }
-
-  if (!isValidTimezone(timezone)) {
-    return undefined;
-  }
-
-  try {
-    // Validate cron expression early so invalid rows are ignored.
-    computeNextFireAt(cron, timezone, new Date());
-  } catch {
-    return undefined;
-  }
-
-  return {
-    id,
-    name,
-    cron,
-    message,
-    oneShot,
-    timezone,
-    createdAt,
-    nextFireAt,
-    lastFiredAt
-  };
-}
-
-function normalizeRequiredString(value: string | undefined): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function isEnoentError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "ENOENT"
-  );
 }
 
 function parseIsoDate(value: string | undefined): Date | undefined {
@@ -465,35 +268,4 @@ function parseIsoDate(value: string | undefined): Date | undefined {
 
 function buildOccurrenceKey(scheduleId: string, scheduledForIso: string): string {
   return `${scheduleId}:${scheduledForIso}`;
-}
-
-function isValidTimezone(timezone: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function computeNextFireAt(cron: string, timezone: string, afterDate: Date): string {
-  const iterator = CronExpressionParser.parse(cron, {
-    currentDate: afterDate,
-    tz: timezone
-  });
-  return iterator.next().toDate().toISOString();
-}
-
-function areSchedulesEqual(left: ScheduledTask, right: ScheduledTask): boolean {
-  return (
-    left.id === right.id &&
-    left.name === right.name &&
-    left.cron === right.cron &&
-    left.message === right.message &&
-    left.oneShot === right.oneShot &&
-    left.timezone === right.timezone &&
-    left.createdAt === right.createdAt &&
-    left.nextFireAt === right.nextFireAt &&
-    left.lastFiredAt === right.lastFiredAt
-  );
 }

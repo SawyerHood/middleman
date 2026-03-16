@@ -5,7 +5,6 @@ import { WebSocketServer, type RawData, WebSocket } from "ws";
 import { extractRequestId, parseClientCommand } from "./ws-command-parser.js";
 import { handleAgentCommand } from "./routes/agent-routes.js";
 import { handleConversationCommand } from "./routes/conversation-routes.js";
-import { handleEscalationCommand } from "./routes/escalation-routes.js";
 import { handleManagerCommand } from "./routes/manager-routes.js";
 
 const BOOTSTRAP_SUBSCRIPTION_AGENT_ID = "__bootstrap_manager__";
@@ -78,7 +77,6 @@ export class WsHandler {
 
       if (
         event.type === "conversation_message" ||
-        event.type === "conversation_escalation" ||
         event.type === "conversation_log" ||
         event.type === "agent_message" ||
         event.type === "agent_tool_call" ||
@@ -200,16 +198,6 @@ export class WsHandler {
       return;
     }
 
-    const escalationHandled = await handleEscalationCommand({
-      command,
-      socket,
-      swarmManager: this.swarmManager,
-      send: (targetSocket, event) => this.send(targetSocket, event)
-    });
-    if (escalationHandled) {
-      return;
-    }
-
     this.send(socket, {
       type: "error",
       code: "UNKNOWN_COMMAND",
@@ -234,7 +222,7 @@ export class WsHandler {
     const targetDescriptor = this.swarmManager.getAgent(targetAgentId);
     const canBootstrapSubscription =
       !targetDescriptor &&
-      !this.hasRunningManagers() &&
+      !this.hasKnownManagers() &&
       (managerId ? requestedAgentId === managerId : requestedAgentId === undefined);
 
     if (!targetDescriptor && requestedAgentId && !canBootstrapSubscription) {
@@ -304,7 +292,7 @@ export class WsHandler {
   private resolveManagerContextAgentId(subscribedAgentId: string): string | undefined {
     const descriptor = this.swarmManager.getAgent(subscribedAgentId);
     if (!descriptor) {
-      if (!this.hasRunningManagers()) {
+      if (!this.hasKnownManagers()) {
         return this.resolveConfiguredManagerId() ?? subscribedAgentId;
       }
       return undefined;
@@ -458,7 +446,7 @@ export class WsHandler {
   private resolvePreferredManagerSubscriptionId(): string | undefined {
     const firstManager = this.swarmManager
       .listAgents()
-      .find((agent) => agent.role === "manager" && this.isSubscribable(agent.status));
+      .find((agent) => agent.role === "manager");
 
     return firstManager?.agentId;
   }
@@ -473,14 +461,10 @@ export class WsHandler {
     return normalized.length > 0 ? normalized : undefined;
   }
 
-  private hasRunningManagers(): boolean {
+  private hasKnownManagers(): boolean {
     return this.swarmManager
       .listAgents()
-      .some((agent) => agent.role === "manager" && this.isSubscribable(agent.status));
-  }
-
-  private isSubscribable(status: string): boolean {
-    return status === "idle" || status === "streaming";
+      .some((agent) => agent.role === "manager");
   }
 
   private logDebug(message: string, details?: unknown): void {

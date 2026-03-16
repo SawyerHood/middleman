@@ -17,7 +17,6 @@ function manager(agentId: string, managerId = agentId): AgentDescriptor {
       modelId: 'gpt-5.3-codex',
       thinkingLevel: 'medium',
     },
-    sessionFile: `/tmp/${agentId}.jsonl`,
   }
 }
 
@@ -36,7 +35,6 @@ function worker(agentId: string, managerId: string): AgentDescriptor {
       modelId: 'gpt-5.3-codex',
       thinkingLevel: 'medium',
     },
-    sessionFile: `/tmp/${agentId}.jsonl`,
   }
 }
 
@@ -81,15 +79,17 @@ describe('agent-hierarchy', () => {
     expect(chooseFallbackAgentId(agents, ['manager-2', 'manager'], 'missing-agent')).toBe('manager-2')
   })
 
-  it('treats stopped and errored agents as inactive', () => {
+  it('keeps stopped and errored agents visible for restore and transcript replay', () => {
     const stoppedManager = { ...manager('manager-stopped'), status: 'stopped' as const }
-    const erroredWorker = { ...worker('worker-error', 'manager-stopped'), status: 'error' as const }
+    const erroredWorker = { ...worker('worker-error', 'manager-stopped'), status: 'errored' as const }
 
     const { managerRows, orphanWorkers } = buildManagerTreeRows([stoppedManager, erroredWorker])
 
-    expect(managerRows).toHaveLength(0)
+    expect(managerRows).toHaveLength(1)
+    expect(managerRows[0]?.manager.agentId).toBe('manager-stopped')
+    expect(managerRows[0]?.workers.map((entry) => entry.agentId)).toEqual(['worker-error'])
     expect(orphanWorkers).toHaveLength(0)
-    expect(getPrimaryManagerId([stoppedManager])).toBeNull()
-    expect(chooseFallbackAgentId([stoppedManager, erroredWorker], [], null)).toBeNull()
+    expect(getPrimaryManagerId([stoppedManager])).toBe('manager-stopped')
+    expect(chooseFallbackAgentId([stoppedManager, erroredWorker], [], null)).toBe('manager-stopped')
   })
 })

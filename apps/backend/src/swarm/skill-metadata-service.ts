@@ -16,6 +16,7 @@ const REQUIRED_SKILL_NAMES = [
 
 export interface SkillMetadata {
   skillName: string;
+  description?: string;
   path: string;
   env: ParsedSkillEnvDeclaration[];
 }
@@ -37,6 +38,7 @@ export class SkillMetadataService {
   getSkillMetadata(): SkillMetadata[] {
     return this.skillMetadata.map((metadata) => ({
       skillName: metadata.skillName,
+      description: metadata.description,
       path: metadata.path,
       env: [...metadata.env]
     }));
@@ -82,6 +84,7 @@ export class SkillMetadataService {
       seenSkillNames.add(normalizedSkillName);
       metadata.push({
         skillName,
+        description: parsed.description?.trim() || undefined,
         path: skillPath,
         env: parsed.env
       });

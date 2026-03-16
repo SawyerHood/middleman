@@ -1,18 +1,27 @@
-export type AgentStatus = 'idle' | 'streaming' | 'terminated' | 'stopped' | 'error'
+export type AgentStatus =
+  | 'created'
+  | 'starting'
+  | 'idle'
+  | 'busy'
+  | 'interrupting'
+  | 'stopping'
+  | 'stopped'
+  | 'errored'
+  | 'terminated'
 
 export const MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus', 'codex-app', 'claude-code'] as const
 export type ManagerModelPreset = (typeof MANAGER_MODEL_PRESETS)[number]
-
-export interface AgentContextUsage {
-  tokens: number
-  contextWindow: number
-  percent: number
-}
 
 export interface AgentModelDescriptor {
   provider: string
   modelId: string
   thinkingLevel: string
+}
+
+export interface AgentContextUsage {
+  tokens: number
+  contextWindow: number
+  percent: number
 }
 
 export interface AgentDescriptor {
@@ -26,27 +35,7 @@ export interface AgentDescriptor {
   updatedAt: string
   cwd: string
   model: AgentModelDescriptor
-  sessionFile: string
   contextUsage?: AgentContextUsage
-}
-
-export type UserEscalationStatus = 'open' | 'resolved'
-
-export interface UserEscalationResponse {
-  choice: string
-  isCustom: boolean
-}
-
-export interface UserEscalation {
-  id: string
-  managerId: string
-  title: string
-  description: string
-  options: string[]
-  status: UserEscalationStatus
-  response?: UserEscalationResponse
-  createdAt: string
-  resolvedAt?: string
 }
 
 export interface NoteSummary {

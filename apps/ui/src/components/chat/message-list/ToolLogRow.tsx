@@ -765,6 +765,8 @@ function ToolExecutionLogRow({ entry }: { entry: ToolExecutionDisplayEntry }) {
 }
 
 function RuntimeErrorLog({ entry }: { entry: ConversationLogEntry }) {
+  const text = formatPrettyValue((entry as ConversationLogEntry & { text: unknown }).text)
+
   return (
     <div className="rounded-md border border-[var(--chat-error-border)] bg-[var(--chat-error-bg)] px-3 py-2">
       <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-[var(--chat-error-fg)]">
@@ -772,7 +774,7 @@ function RuntimeErrorLog({ entry }: { entry: ConversationLogEntry }) {
         <span>Runtime error</span>
       </div>
       <p className="text-size-chat whitespace-pre-wrap break-words text-[var(--chat-error-fg)]">
-        {entry.text}
+        {text}
       </p>
     </div>
   )

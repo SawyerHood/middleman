@@ -4,10 +4,6 @@ export type ConversationMessageEntry = Extract<
   ConversationEntry,
   { type: 'conversation_message' }
 >
-export type ConversationEscalationEntry = Extract<
-  ConversationEntry,
-  { type: 'conversation_escalation' }
->
 export type ConversationLogEntry = Extract<
   ConversationEntry,
   { type: 'conversation_log' }

@@ -13,7 +13,7 @@ import {
 } from "./types.js";
 
 export interface SwarmToolHost {
-  listAgents(): AgentDescriptor[];
+  listAgents(options?: { includeArchived?: boolean }): AgentDescriptor[];
   spawnAgent(callerAgentId: string, input: SpawnAgentInput): Promise<AgentDescriptor>;
   killAgent(callerAgentId: string, targetAgentId: string): Promise<void>;
   sendMessage(
@@ -68,12 +68,19 @@ type ListAgentsEntry = Pick<
   isExternal?: boolean;
 };
 
-const ACTIVE_AGENT_STATUSES = new Set<AgentStatus>(["idle", "streaming"]);
+const ACTIVE_AGENT_STATUSES = new Set<AgentStatus>([
+  "created",
+  "starting",
+  "idle",
+  "busy",
+  "interrupting",
+]);
 
 function buildVisibleAgentEntries(
   caller: AgentDescriptor,
   agents: AgentDescriptor[],
   options: {
+    includeArchived?: boolean;
     includeManagers?: boolean;
     includeTerminated?: boolean;
   }
@@ -133,11 +140,17 @@ export function buildSwarmTools(host: SwarmToolHost, descriptor: AgentDescriptor
       name: "list_agents",
       label: "List Agents",
       description:
-        "List the caller's current team with ids, roles, manager ids, status, and model. Returns active agents (idle/streaming) by default; set includeTerminated=true to include inactive agents. Managers can set includeManagers=true to also include other managers in the system, flagged with isExternal=true.",
+        "List the caller's current team with ids, roles, manager ids, status, and model. Returns active, non-archived agents by default; set includeTerminated=true to include inactive agents, and includeArchived=true to include archived sessions. Managers can set includeManagers=true to also include other managers in the system, flagged with isExternal=true.",
       parameters: Type.Object({
         includeTerminated: Type.Optional(
           Type.Boolean({
             description: "When true, include stopped/terminated/error agents in the results."
+          })
+        ),
+        includeArchived: Type.Optional(
+          Type.Boolean({
+            description:
+              "When true, include archived agents in the candidate set. Combine with includeTerminated=true to surface archived terminated agents."
           })
         ),
         includeManagers: Type.Optional(
@@ -150,9 +163,14 @@ export function buildSwarmTools(host: SwarmToolHost, descriptor: AgentDescriptor
       async execute(_toolCallId, params) {
         const parsed = params as {
           includeTerminated?: boolean;
+          includeArchived?: boolean;
           includeManagers?: boolean;
         };
-        const agents = buildVisibleAgentEntries(descriptor, host.listAgents(), parsed);
+        const agents = buildVisibleAgentEntries(
+          descriptor,
+          host.listAgents({ includeArchived: parsed.includeArchived === true }),
+          parsed,
+        );
         return {
           content: [
             {
@@ -315,6 +333,7 @@ export function buildSwarmTools(host: SwarmToolHost, descriptor: AgentDescriptor
           ],
           details: {
             published: true,
+            text: parsed.text,
             targetContext: published.targetContext
           }
         };

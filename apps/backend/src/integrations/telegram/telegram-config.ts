@@ -1,14 +1,11 @@
-import {
-  BaseConfigPersistence,
-  buildIntegrationProfileId
-} from "../base-config-persistence.js";
+import type { SwarmManager } from "../../swarm/swarm-manager.js";
+import { normalizeManagerId } from "../../utils/normalize.js";
 import type {
   TelegramIntegrationConfig,
   TelegramIntegrationConfigPublic,
   TelegramParseMode
 } from "./telegram-types.js";
 
-const TELEGRAM_CONFIG_FILE_NAME = "telegram.json";
 const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MIN_FILE_BYTES = 1024;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
@@ -17,19 +14,8 @@ const MAX_POLL_TIMEOUT_SECONDS = 60;
 const MIN_POLL_LIMIT = 1;
 const MAX_POLL_LIMIT = 100;
 
-const TELEGRAM_CONFIG_PERSISTENCE = new BaseConfigPersistence<TelegramIntegrationConfig>({
-  integrationName: "Telegram",
-  fileName: TELEGRAM_CONFIG_FILE_NAME,
-  createDefaultConfig: createDefaultTelegramConfig,
-  parseConfig: parseTelegramConfig
-});
-
-export function getTelegramConfigPath(dataDir: string, managerId: string): string {
-  return TELEGRAM_CONFIG_PERSISTENCE.getPath(dataDir, managerId);
-}
-
 export function buildTelegramProfileId(managerId: string): string {
-  return buildIntegrationProfileId("telegram", managerId);
+  return `telegram:${normalizeManagerId(managerId)}`;
 }
 
 export function createDefaultTelegramConfig(managerId: string): TelegramIntegrationConfig {
@@ -59,18 +45,29 @@ export function createDefaultTelegramConfig(managerId: string): TelegramIntegrat
 }
 
 export async function loadTelegramConfig(options: {
-  dataDir: string;
+  swarmManager: SwarmManager;
   managerId: string;
 }): Promise<TelegramIntegrationConfig> {
-  return TELEGRAM_CONFIG_PERSISTENCE.load(options);
+  const profile = options.swarmManager.getIntegrationProfile(options.managerId, "telegram");
+  if (!profile) {
+    return createDefaultTelegramConfig(options.managerId);
+  }
+
+  return parseTelegramConfig(profile.config);
 }
 
 export async function saveTelegramConfig(options: {
-  dataDir: string;
+  swarmManager: SwarmManager;
   managerId: string;
   config: TelegramIntegrationConfig;
 }): Promise<void> {
-  await TELEGRAM_CONFIG_PERSISTENCE.save(options);
+  options.swarmManager.upsertIntegrationProfile({
+    id: options.config.profileId,
+    managerId: normalizeManagerId(options.managerId),
+    provider: "telegram",
+    config: options.config as unknown as Record<string, unknown>,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export function mergeTelegramConfig(

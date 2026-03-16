@@ -17,7 +17,6 @@ import {
   type DeliveryMode,
   type ManagerModelPreset,
   type ServerEvent,
-  type UserEscalation,
 } from '@middleman/protocol'
 
 export type { ManagerWsState } from './ws-state'
@@ -49,8 +48,6 @@ type WsRequestResultMap = {
   list_directories: DirectoriesListedResult
   validate_directory: DirectoryValidationResult
   pick_directory: string | null
-  get_all_escalations: UserEscalation[]
-  resolve_escalation: UserEscalation
 }
 
 type WsRequestType = Extract<keyof WsRequestResultMap, string>
@@ -62,8 +59,6 @@ const WS_REQUEST_TYPES: WsRequestType[] = [
   'list_directories',
   'validate_directory',
   'pick_directory',
-  'get_all_escalations',
-  'resolve_escalation',
 ]
 
 const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: string }> = [
@@ -74,8 +69,6 @@ const WS_REQUEST_ERROR_HINTS: Array<{ requestType: WsRequestType; codeFragment: 
   { requestType: 'list_directories', codeFragment: 'list_directories' },
   { requestType: 'validate_directory', codeFragment: 'validate_directory' },
   { requestType: 'pick_directory', codeFragment: 'pick_directory' },
-  { requestType: 'get_all_escalations', codeFragment: 'get_all_escalations' },
-  { requestType: 'resolve_escalation', codeFragment: 'resolve_escalation' },
 ]
 
 export class ManagerWsClient {
@@ -429,45 +422,6 @@ export class ManagerWsClient {
       }))
   }
 
-  async getAllEscalations(): Promise<UserEscalation[]> {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket is disconnected. Reconnecting...')
-    }
-
-    return this.enqueueRequest('get_all_escalations', (requestId) => ({
-      type: 'get_all_escalations',
-      requestId,
-    }))
-  }
-
-  async resolveEscalation(input: {
-    escalationId: string
-    choice: string
-    isCustom: boolean
-  }): Promise<UserEscalation> {
-    const escalationId = input.escalationId.trim()
-    if (!escalationId) {
-      throw new Error('Escalation id is required.')
-    }
-
-    const choice = input.choice.trim()
-    if (!choice) {
-      throw new Error('Escalation choice is required.')
-    }
-
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket is disconnected. Reconnecting...')
-    }
-
-    return this.enqueueRequest('resolve_escalation', (requestId) => ({
-      type: 'resolve_escalation',
-      escalationId,
-      choice,
-      isCustom: input.isCustom,
-      requestId,
-    }))
-  }
-
   private connect(): void {
     if (this.destroyed) return
 
@@ -557,18 +511,23 @@ export class ManagerWsClient {
           subscribedAgentId: event.subscribedAgentId,
           lastError: null,
         })
-        void this.getAllEscalations().catch(() => undefined)
         break
 
       case 'conversation_message':
-      case 'conversation_escalation':
       case 'conversation_log': {
         if (event.agentId !== this.state.targetAgentId) {
           break
         }
 
         const messages = [...this.state.messages, event]
-        this.updateState({ messages })
+        this.updateState({
+          messages,
+          ...(event.type === 'conversation_log' && event.isError
+            ? { lastError: event.text }
+            : shouldClearLastErrorFromTranscriptEntry(event)
+              ? { lastError: null }
+              : {}),
+        })
         break
       }
 
@@ -593,6 +552,7 @@ export class ManagerWsClient {
           this.updateState({
             messages,
             activityMessages: clampConversationHistory(activityMessages),
+            lastError: resolveLastErrorFromHistory(messages),
           })
         }
         break
@@ -610,15 +570,22 @@ export class ManagerWsClient {
         break
 
       case 'agent_status': {
+        const previous = this.state.statuses[event.agentId]
         const statuses = {
           ...this.state.statuses,
           [event.agentId]: {
             status: event.status,
             pendingCount: event.pendingCount,
-            contextUsage: event.contextUsage,
+            contextUsage: event.contextUsage ?? previous?.contextUsage,
           },
         }
-        this.updateState({ statuses })
+        this.updateState({
+          statuses,
+          ...(event.agentId === this.state.targetAgentId &&
+          (event.status === 'busy' || event.status === 'idle')
+            ? { lastError: null }
+            : {}),
+        })
         break
       }
 
@@ -647,13 +614,10 @@ export class ManagerWsClient {
       }
 
       case 'stop_all_agents_result': {
-        const stoppedWorkerIds = event.stoppedWorkerIds ?? event.terminatedWorkerIds ?? []
-        const managerStopped = event.managerStopped ?? event.managerTerminated ?? false
-
         this.requestTracker.resolve('stop_all_agents', event.requestId, {
           managerId: event.managerId,
-          stoppedWorkerIds,
-          managerStopped,
+          stoppedWorkerIds: event.stoppedWorkerIds,
+          managerStopped: event.managerStopped,
         })
         break
       }
@@ -677,39 +641,6 @@ export class ManagerWsClient {
 
       case 'directory_picked': {
         this.requestTracker.resolve('pick_directory', event.requestId, event.path ?? null)
-        break
-      }
-
-      case 'escalations_snapshot': {
-        this.updateState({ escalations: sortEscalations(event.escalations) })
-        this.requestTracker.resolve(
-          'get_all_escalations',
-          event.requestId,
-          sortEscalations(event.escalations),
-        )
-        break
-      }
-
-      case 'escalation_created':
-      case 'escalation_updated': {
-        this.updateState({
-          escalations: upsertEscalation(this.state.escalations, event.escalation),
-        })
-        break
-      }
-
-      case 'escalations_deleted': {
-        const deletedEscalationIds = new Set(event.escalationIds)
-        this.updateState({
-          escalations: this.state.escalations.filter(
-            (escalation) => !deletedEscalationIds.has(escalation.id),
-          ),
-        })
-        break
-      }
-
-      case 'escalation_resolution_result': {
-        this.requestTracker.resolve('resolve_escalation', event.requestId, event.escalation)
         break
       }
 
@@ -746,17 +677,22 @@ export class ManagerWsClient {
           {
             status,
             pendingCount: previous && previous.status === status ? previous.pendingCount : 0,
-            contextUsage: agent.contextUsage,
+            contextUsage: agent.contextUsage ?? previous?.contextUsage,
           },
         ]
       }),
     )
 
-    const fallbackTarget = chooseFallbackAgentId(
-      orderedAgents,
-      nextManagerOrder,
-      this.state.targetAgentId ?? this.state.subscribedAgentId ?? this.desiredAgentId ?? undefined,
-    )
+    const preferredTarget =
+      this.state.targetAgentId ?? this.state.subscribedAgentId ?? this.desiredAgentId ?? undefined
+    const fallbackTarget =
+      preferredTarget && liveAgentIds.has(preferredTarget)
+        ? preferredTarget
+        : chooseFallbackAgentId(
+            orderedAgents,
+            nextManagerOrder,
+            preferredTarget,
+          )
     const targetChanged = fallbackTarget !== this.state.targetAgentId
     const nextSubscribedAgentId =
       this.state.subscribedAgentId && liveAgentIds.has(this.state.subscribedAgentId)
@@ -972,28 +908,6 @@ function normalizeConversationAttachments(
   return normalized
 }
 
-function upsertEscalation(escalations: UserEscalation[], nextEscalation: UserEscalation): UserEscalation[] {
-  const nextEscalations = [
-    ...escalations.filter((escalation) => escalation.id !== nextEscalation.id),
-    nextEscalation,
-  ]
-  return sortEscalations(nextEscalations)
-}
-
-function sortEscalations(escalations: UserEscalation[]): UserEscalation[] {
-  return [...escalations].sort((left, right) => {
-    if (left.status !== right.status) {
-      return left.status === 'open' ? -1 : 1
-    }
-
-    if (left.createdAt !== right.createdAt) {
-      return right.createdAt.localeCompare(left.createdAt)
-    }
-
-    return right.id.localeCompare(left.id)
-  })
-}
-
 function splitConversationHistory(
   messages: ConversationEntry[],
 ): { messages: ConversationHistoryEntry[]; activityMessages: AgentActivityEntry[] } {
@@ -1027,6 +941,35 @@ function extractManagerOrder(agents: AgentDescriptor[]): string[] {
   return agents
     .filter((agent) => agent.role === 'manager')
     .map((agent) => agent.agentId)
+}
+
+function resolveLastErrorFromHistory(messages: ConversationHistoryEntry[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const entry = messages[index]
+    if (entry.type === 'conversation_log') {
+      return entry.isError ? entry.text : null
+    }
+
+    if (shouldClearLastErrorFromTranscriptEntry(entry)) {
+      return null
+    }
+  }
+
+  return null
+}
+
+function shouldClearLastErrorFromTranscriptEntry(
+  entry: ConversationHistoryEntry,
+): boolean {
+  if (entry.type === 'conversation_log') {
+    return entry.isError !== true
+  }
+
+  if (entry.type !== 'conversation_message') {
+    return false
+  }
+
+  return entry.role === 'assistant' || entry.role === 'system' || entry.source === 'speak_to_user'
 }
 
 function normalizeAgentId(agentId: string | null | undefined): string | null {

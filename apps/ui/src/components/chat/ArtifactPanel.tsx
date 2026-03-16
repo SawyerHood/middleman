@@ -5,7 +5,6 @@ import {
   FileCode2,
   FileImage,
   FileText,
-  ListTodo,
   Loader2,
   X,
 } from 'lucide-react'
@@ -15,32 +14,18 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import type { ArtifactReference } from '@/lib/artifacts'
 import { toVscodeInsidersHref } from '@/lib/artifacts'
 import { cn } from '@/lib/utils'
-import type { UserEscalation } from '@middleman/protocol'
-import { EscalationCard } from './EscalationCard'
 import { MarkdownMessage } from './MarkdownMessage'
 
-export type ArtifactPanelSelection =
-  | {
-      type: 'artifact'
-      artifact: ArtifactReference
-    }
-  | {
-      type: 'escalation'
-      escalationId: string
-    }
+export type ArtifactPanelSelection = {
+  type: 'artifact'
+  artifact: ArtifactReference
+}
 
 interface ArtifactPanelProps {
   selection: ArtifactPanelSelection | null
-  escalations: UserEscalation[]
   wsUrl: string
   onClose: () => void
   onArtifactClick?: (artifact: ArtifactReference) => void
-  onResolveEscalation?: (input: {
-    escalationId: string
-    choice: string
-    isCustom: boolean
-  }) => Promise<void>
-  onOpenEscalationsView?: () => void
 }
 
 interface ReadFileResult {
@@ -53,12 +38,9 @@ const IMAGE_FILE_PATTERN = /\.(png|jpg|jpeg|gif|webp|svg)$/i
 
 export function ArtifactPanel({
   selection,
-  escalations,
   wsUrl,
   onClose,
   onArtifactClick,
-  onResolveEscalation,
-  onOpenEscalationsView,
 }: ArtifactPanelProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
@@ -69,17 +51,8 @@ export function ArtifactPanel({
   const closingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const selectedArtifact = selection?.type === 'artifact' ? selection.artifact : null
-  const selectedEscalation =
-    selection?.type === 'escalation'
-      ? escalations.find((escalation) => escalation.id === selection.escalationId) ?? null
-      : null
   const artifactPath = selectedArtifact?.path ?? null
-  const selectionKey =
-    selection?.type === 'artifact'
-      ? selection.artifact.path
-      : selection?.type === 'escalation'
-        ? `escalation:${selection.escalationId}`
-        : null
+  const selectionKey = selection?.artifact.path ?? null
 
   useEffect(() => {
     if (!selectionKey) {
@@ -199,23 +172,17 @@ export function ArtifactPanel({
 
   const panelTitle = selectedArtifact
     ? selectedArtifact.fileName
-    : selectedEscalation
-      ? selectedEscalation.title
-      : 'Details'
+    : 'Details'
   const panelSubtitle = selectedArtifact
     ? displayPath
-    : selectedEscalation
-      ? selectedEscalation.status === 'open'
-        ? 'Open task'
-        : 'Resolved task'
-      : 'Selection unavailable'
+    : 'Selection unavailable'
   const PanelIcon = selectedArtifact
     ? isImage
       ? FileImage
       : isMarkdown
         ? FileText
         : FileCode2
-    : ListTodo
+    : FileText
   const isOpen = Boolean(selectionKey) || isClosing
 
   return (
@@ -287,19 +254,6 @@ export function ArtifactPanel({
 
                   <div className="mx-0.5 h-4 w-px bg-border/60" aria-hidden="true" />
                 </>
-              ) : onOpenEscalationsView ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={onOpenEscalationsView}
-                  >
-                    Open tasks
-                  </Button>
-
-                  <div className="mx-0.5 h-4 w-px bg-border/60" aria-hidden="true" />
-                </>
               ) : null}
 
               <Button
@@ -328,13 +282,7 @@ export function ArtifactPanel({
             )}
           >
             <div className="px-6 py-6">
-              {selectedEscalation ? (
-                <EscalationCard
-                  escalation={selectedEscalation}
-                  variant="panel"
-                  onResolveEscalation={onResolveEscalation}
-                />
-              ) : isLoading ? (
+              {isLoading ? (
                 <div className="flex items-center gap-2.5 py-12 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                   <span>Loading file...</span>

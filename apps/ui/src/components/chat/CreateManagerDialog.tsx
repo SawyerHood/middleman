@@ -22,7 +22,7 @@ import {
 } from '@middleman/protocol'
 
 const CREATE_MANAGER_MODEL_PRESETS = MANAGER_MODEL_PRESETS.filter(
-  (modelPreset) => modelPreset !== 'codex-app' && modelPreset !== 'claude-code',
+  (modelPreset) => modelPreset !== 'claude-code',
 )
 
 interface CreateManagerDialogProps {

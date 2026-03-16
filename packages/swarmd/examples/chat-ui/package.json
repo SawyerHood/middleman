@@ -1,0 +1,11 @@
+{
+  "name": "swarmd-chat-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types server.ts"
+  },
+  "dependencies": {
+    "swarmd": "file:../../"
+  }
+}
