@@ -2,6 +2,7 @@ import type { ClientCommand, ServerEvent } from "@middleman/protocol";
 import type { IntegrationRegistryService } from "../integrations/registry.js";
 import type { SwarmManager } from "../swarm/swarm-manager.js";
 import { WebSocketServer, type RawData, WebSocket } from "ws";
+import { BUILD_HASH } from "../build-hash.js";
 import { extractRequestId, parseClientCommand } from "./ws-command-parser.js";
 import { handleAgentCommand } from "./routes/agent-routes.js";
 import { handleConversationCommand } from "./routes/conversation-routes.js";
@@ -134,6 +135,7 @@ export class WsHandler {
         subscribedAgentId:
           this.subscriptions.get(socket) ??
           this.resolveDefaultSubscriptionAgentId(),
+        buildHash: BUILD_HASH,
       });
       return;
     }
@@ -385,6 +387,7 @@ export class WsHandler {
       type: "ready",
       serverTime: new Date().toISOString(),
       subscribedAgentId: targetAgentId,
+      buildHash: BUILD_HASH,
     });
     this.send(socket, {
       type: "agents_snapshot",

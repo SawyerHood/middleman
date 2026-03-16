@@ -32,6 +32,13 @@ export type { ManagerWsState } from "./ws-state";
 const INITIAL_CONNECT_DELAY_MS = 50;
 const RECONNECT_MS = 1200;
 const REQUEST_TIMEOUT_MS = 300_000;
+const FRONTEND_BUILD_HASH =
+  typeof import.meta.env.VITE_BUILD_HASH === "string" &&
+  import.meta.env.VITE_BUILD_HASH.trim().length > 0
+    ? import.meta.env.VITE_BUILD_HASH.trim()
+    : "dev";
+
+export const WS_CLIENT_BUILD_HASH = FRONTEND_BUILD_HASH;
 
 export interface DirectoriesListedResult {
   path: string;
@@ -515,9 +522,7 @@ export class ManagerWsClient {
     this.socket = socket;
 
     socket.addEventListener("open", () => {
-      const shouldReload = this.shouldReloadOnReconnect;
       this.hasConnectedOnce = true;
-      this.shouldReloadOnReconnect = false;
 
       this.updateState({
         connected: true,
@@ -534,14 +539,6 @@ export class ManagerWsClient {
           type: "subscribe_agent_detail",
           agentId: this.desiredDetailAgentId,
         });
-      }
-
-      if (
-        shouldReload &&
-        typeof window !== "undefined" &&
-        typeof window.location?.reload === "function"
-      ) {
-        window.location.reload();
       }
     });
 
@@ -598,7 +595,20 @@ export class ManagerWsClient {
     }
 
     switch (event.type) {
-      case "ready":
+      case "ready": {
+        const shouldReload =
+          this.shouldReloadOnReconnect &&
+          event.buildHash !== FRONTEND_BUILD_HASH &&
+          typeof window !== "undefined" &&
+          typeof window.location?.reload === "function";
+
+        this.shouldReloadOnReconnect = false;
+
+        if (shouldReload) {
+          window.location.reload();
+          break;
+        }
+
         this.updateState({
           connected: true,
           targetAgentId: event.subscribedAgentId,
@@ -606,6 +616,7 @@ export class ManagerWsClient {
           lastError: null,
         });
         break;
+      }
 
       case "conversation_message":
       case "conversation_log": {

@@ -198,7 +198,12 @@ export interface AgentsSnapshotEvent {
 }
 
 export type ServerEvent =
-  | { type: "ready"; serverTime: string; subscribedAgentId: string }
+  | {
+      type: "ready";
+      serverTime: string;
+      subscribedAgentId: string;
+      buildHash: string;
+    }
   | {
       type: "conversation_reset";
       agentId: string;
