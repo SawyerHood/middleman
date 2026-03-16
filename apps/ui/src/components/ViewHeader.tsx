@@ -42,7 +42,7 @@ export function ViewHeader({
   return (
     <header
       className={cn(
-        'mb-2 flex h-[62px] shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-card/80 px-2 backdrop-blur md:px-4',
+        'app-top-bar mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-card/80 px-2 backdrop-blur md:px-4',
         className,
       )}
     >

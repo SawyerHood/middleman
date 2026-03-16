@@ -130,8 +130,8 @@ function AuthProviderRow({
         </a>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative w-full flex-1">
           <Input
             type={isRevealed ? 'text' : 'password'}
             placeholder={authStatus.configured ? (authStatus.maskedValue ?? metadata.placeholder) : metadata.placeholder}
@@ -154,31 +154,32 @@ function AuthProviderRow({
             {isRevealed ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
           </Button>
         </div>
-
-        <Button
-          type="button"
-          size="sm"
-          onClick={onSave}
-          disabled={!draftValue.trim() || busy}
-          className="gap-1.5"
-        >
-          {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-          {isSaving ? 'Saving' : 'Save'}
-        </Button>
-
-        {authStatus.configured ? (
+        <div className="flex flex-wrap gap-2 sm:shrink-0">
           <Button
             type="button"
-            variant="ghost"
             size="sm"
-            onClick={onDelete}
-            disabled={busy}
-            className="gap-1.5 text-muted-foreground hover:text-destructive"
+            onClick={onSave}
+            disabled={!draftValue.trim() || busy}
+            className="flex-1 gap-1.5 sm:flex-none"
           >
-            {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-            {isDeleting ? 'Removing' : 'Remove'}
+            {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+            {isSaving ? 'Saving' : 'Save'}
           </Button>
-        ) : null}
+
+          {authStatus.configured ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              disabled={busy}
+              className="flex-1 gap-1.5 text-muted-foreground hover:text-destructive sm:flex-none"
+            >
+              {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              {isDeleting ? 'Removing' : 'Remove'}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-4">
@@ -193,7 +194,7 @@ function AuthProviderRow({
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {oauthFlow.status === 'complete' ? (
                 <Badge
                   variant="outline"
@@ -244,7 +245,7 @@ function AuthProviderRow({
                 {oauthFlow.promptMessage ?? 'Paste the authorization code to continue.'}
               </p>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   type="text"
                   placeholder={oauthFlow.promptPlaceholder ?? 'Paste authorization code or URL'}
@@ -261,7 +262,7 @@ function AuthProviderRow({
                   size="sm"
                   onClick={onSubmitOAuthCode}
                   disabled={!oauthFlow.codeValue.trim() || busy || oauthFlow.isSubmittingCode}
-                  className="gap-1.5"
+                  className="w-full gap-1.5 sm:w-auto"
                 >
                   {oauthFlow.isSubmittingCode ? (
                     <Loader2 className="size-3.5 animate-spin" />

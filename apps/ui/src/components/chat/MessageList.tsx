@@ -458,106 +458,108 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
     previousEntryCountRef.current = nextEntryCount
   }, [activeAgentId, displayEntries, isLoading, scrollToBottom])
 
-  if (displayEntries.length === 0 && !isLoading) {
-    return (
-      <EmptyState
-        activeAgentId={activeAgentId}
-        onSuggestionClick={onSuggestionClick}
-      />
-    )
-  }
-
   const handleScrollToBottom = () => {
     scrollToBottom('smooth')
   }
 
   return (
     <div className="relative min-h-0 flex flex-1 flex-col overflow-hidden">
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className={cn(
-          'min-h-0 flex-1 overflow-y-auto',
-          '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent',
-          '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent',
-          '[scrollbar-width:thin] [scrollbar-color:transparent_transparent]',
-          'hover:[&::-webkit-scrollbar-thumb]:bg-border hover:[scrollbar-color:var(--color-border)_transparent]',
-        )}
-      >
-        <div className="p-2 md:p-3">
-          {displayEntries.map((entry, index) => {
-            const previousEntry = index > 0 ? displayEntries[index - 1] : undefined
-            const rowSpacingClass = getDisplayEntrySpacingClass(
-              entry,
-              previousEntry,
-              isWorkerDetailView,
-            )
-
-            if (entry.type === 'conversation_message') {
-              return (
-                <div
-                  key={entry.id}
-                  className={rowSpacingClass}
-                >
-                  <ConversationMessageRow
-                    message={entry.message}
-                    onArtifactClick={onArtifactClick}
-                    wsUrl={wsUrl}
-                  />
-                </div>
-              )
-            }
-
-            if (entry.type === 'agent_message') {
-              return (
-                <div
-                  key={entry.id}
-                  className={rowSpacingClass}
-                >
-                  <AgentMessageRow
-                    message={entry.message}
-                    agentLookup={agentLookup}
-                  />
-                </div>
-              )
-            }
-
-            return (
-              <div
-                key={entry.id}
-                className={rowSpacingClass}
-              >
-                <ToolLogRow
-                  type={entry.type}
-                  entry={entry.entry}
-                />
-              </div>
-            )
-          })}
-          {isLoading ? <LoadingIndicator /> : null}
-          <div ref={bottomRef} />
+      {displayEntries.length === 0 && !isLoading ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <EmptyState
+            activeAgentId={activeAgentId}
+            onSuggestionClick={onSuggestionClick}
+          />
         </div>
-      </div>
+      ) : (
+        <>
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className={cn(
+              'app-scroll-area min-h-0 flex-1 overflow-y-auto',
+              '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent',
+              '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent',
+              '[scrollbar-width:thin] [scrollbar-color:transparent_transparent]',
+              'hover:[&::-webkit-scrollbar-thumb]:bg-border hover:[scrollbar-color:var(--color-border)_transparent]',
+            )}
+          >
+            <div className="p-2 md:p-3">
+              {displayEntries.map((entry, index) => {
+                const previousEntry = index > 0 ? displayEntries[index - 1] : undefined
+                const rowSpacingClass = getDisplayEntrySpacingClass(
+                  entry,
+                  previousEntry,
+                  isWorkerDetailView,
+                )
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
-        <Button
-          type="button"
-          size="icon"
-          tabIndex={showScrollButton ? 0 : -1}
-          aria-hidden={!showScrollButton}
-          aria-label="Scroll to latest message"
-          onClick={handleScrollToBottom}
-          className={cn(
-            'size-9 rounded-full bg-background/80 text-foreground shadow-md ring-1 ring-border backdrop-blur-sm',
-            'transition-opacity transition-transform duration-200',
-            showScrollButton
-              ? 'pointer-events-auto translate-y-0 opacity-100'
-              : 'pointer-events-none translate-y-2 opacity-0',
-          )}
-        >
-          <ChevronDown className="size-4" aria-hidden="true" />
-        </Button>
-      </div>
+                if (entry.type === 'conversation_message') {
+                  return (
+                    <div
+                      key={entry.id}
+                      className={rowSpacingClass}
+                    >
+                      <ConversationMessageRow
+                        message={entry.message}
+                        onArtifactClick={onArtifactClick}
+                        wsUrl={wsUrl}
+                      />
+                    </div>
+                  )
+                }
+
+                if (entry.type === 'agent_message') {
+                  return (
+                    <div
+                      key={entry.id}
+                      className={rowSpacingClass}
+                    >
+                      <AgentMessageRow
+                        message={entry.message}
+                        agentLookup={agentLookup}
+                      />
+                    </div>
+                  )
+                }
+
+                return (
+                  <div
+                    key={entry.id}
+                    className={rowSpacingClass}
+                  >
+                    <ToolLogRow
+                      type={entry.type}
+                      entry={entry.entry}
+                    />
+                  </div>
+                )
+              })}
+              {isLoading ? <LoadingIndicator /> : null}
+              <div ref={bottomRef} />
+            </div>
+          </div>
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
+            <Button
+              type="button"
+              size="icon"
+              tabIndex={showScrollButton ? 0 : -1}
+              aria-hidden={!showScrollButton}
+              aria-label="Scroll to latest message"
+              onClick={handleScrollToBottom}
+              className={cn(
+                'size-9 rounded-full bg-background/80 text-foreground shadow-md ring-1 ring-border backdrop-blur-sm',
+                'transition-opacity transition-transform duration-200',
+                showScrollButton
+                  ? 'pointer-events-auto translate-y-0 opacity-100'
+                  : 'pointer-events-none translate-y-2 opacity-0',
+              )}
+            >
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   )
 })

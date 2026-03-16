@@ -34,8 +34,9 @@ export function ContentZoomDialog({
         <DialogPrimitive.Popup
           data-content-zoom-dialog="true"
           className={cn(
-            'fixed left-1/2 top-1/2 z-[121] h-[min(92vh,1400px)] w-[min(95vw,1600px)]',
-            '-translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-white/10',
+            'fixed left-1/2 z-[121] h-[min(calc(var(--app-viewport-height)-var(--app-safe-top)-var(--app-safe-bottom)-1rem),1400px)] w-[min(calc(100vw-1rem),1600px)]',
+            '-translate-x-1/2 overflow-hidden rounded-xl border border-white/10',
+            'max-md:top-[calc(var(--app-safe-top)+0.5rem)] md:top-1/2 md:-translate-y-1/2',
             'bg-background/95 shadow-[0_16px_80px_rgba(0,0,0,0.6)] outline-none',
             'data-open:animate-in data-closed:animate-out',
           )}
@@ -61,8 +62,8 @@ export function ContentZoomDialog({
             <X className="size-4" aria-hidden="true" />
           </DialogClose>
 
-          <ScrollArea className="h-full">
-            <div className={cn('flex min-h-full items-center justify-center p-4 sm:p-8', contentClassName)}>
+          <ScrollArea className="app-scroll-area h-full">
+            <div className={cn('flex min-h-full items-center justify-center p-4 pb-[calc(1rem+var(--app-safe-bottom))] sm:p-8', contentClassName)}>
               {children}
             </div>
           </ScrollArea>

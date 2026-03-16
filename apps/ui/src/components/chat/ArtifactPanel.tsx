@@ -207,7 +207,7 @@ export function ArtifactPanel({
         />
         <DialogPrimitive.Popup
           className={cn(
-            'fixed right-0 top-0 z-50 flex h-full w-full flex-col',
+            'app-shell-height fixed right-0 top-0 z-50 flex w-full flex-col',
             'max-md:max-w-full md:max-w-[min(880px,90vw)]',
             'border-l border-border/80 bg-background',
             'shadow-[-8px_0_32px_-4px_rgba(0,0,0,0.12)] outline-none',
@@ -216,7 +216,7 @@ export function ArtifactPanel({
           )}
         >
           <DialogTitle className="sr-only">{panelTitle}</DialogTitle>
-          <header className="flex h-[62px] shrink-0 items-center justify-between gap-3 border-b border-border/80 bg-card/80 px-5 backdrop-blur">
+          <header className="app-top-bar flex shrink-0 items-center justify-between gap-3 border-b border-border/80 bg-card/80 px-4 backdrop-blur md:px-5">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <PanelIcon className="size-3.5" aria-hidden="true" />
@@ -275,13 +275,13 @@ export function ArtifactPanel({
 
           <ScrollArea
             className={cn(
-              'min-h-0 flex-1',
+              'app-scroll-area min-h-0 flex-1',
               '[&>[data-slot=scroll-area-scrollbar]]:w-2',
               '[&>[data-slot=scroll-area-scrollbar]>[data-slot=scroll-area-thumb]]:bg-transparent',
               'hover:[&>[data-slot=scroll-area-scrollbar]>[data-slot=scroll-area-thumb]]:bg-border',
             )}
           >
-            <div className="px-6 py-6">
+            <div className="px-4 py-4 pb-[calc(1rem+var(--app-safe-bottom))] md:px-6 md:py-6">
               {isLoading ? (
                 <div className="flex items-center gap-2.5 py-12 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -297,7 +297,7 @@ export function ArtifactPanel({
                     <img
                       src={imageFileUrl}
                       alt={selectedArtifact.fileName || 'Artifact image'}
-                      className="max-h-[calc(100vh-180px)] max-w-full rounded-lg border border-border/60 bg-muted/20 object-contain"
+                      className="max-h-[calc(var(--app-viewport-height)-11rem)] max-w-full rounded-lg border border-border/60 bg-muted/20 object-contain"
                     />
                   </div>
                 ) : (

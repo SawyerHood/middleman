@@ -80,7 +80,6 @@ export function CreateManagerDialog({
               placeholder="release-manager"
               value={newManagerName}
               onChange={(event) => onNameChange(event.target.value)}
-              autoFocus
             />
           </div>
 
@@ -88,20 +87,22 @@ export function CreateManagerDialog({
             <Label htmlFor="manager-cwd" className="text-xs font-medium text-muted-foreground">
               Working directory
             </Label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Input
                 id="manager-cwd"
                 placeholder="/path/to/project"
                 value={newManagerCwd}
                 onChange={(event) => onCwdChange(event.target.value)}
+                className="min-w-0"
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={onBrowseDirectory}
                 disabled={isPickingDirectory || isCreatingManager}
+                className="w-full sm:w-auto"
               >
-                {isPickingDirectory ? 'Browsing...' : 'Browse'}
+                {isPickingDirectory ? 'Browsing…' : 'Browse'}
               </Button>
             </div>
 
@@ -144,20 +145,25 @@ export function CreateManagerDialog({
             <p className="text-xs text-destructive">{createManagerError}</p>
           ) : null}
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isCreatingManager}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isCreatingManager || isPickingDirectory}>
+            <Button
+              type="submit"
+              disabled={isCreatingManager || isPickingDirectory}
+              className="w-full sm:w-auto"
+            >
               {isCreatingManager
                 ? isValidatingDirectory
-                  ? 'Validating...'
-                  : 'Creating...'
+                  ? 'Validating…'
+                  : 'Creating…'
                 : 'Create manager'}
             </Button>
           </div>

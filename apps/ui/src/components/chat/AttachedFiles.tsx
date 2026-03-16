@@ -30,7 +30,7 @@ export function AttachedFiles({ attachments, onRemove }: AttachedFilesProps) {
                 className="size-16 rounded border border-border object-cover"
               />
             ) : (
-              <div className="flex h-16 w-52 items-center gap-2 rounded border border-border bg-muted/40 px-2 py-1.5">
+              <div className="flex h-16 w-full max-w-full items-center gap-2 rounded border border-border bg-muted/40 px-2 py-1.5 sm:w-52">
                 <div className="rounded bg-muted p-1.5 text-muted-foreground">
                   {isPendingTextAttachment(attachment) ? <FileText className="size-3.5" /> : <File className="size-3.5" />}
                 </div>

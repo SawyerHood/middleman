@@ -272,7 +272,7 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
             </div>
           ) : null}
 
-          <div className="notes-lexical-scroll-area min-h-0 flex-1 overflow-y-auto">
+          <div className="notes-lexical-scroll-area app-scroll-area min-h-0 flex-1 overflow-y-auto">
             <div className="notes-lexical-shell">
               <RichTextPlugin
                 ErrorBoundary={LexicalErrorBoundary}

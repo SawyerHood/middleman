@@ -24,7 +24,7 @@ export const Route = createRootRoute({
       },
       {
         name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
+        content: 'width=device-width, initial-scale=1, viewport-fit=cover',
       },
       {
         title: 'Middleman Manager UI',
@@ -57,7 +57,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
-      <body className="overflow-x-hidden">
+      <body className="overflow-hidden overscroll-none bg-background">
         <JotaiProvider>
           <TooltipProvider>
             {children}

@@ -502,7 +502,7 @@ export function SettingsIntegrations({
               <Input id="slack-max-file-bytes" value={slackDraft.maxFileBytes} onChange={(e) => setSlackDraft((prev) => (prev ? { ...prev, maxFileBytes: e.target.value } : prev))} placeholder="10485760" inputMode="numeric" />
             </div>
             <div className="space-y-2 rounded-md border border-border/70 p-3">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs font-medium">Channel picker</p>
                 <Button type="button" variant="outline" size="sm" onClick={() => void handleLoadChannels()} disabled={isLoadingChannels || !hasSelectedIntegrationManager}>
                   {isLoadingChannels ? <Loader2 className="mr-1 size-3.5 animate-spin" /> : null}
@@ -520,14 +520,14 @@ export function SettingsIntegrations({
                       const checked = slackDraft.channelIds.includes(channel.id)
                       const checkboxId = `slack-channel-${channel.id}`
                       return (
-                        <div key={channel.id} className="flex items-center gap-2 text-xs">
+                        <div key={channel.id} className="flex items-start gap-2 text-xs">
                           <Checkbox id={checkboxId} checked={checked} onCheckedChange={(nextChecked) => setSlackDraft((prev) => {
                             if (!prev) return prev
                             const nextIds = new Set(prev.channelIds)
                             if (nextChecked === true) nextIds.add(channel.id); else nextIds.delete(channel.id)
                             return { ...prev, channelIds: [...nextIds] }
                           })} />
-                          <Label htmlFor={checkboxId} className="cursor-pointer text-xs font-normal">
+                          <Label htmlFor={checkboxId} className="min-w-0 cursor-pointer text-xs font-normal break-words">
                             <span className="font-medium">#{channel.name}</span>
                             <span className="font-mono text-muted-foreground">({channel.id})</span>
                             {!channel.isMember ? <span className="text-muted-foreground"> not joined</span> : null}

@@ -14,7 +14,7 @@ export function SettingsSection({
 }) {
   return (
     <div className="space-y-4 pb-4">
-      <div className="border-b pb-2 flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 border-b pb-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex-1">
           <h3 className="text-base font-semibold">{label}</h3>
           {description && (

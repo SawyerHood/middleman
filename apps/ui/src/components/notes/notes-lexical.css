@@ -232,7 +232,7 @@
 
 .notes-lexical-toolbar-track {
   overflow-x: auto;
-  padding: 0.95rem 1rem 1.15rem;
+  padding: 0.95rem 1rem calc(1.15rem + var(--app-safe-bottom));
 }
 
 .notes-lexical-toolbar {

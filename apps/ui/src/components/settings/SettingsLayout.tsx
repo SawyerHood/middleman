@@ -38,7 +38,7 @@ export function SettingsLayout({
       {statusBanner}
 
       {/* Mobile: horizontal scrolling tab bar */}
-      <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 bg-card/30 px-2 py-1.5 md:hidden">
+      <nav className="app-scroll-area flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 bg-card/30 px-2 py-1.5 md:hidden">
         {NAV_ITEMS.map((item) => {
           const isActive = activeTab === item.id
           return (
@@ -47,7 +47,7 @@ export function SettingsLayout({
               type="button"
               onClick={() => onTabChange(item.id)}
               className={cn(
-                'flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
+                'flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
                 'hover:bg-muted/50',
                 isActive
                   ? 'bg-muted text-foreground font-medium'
@@ -89,8 +89,8 @@ export function SettingsLayout({
         </nav>
 
         {/* Content area */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-4 py-4 md:px-6 md:py-5">
+        <div className="app-scroll-area min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-4 py-4 pb-[calc(1rem+var(--app-safe-bottom))] md:px-6 md:py-5">
             {children}
           </div>
         </div>

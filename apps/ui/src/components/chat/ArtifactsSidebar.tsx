@@ -348,7 +348,7 @@ export function ArtifactsSidebar({
   return (
     <div
       className={cn(
-        'flex h-full shrink-0 flex-col border-l border-border/80 bg-card/50',
+        'app-shell-height flex shrink-0 flex-col border-l border-border/80 bg-card/50',
         'transition-[width,opacity] duration-200 ease-out',
         // Mobile: full screen overlay when open
         isOpen
@@ -368,7 +368,7 @@ export function ArtifactsSidebar({
         }}
         className="h-full gap-0"
       >
-        <div className="flex h-[62px] shrink-0 items-center gap-2 px-3">
+        <div className="app-top-bar flex shrink-0 items-center gap-2 px-3">
           <TabsList className="h-7 w-full bg-muted/60 p-0.5">
             <TabsTrigger
               value="artifacts"

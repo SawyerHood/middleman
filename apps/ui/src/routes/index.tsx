@@ -719,8 +719,8 @@ export function IndexPage() {
   )
 
   return (
-    <main className="h-screen bg-background text-foreground">
-      <div className="flex h-screen w-full min-w-0 overflow-hidden bg-background">
+    <main className="app-shell-height overflow-hidden bg-background text-foreground">
+      <div className="flex h-full w-full min-w-0 overflow-hidden bg-background">
         <ResizablePanelGroup
           id="main-layout"
           orientation="horizontal"

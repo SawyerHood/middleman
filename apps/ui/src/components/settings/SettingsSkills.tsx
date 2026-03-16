@@ -108,8 +108,8 @@ function EnvVariableRow({
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{variable.description}</p>
       ) : null}
 
-      <div className="mt-3 flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative w-full flex-1">
           <Input
             type={isRevealed ? 'text' : 'password'}
             placeholder={variable.isSet ? (variable.maskedValue ?? '••••••••') : 'Enter value…'}
@@ -132,31 +132,32 @@ function EnvVariableRow({
             {isRevealed ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
           </Button>
         </div>
-
-        <Button
-          type="button"
-          size="sm"
-          onClick={onSave}
-          disabled={!draftValue.trim() || busy}
-          className="gap-1.5"
-        >
-          {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-          {isSaving ? 'Saving' : 'Save'}
-        </Button>
-
-        {variable.isSet ? (
+        <div className="flex flex-wrap gap-2 sm:shrink-0">
           <Button
             type="button"
-            variant="ghost"
             size="sm"
-            onClick={onDelete}
-            disabled={busy}
-            className="gap-1.5 text-muted-foreground hover:text-destructive"
+            onClick={onSave}
+            disabled={!draftValue.trim() || busy}
+            className="flex-1 gap-1.5 sm:flex-none"
           >
-            {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-            {isDeleting ? 'Removing' : 'Remove'}
+            {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+            {isSaving ? 'Saving' : 'Save'}
           </Button>
-        ) : null}
+
+          {variable.isSet ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              disabled={busy}
+              className="flex-1 gap-1.5 text-muted-foreground hover:text-destructive sm:flex-none"
+            >
+              {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              {isDeleting ? 'Removing' : 'Remove'}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   )

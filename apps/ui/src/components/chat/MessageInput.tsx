@@ -189,9 +189,19 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }, [input, resizeTextarea])
 
   useEffect(() => {
-    if (!disabled && !blockedByLoading && !isRecording) {
-      textareaRef.current?.focus()
+    if (disabled || blockedByLoading || isRecording) {
+      return
     }
+
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches
+    ) {
+      return
+    }
+
+    textareaRef.current?.focus()
   }, [blockedByLoading, disabled, isRecording])
 
   const addFiles = useCallback(
@@ -423,7 +433,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     <form
       data-react-grab-ignore
       onSubmit={handleSubmit}
-      className="sticky bottom-0 shrink-0 bg-background p-2 md:p-3"
+      className="sticky bottom-0 z-10 shrink-0 bg-background px-2 pt-2 pb-[calc(0.5rem+var(--app-safe-bottom))] md:px-3 md:pt-3 md:pb-[calc(0.75rem+var(--app-safe-bottom))]"
     >
       <div className="overflow-hidden rounded-2xl border border-border">
         <AttachedFiles attachments={attachedFiles} onRemove={removeAttachment} />

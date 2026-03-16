@@ -86,7 +86,7 @@ export function ChatHeader({
   const hasMenu = showNewChat || showStopAll || onShowInternalChatterChange !== undefined
 
   return (
-    <header className="sticky top-0 z-10 flex h-[62px] w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/80 bg-card/80 px-2 backdrop-blur md:px-4">
+    <header className="app-top-bar sticky top-0 z-20 flex w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/80 bg-card/80 px-2 backdrop-blur md:px-4">
       <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
         {/* Mobile hamburger */}
         {onToggleMobileSidebar ? (
