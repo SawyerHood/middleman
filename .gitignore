@@ -5,3 +5,12 @@ node_modules/
 **/.tanstack/
 .DS_Store
 .env
+
+# Test data directories (generated during dev/test)
+.test-data*
+
+# SQLite databases (generated at runtime)
+*.db
+*.db-shm
+*.db-wal
+
