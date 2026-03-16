@@ -92,10 +92,13 @@ let container!: HTMLDivElement
 let root: Root | null = null
 
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
+const originalMatchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia')
 const originalResizeObserverDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver')
 const originalGetAnimations = Element.prototype.getAnimations
+let isDesktopLayout = true
 
 beforeEach(() => {
+  isDesktopLayout = true
   const localStorageMock = createLocalStorageMock()
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
@@ -104,6 +107,20 @@ beforeEach(() => {
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
     value: localStorageMock,
+  })
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(min-width: 768px)' ? isDesktopLayout : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
   })
   Object.defineProperty(window, 'ResizeObserver', {
     configurable: true,
@@ -175,6 +192,12 @@ afterEach(() => {
     Object.defineProperty(globalThis, 'localStorage', originalLocalStorageDescriptor)
   }
 
+  if (originalMatchMediaDescriptor) {
+    Object.defineProperty(window, 'matchMedia', originalMatchMediaDescriptor)
+  } else {
+    Reflect.deleteProperty(window, 'matchMedia')
+  }
+
   if (originalResizeObserverDescriptor) {
     Object.defineProperty(window, 'ResizeObserver', originalResizeObserverDescriptor)
     Object.defineProperty(globalThis, 'ResizeObserver', originalResizeObserverDescriptor)
@@ -194,6 +217,10 @@ function click(element: HTMLElement): void {
   flushSync(() => {
     element.click()
   })
+}
+
+function setDesktopExplorerLayout(matches: boolean): void {
+  isDesktopLayout = matches
 }
 
 function renderNotesView() {
@@ -263,6 +290,46 @@ describe('NotesView', () => {
     expect(queryByText(container, 'first.md')).toBeNull()
   })
 
+  it('defaults to a hidden overlay explorer on mobile and closes it after note selection', async () => {
+    setDesktopExplorerLayout(false)
+
+    renderNotesView()
+
+    await waitFor(() => {
+      expect(notesApiMocks.fetchNoteTree).toHaveBeenCalled()
+    })
+
+    expect(container.querySelector('button[title="first.md"]')).toBeNull()
+
+    const openExplorerButton = container.querySelector('button[aria-label="Open notes explorer"]')
+    expect(openExplorerButton).toBeTruthy()
+
+    click(openExplorerButton as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(container.querySelector('button[aria-label="Collapse explorer"]')).toBeTruthy()
+      expect(container.querySelector('button[title="first.md"]')).toBeTruthy()
+    })
+
+    click(container.querySelector('button[title="first.md"]') as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(notesApiMocks.fetchNote).toHaveBeenCalledWith(
+        'ws://127.0.0.1:47187',
+        'first.md',
+        expect.any(AbortSignal),
+      )
+    })
+
+    await waitFor(() => {
+      expect(container.querySelector('button[aria-label="Open notes explorer"]')?.getAttribute('aria-pressed')).toBe(
+        'false',
+      )
+      expect(container.querySelector('button[title="first.md"]')).toBeNull()
+      expect(container.querySelector('[data-testid="notes-editor"]')?.textContent).toBe('# First note\n')
+    })
+  })
+
   it('opens the search palette from the keyboard shortcut and selects a matching note', async () => {
     notesApiMocks.fetchNoteTree.mockResolvedValue([
       {
@@ -322,7 +389,7 @@ describe('NotesView', () => {
     })
 
     expect(getByText(container, 'projects')).toBeTruthy()
-    expect(document.body.querySelector('input[aria-label="Search notes"]')).toBeNull()
+    expect(document.body.querySelector('[data-slot="dialog-content"][data-open]')).toBeNull()
   })
 
   it('opens the search palette from the explorer button and dismisses it with escape', async () => {

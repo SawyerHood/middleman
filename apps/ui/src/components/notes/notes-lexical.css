@@ -232,17 +232,19 @@
 
 .notes-lexical-toolbar-track {
   overflow-x: auto;
-  padding: 0.95rem 1rem calc(1.15rem + var(--app-safe-bottom));
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.95rem 0.85rem calc(1.15rem + var(--app-safe-bottom));
 }
 
 .notes-lexical-toolbar {
   display: flex;
   width: max-content;
-  min-width: 100%;
+  min-width: max-content;
   align-items: center;
-  justify-content: center;
-  gap: 0.15rem;
-  margin: 0 auto;
+  justify-content: flex-start;
+  gap: 0.25rem;
+  margin: 0;
   padding: 0.4rem;
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
   border-radius: 999px;
@@ -253,12 +255,33 @@
 }
 
 .notes-lexical-toolbar-button {
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
   color: color-mix(in srgb, var(--foreground) 84%, transparent);
 }
 
 .notes-lexical-toolbar-button-active {
   background: color-mix(in srgb, var(--primary) 16%, var(--background));
   color: color-mix(in srgb, var(--primary) 78%, white);
+}
+
+@media (min-width: 768px) {
+  .notes-lexical-toolbar-track {
+    padding-inline: 1rem;
+  }
+
+  .notes-lexical-toolbar {
+    min-width: 100%;
+    justify-content: center;
+    gap: 0.15rem;
+    margin: 0 auto;
+  }
+
+  .notes-lexical-toolbar-button {
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+  }
 }
 
 .notes-lexical-scroll-area::-webkit-scrollbar {

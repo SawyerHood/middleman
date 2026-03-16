@@ -50,6 +50,7 @@ type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error'
 const DEFAULT_NEW_NOTE_CONTENT = '# Untitled note\n'
 const NOTES_HOME_LABEL = '~/.middleman/notes'
 const ROOT_FOLDER_VALUE = '__root__'
+const NOTES_DESKTOP_MEDIA_QUERY = '(min-width: 768px)'
 const NOTES_EXPLORER_COLLAPSED_STORAGE_KEY = 'middleman:notes:explorer-collapsed'
 const NOTES_LAST_OPEN_STORAGE_KEY = 'middleman:notes:last-open'
 const NOTE_SEARCH_SHORTCUT_LABEL = 'Cmd/Ctrl+P'
@@ -71,6 +72,7 @@ export function NotesView({
   statusBanner,
   onToggleMobileSidebar,
 }: NotesViewProps) {
+  const isDesktopExplorerLayout = useDesktopExplorerLayout()
   const [tree, setTree] = useState<NoteTreeNode[]>([])
   const [selectedNotePath, setSelectedNotePath] = useState<string | null>(null)
   const [selectedNote, setSelectedNote] = useState<NoteDocument | null>(null)
@@ -82,7 +84,8 @@ export function NotesView({
   const [isLoadingNote, setIsLoadingNote] = useState(false)
   const [expandedFolderPaths, setExpandedFolderPaths] = useState<string[]>([])
   const [activeFolderPath, setActiveFolderPath] = useState<string | null>(null)
-  const [isExplorerCollapsed, setIsExplorerCollapsed] = useState(readStoredExplorerCollapsed)
+  const [isDesktopExplorerCollapsed, setIsDesktopExplorerCollapsed] = useState(readStoredExplorerCollapsed)
+  const [isMobileExplorerOpen, setIsMobileExplorerOpen] = useState(false)
   const [isSearchPaletteOpen, setIsSearchPaletteOpen] = useState(false)
   const [renamingNotePath, setRenamingNotePath] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
@@ -436,8 +439,33 @@ export function NotesView({
   }, [selectedNotePath])
 
   useEffect(() => {
-    writeStoredExplorerCollapsed(isExplorerCollapsed)
-  }, [isExplorerCollapsed])
+    writeStoredExplorerCollapsed(isDesktopExplorerCollapsed)
+  }, [isDesktopExplorerCollapsed])
+
+  useEffect(() => {
+    if (isDesktopExplorerLayout) {
+      return
+    }
+
+    setIsMobileExplorerOpen(false)
+  }, [isDesktopExplorerLayout])
+
+  useEffect(() => {
+    if (!isMobileExplorerOpen) {
+      return
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMobileExplorerOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isMobileExplorerOpen])
 
   useEffect(() => {
     if (!hasResolvedInitialLastOpenNoteRef.current) {
@@ -478,6 +506,9 @@ export function NotesView({
   const handleSelectNote = useCallback(
     (path: string) => {
       if (path === selectedNotePath) {
+        if (!isDesktopExplorerLayout) {
+          setIsMobileExplorerOpen(false)
+        }
         return
       }
 
@@ -486,10 +517,13 @@ export function NotesView({
           setSelectedNotePath(path)
           setExpandedFolderPaths((current) => mergeExpandedFolderPaths(current, tree, path, [], false))
           setActiveFolderPath(parentFolderPathOf(path))
+          if (!isDesktopExplorerLayout) {
+            setIsMobileExplorerOpen(false)
+          }
         }
       })
     },
-    [flushPendingSave, selectedNotePath, tree],
+    [flushPendingSave, isDesktopExplorerLayout, selectedNotePath, tree],
   )
 
   const handleToggleFolder = useCallback((path: string) => {
@@ -508,8 +542,21 @@ export function NotesView({
   }, [])
 
   const handleSetExplorerCollapsed = useCallback((nextCollapsed: boolean) => {
-    setIsExplorerCollapsed(nextCollapsed)
-  }, [])
+    if (isDesktopExplorerLayout) {
+      setIsDesktopExplorerCollapsed(nextCollapsed)
+      return
+    }
+
+    setIsMobileExplorerOpen(!nextCollapsed)
+  }, [isDesktopExplorerLayout])
+
+  const handleToggleMobileExplorer = useCallback(() => {
+    if (isDesktopExplorerLayout) {
+      return
+    }
+
+    setIsMobileExplorerOpen((current) => !current)
+  }, [isDesktopExplorerLayout])
 
   const handleSetSearchPaletteOpen = useCallback((open: boolean) => {
     setIsSearchPaletteOpen(open)
@@ -554,12 +601,25 @@ export function NotesView({
         preferredSelectedPath: createdNote.path,
         revealPaths: [createdFolderPath ?? ''],
       })
+      if (!isDesktopExplorerLayout) {
+        setIsMobileExplorerOpen(false)
+      }
     } catch (error) {
       setNotesError(toErrorMessage(error))
     } finally {
       setIsCreatingNote(false)
     }
-  }, [activeFolderPath, expandedFolderPaths, flushPendingSave, folderPathSet, loadTree, noteList, selectLoadedNote, wsUrl])
+  }, [
+    activeFolderPath,
+    expandedFolderPaths,
+    flushPendingSave,
+    folderPathSet,
+    isDesktopExplorerLayout,
+    loadTree,
+    noteList,
+    selectLoadedNote,
+    wsUrl,
+  ])
 
   const handleCreateFolder = useCallback(async () => {
     const folderPath = joinFolderPath(createFolderParentPath, createFolderNameDraft)
@@ -796,6 +856,9 @@ export function NotesView({
     ? `${selectedNoteSummary.path} · ${NOTES_HOME_LABEL}`
     : `Markdown files in ${NOTES_HOME_LABEL}`
 
+  const isExplorerCollapsed = isDesktopExplorerLayout ? isDesktopExplorerCollapsed : !isMobileExplorerOpen
+  const showExplorerRail = isDesktopExplorerLayout && isDesktopExplorerCollapsed
+  const showExplorerPanel = isDesktopExplorerLayout ? !isDesktopExplorerCollapsed : isMobileExplorerOpen
   const localBannerMessage = notesError ?? (saveStatus === 'error' ? saveError : null)
   const isCreateFolderDisabled = createFolderNameDraft.trim().length === 0 || isCreatingFolder
 
@@ -822,7 +885,22 @@ export function NotesView({
           </Button>
         }
         trailing={
-          selectedNotePath ? <SaveStatusPill status={saveStatus} /> : null
+          <>
+            {!isDesktopExplorerLayout ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleToggleMobileExplorer}
+                aria-label={isMobileExplorerOpen ? 'Close notes explorer' : 'Open notes explorer'}
+                aria-pressed={isMobileExplorerOpen}
+                title={isMobileExplorerOpen ? 'Close explorer' : 'Open explorer'}
+              >
+                {isMobileExplorerOpen ? <PanelLeft className="size-4" /> : <PanelRight className="size-4" />}
+              </Button>
+            ) : null}
+            {selectedNotePath ? <SaveStatusPill status={saveStatus} /> : null}
+          </>
         }
         onBack={onBack}
         backAriaLabel="Back to chat"
@@ -834,16 +912,18 @@ export function NotesView({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-        <div
-          className={cn(
-            'shrink-0 overflow-hidden border-border/70 bg-background transition-[width] duration-200 ease-out',
-            isExplorerCollapsed
-              ? 'w-12 border-r'
-              : 'flex min-h-0 w-full flex-col border-b md:w-80 md:border-b-0 md:border-r',
-          )}
-        >
-          {isExplorerCollapsed ? (
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+        {!isDesktopExplorerLayout && isMobileExplorerOpen ? (
+          <button
+            type="button"
+            className="absolute inset-0 z-10 bg-background/72 backdrop-blur-[2px]"
+            onClick={() => setIsMobileExplorerOpen(false)}
+            aria-label="Close notes explorer"
+          />
+        ) : null}
+
+        {showExplorerRail ? (
+          <div className="hidden h-full shrink-0 overflow-hidden border-r border-border/70 bg-background md:flex md:w-12">
             <div className="flex h-full flex-col items-center gap-1 border-border/70 px-2 py-2">
               <Button
                 type="button"
@@ -876,7 +956,18 @@ export function NotesView({
                 </TooltipContent>
               </Tooltip>
             </div>
-          ) : (
+          </div>
+        ) : null}
+
+        {showExplorerPanel ? (
+          <div
+            className={cn(
+              'min-h-0 shrink-0 overflow-hidden border-border/70 bg-background',
+              isDesktopExplorerLayout
+                ? 'flex w-full flex-col border-b md:w-80 md:border-b-0 md:border-r'
+                : 'absolute inset-y-0 left-0 z-20 flex w-[min(22rem,calc(100vw-2rem))] max-w-full flex-col border-r shadow-2xl',
+            )}
+          >
             <>
               <div className="flex h-11 items-center justify-end border-b border-border/70 px-2">
                 <div className="flex items-center gap-1">
@@ -911,35 +1002,27 @@ export function NotesView({
                   >
                     {isCreatingNote ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
                   </Button>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className={cn(
-                            'transition-colors',
-                            isExplorerCollapsed
-                              ? 'text-muted-foreground hover:bg-accent/70 hover:text-foreground'
-                              : 'bg-accent text-foreground',
-                          )}
-                          onClick={() => handleSetExplorerCollapsed(!isExplorerCollapsed)}
-                          aria-label={isExplorerCollapsed ? 'Expand explorer' : 'Collapse explorer'}
-                          aria-pressed={!isExplorerCollapsed}
-                        />
-                      }
-                    >
-                      <PanelRight className="size-3.5" />
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" sideOffset={6}>
-                      {isExplorerCollapsed ? 'Show explorer' : 'Hide explorer'}
-                    </TooltipContent>
-                  </Tooltip>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className={cn(
+                      'transition-colors',
+                      isExplorerCollapsed
+                        ? 'text-muted-foreground hover:bg-accent/70 hover:text-foreground'
+                        : 'bg-accent text-foreground',
+                    )}
+                    onClick={() => handleSetExplorerCollapsed(!isExplorerCollapsed)}
+                    aria-label={isExplorerCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+                    aria-pressed={!isExplorerCollapsed}
+                    title={isExplorerCollapsed ? 'Show explorer' : 'Hide explorer'}
+                  >
+                    <PanelRight className="size-3.5" />
+                  </Button>
                 </div>
               </div>
 
-              <ScrollArea className="h-56 md:h-auto md:flex-1">
+              <ScrollArea className={cn(isDesktopExplorerLayout ? 'h-56 md:h-auto md:flex-1' : 'flex-1')}>
                 {isLoadingTree ? (
                   <div className="flex h-full items-center justify-center px-4 py-10 text-sm text-muted-foreground">
                     <Loader2 className="mr-2 size-4 animate-spin" />
@@ -999,8 +1082,8 @@ export function NotesView({
                 )}
               </ScrollArea>
             </>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           {selectedNotePath === null ? (
@@ -1277,6 +1360,45 @@ function writeStoredExplorerCollapsed(isCollapsed: boolean): void {
   } catch {
     // Ignore localStorage write failures in restricted environments.
   }
+}
+
+function useDesktopExplorerLayout(): boolean {
+  const [matches, setMatches] = useState(readDesktopExplorerLayoutMatch)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia(NOTES_DESKTOP_MEDIA_QUERY)
+    const updateMatches = () => {
+      setMatches(mediaQuery.matches)
+    }
+
+    updateMatches()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', updateMatches)
+      return () => {
+        mediaQuery.removeEventListener('change', updateMatches)
+      }
+    }
+
+    mediaQuery.addListener(updateMatches)
+    return () => {
+      mediaQuery.removeListener(updateMatches)
+    }
+  }, [])
+
+  return matches
+}
+
+function readDesktopExplorerLayoutMatch(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true
+  }
+
+  return window.matchMedia(NOTES_DESKTOP_MEDIA_QUERY).matches
 }
 
 function normalizeNoteDocument(note: NoteDocument): NoteDocument {
