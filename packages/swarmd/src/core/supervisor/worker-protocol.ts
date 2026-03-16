@@ -33,6 +33,21 @@ function reportProtocolError(prefix: string, error: unknown): void {
   process.stderr.write(`${prefix}: ${message}\n`);
 }
 
+function getErrorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code)
+    : undefined;
+}
+
+function isBrokenPipeError(error: unknown): boolean {
+  return getErrorCode(error) === "EPIPE";
+}
+
+function isClosedStreamError(error: unknown): boolean {
+  const code = getErrorCode(error);
+  return code === "ERR_STREAM_DESTROYED" || code === "ERR_STREAM_WRITE_AFTER_END";
+}
+
 export function encodeMessage(msg: WorkerCommand | WorkerEvent): string {
   return `${JSON.stringify(msg)}\n`;
 }
@@ -102,13 +117,54 @@ export class LineReader {
 
 export class LineWriter {
   readonly #stream: NodeJS.WritableStream;
+  #closed = false;
 
   constructor(stream: NodeJS.WritableStream) {
     this.#stream = stream;
+    stream.on("close", () => {
+      this.#closed = true;
+    });
+    stream.on("finish", () => {
+      this.#closed = true;
+    });
+    stream.on("error", (error) => {
+      this.#handleWriteError(error);
+    });
   }
 
   send(msg: WorkerCommand | WorkerEvent): void {
-    this.#stream.write(encodeMessage(msg));
+    if (this.#closed || this.#isStreamClosed()) {
+      return;
+    }
+
+    try {
+      this.#stream.write(encodeMessage(msg), (error) => {
+        if (error) {
+          this.#handleWriteError(error);
+        }
+      });
+    } catch (error) {
+      this.#handleWriteError(error);
+    }
+  }
+
+  #handleWriteError(error: unknown): void {
+    this.#closed = true;
+    if (isBrokenPipeError(error) || isClosedStreamError(error)) {
+      return;
+    }
+
+    reportProtocolError("LineWriter", error);
+  }
+
+  #isStreamClosed(): boolean {
+    const stream = this.#stream as NodeJS.WritableStream & {
+      closed?: boolean;
+      destroyed?: boolean;
+      writableEnded?: boolean;
+    };
+
+    return Boolean(stream.closed || stream.destroyed || stream.writableEnded);
   }
 }
 

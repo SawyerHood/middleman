@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 
 import { describe, expect, it } from "vitest";
@@ -9,6 +10,22 @@ import {
   encodeMessage,
 } from "../src/core/supervisor/worker-protocol.js";
 import type { WorkerCommand, WorkerEvent } from "../src/core/types/index.js";
+
+class BrokenPipeStream extends EventEmitter {
+  writes = 0;
+
+  write(_chunk: string, callback?: (error?: Error | null) => void): boolean {
+    this.writes += 1;
+
+    const error = Object.assign(new Error("broken pipe"), {
+      code: "EPIPE",
+    });
+
+    callback?.(error);
+    this.emit("error", error);
+    return false;
+  }
+}
 
 describe("worker protocol", () => {
   it("round-trips commands and events through the JSONL codec", () => {
@@ -76,5 +93,15 @@ describe("worker protocol", () => {
     writer.send({ type: "pong" });
 
     expect(chunks.join("")).toBe('{"type":"ping"}\n{"type":"pong"}\n');
+  });
+
+  it("swallows broken-pipe writes after the other end closes", () => {
+    const stream = new BrokenPipeStream();
+    const writer = new LineWriter(stream as unknown as NodeJS.WritableStream);
+
+    expect(() => writer.send({ type: "ping" })).not.toThrow();
+    expect(() => writer.send({ type: "pong" })).not.toThrow();
+
+    expect(stream.writes).toBe(1);
   });
 });
