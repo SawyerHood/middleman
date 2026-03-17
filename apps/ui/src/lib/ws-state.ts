@@ -1,6 +1,6 @@
 import { atom } from "jotai";
+import { atomFamily } from "jotai-family";
 import type { Store } from "jotai/vanilla/store";
-import { atomFamily } from "jotai/utils";
 import { buildManagerTreeRows, chooseFallbackAgentId } from "./agent-hierarchy";
 import { isActiveAgentStatus, isWorkingAgentStatus } from "./agent-status";
 import { collectArtifactsFromMessages } from "./collect-artifacts";
