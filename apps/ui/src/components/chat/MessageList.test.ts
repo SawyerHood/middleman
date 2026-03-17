@@ -47,6 +47,7 @@ function renderMessageList({
   handleRef,
   onLoadOlderHistory = vi.fn(),
   canLoadOlderHistory = false,
+  isLoading = false,
 }: {
   messages: ConversationEntry[];
   viewportHeight?: number;
@@ -54,6 +55,7 @@ function renderMessageList({
   handleRef?: RefObject<MessageListHandle | null>;
   onLoadOlderHistory?: () => void;
   canLoadOlderHistory?: boolean;
+  isLoading?: boolean;
 }) {
   return render(
     createElement(
@@ -66,7 +68,7 @@ function renderMessageList({
           ref: handleRef,
           messages,
           agents: [manager],
-          isLoading: false,
+          isLoading,
           activeAgentId: "manager",
           canLoadOlderHistory,
           onLoadOlderHistory,
@@ -139,5 +141,24 @@ describe("MessageList", () => {
     });
 
     expect(typeof handleRef.current?.scrollToBottom).toBe("function");
+  });
+
+  it("renders the loading indicator inside the padded footer layout", () => {
+    renderMessageList({
+      messages: buildConversationMessages(1),
+      isLoading: true,
+    });
+
+    const indicator = screen.getByRole("status", {
+      name: "Assistant is working",
+    });
+
+    expect(indicator.className).toContain("mt-3");
+    expect(indicator.className).toContain("min-h-5");
+    expect(indicator.className).toContain("items-center");
+    expect(indicator.parentElement?.className).toContain("px-2");
+    expect(indicator.parentElement?.className).toContain("pb-2");
+    expect(indicator.parentElement?.className).toContain("md:px-3");
+    expect(indicator.parentElement?.className).toContain("md:pb-3");
   });
 });
