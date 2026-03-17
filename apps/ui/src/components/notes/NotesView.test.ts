@@ -290,6 +290,19 @@ describe('NotesView', () => {
     expect(queryByText(container, 'first.md')).toBeNull()
   })
 
+  it('keeps the explorer tree inside a full-height scroll container', async () => {
+    renderNotesView()
+
+    await waitFor(() => {
+      expect(getByText(container, 'first.md')).toBeTruthy()
+    })
+
+    const explorerScrollArea = container.querySelector('[data-slot="scroll-area"]')
+    expect(explorerScrollArea).toBeTruthy()
+    expect(explorerScrollArea?.className).toContain('min-h-0')
+    expect(explorerScrollArea?.className).toContain('flex-1')
+  })
+
   it('defaults to a hidden overlay explorer on mobile and closes it after note selection', async () => {
     setDesktopExplorerLayout(false)
 
