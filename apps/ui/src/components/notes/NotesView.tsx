@@ -1022,7 +1022,7 @@ export function NotesView({
                 </div>
               </div>
 
-              <ScrollArea className={cn(isDesktopExplorerLayout ? 'h-56 md:h-auto md:flex-1' : 'flex-1')}>
+              <ScrollArea className={cn('min-h-0 flex-1', isDesktopExplorerLayout ? 'h-56 md:h-auto' : null)}>
                 {isLoadingTree ? (
                   <div className="flex h-full items-center justify-center px-4 py-10 text-sm text-muted-foreground">
                     <Loader2 className="mr-2 size-4 animate-spin" />
