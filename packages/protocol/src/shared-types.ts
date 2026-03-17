@@ -9,7 +9,10 @@ export type AgentStatus =
   | 'errored'
   | 'terminated'
 
-export const MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus', 'codex-app', 'claude-code'] as const
+export const MODEL_PRESETS = ['pi-codex', 'pi-opus', 'codex-app', 'claude-code'] as const
+export type ModelPreset = (typeof MODEL_PRESETS)[number]
+
+export const MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus'] as const
 export type ManagerModelPreset = (typeof MANAGER_MODEL_PRESETS)[number]
 
 export interface AgentModelDescriptor {

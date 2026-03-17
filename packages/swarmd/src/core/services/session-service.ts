@@ -351,6 +351,31 @@ export class SessionService {
     return updated;
   }
 
+  reconfigure(
+    sessionId: string,
+    input: {
+      backend: BackendKind;
+      cwd: string;
+      model: string;
+      systemPrompt?: string;
+      runtimeConfig?: Pick<SessionRuntimeConfig, "deliveryDefaults" | "backendConfig">;
+      updatedAt?: string;
+    },
+  ): SessionRecord {
+    this.getOrThrow(sessionId);
+    if (this.supervisor.hasWorker(sessionId)) {
+      throw new Error("Cannot reconfigure a running session. Stop it first.");
+    }
+
+    this.operationRepo.deleteBySession(sessionId);
+    this.sessionBackendStateRepo.delete(sessionId);
+    this.sessionRepo.reconfigure(sessionId, input);
+
+    const updated = this.getOrThrow(sessionId);
+    this.emitEvent("session.reconfigured", sessionId, null, updated.updatedAt, {});
+    return updated;
+  }
+
   handleWorkerExit(sessionId: string, code: number | null, signal: string | null): void {
     const session = this.sessionRepo.getById(sessionId);
     if (

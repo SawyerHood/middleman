@@ -71,7 +71,7 @@ export const Route = createFileRoute("/")({
   component: IndexPage,
 });
 
-const DEFAULT_MANAGER_MODEL: ManagerModelPreset = "codex-app";
+const DEFAULT_MANAGER_MODEL: ManagerModelPreset = "pi-codex";
 const DEFAULT_DEV_WS_URL = "ws://127.0.0.1:47187";
 const DESKTOP_SIDEBAR_MEDIA_QUERY = "(min-width: 768px)";
 const SIDEBAR_WIDTH_STORAGE_KEY = "middleman:sidebar-width";
@@ -281,6 +281,8 @@ export function IndexPage() {
     handleCloseDeleteManagerDialog,
     isStoppingAllAgents,
     handleStopAllAgents,
+    isUpdatingManagerModel,
+    handleUpdateManagerModel,
   } = useManagerActions({
     clientRef,
     defaultManagerModel: DEFAULT_MANAGER_MODEL,
@@ -600,6 +602,8 @@ export function IndexPage() {
             <ChatHeader
               stopAllInProgress={isStoppingAllAgents}
               onStopAll={() => void handleStopAllAgents()}
+              managerModelUpdateInProgress={isUpdatingManagerModel}
+              onUpdateManagerModel={(model) => handleUpdateManagerModel(model)}
               onNewChat={handleNewChat}
               isArtifactsPanelOpen={isArtifactsPanelOpen}
               onToggleArtifactsPanel={handleToggleArtifactsPanel}

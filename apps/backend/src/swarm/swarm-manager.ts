@@ -36,6 +36,7 @@ import { pickDirectory as pickNativeDirectory } from "./directory-picker.js";
 import {
   DEFAULT_SWARM_MODEL_PRESET,
   inferSwarmModelPresetFromDescriptor,
+  parseManagerSwarmModelPreset,
   parseSwarmModelPreset,
   resolveModelDescriptorFromPreset,
 } from "./model-presets.js";
@@ -331,9 +332,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     const cwd = await this.runtimeContext.resolveAndValidateCwd(input.cwd);
     const model = input.model
       ? resolveModelDescriptorFromPreset(
-          parseSwarmModelPreset(input.model, "create_manager.model")!,
+          parseManagerSwarmModelPreset(input.model, "create_manager.model")!,
         )
-      : this.lifecycle.resolveDefaultModelDescriptor();
+      : resolveModelDescriptorFromPreset(DEFAULT_SWARM_MODEL_PRESET);
     const descriptor = await this.lifecycle.createAgentSessionAndRow({
       agentId: managerId,
       role: "manager",
@@ -354,6 +355,80 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       },
     );
     return cloneDescriptor(descriptor);
+  }
+
+  async updateManagerModel(
+    callerAgentId: string,
+    targetManagerId: string,
+    modelPreset: SwarmModelPreset,
+  ): Promise<AgentDescriptor> {
+    this.lifecycle.assertManager(callerAgentId, "update manager models");
+    const descriptor = this.lifecycle.requireDescriptor(targetManagerId);
+    if (descriptor.role !== "manager") {
+      throw new Error(`Unknown manager: ${targetManagerId}`);
+    }
+
+    const nextModel = resolveModelDescriptorFromPreset(
+      parseManagerSwarmModelPreset(modelPreset, "update_manager_model.model")!,
+    );
+    if (
+      descriptor.model.provider === nextModel.provider &&
+      descriptor.model.modelId === nextModel.modelId &&
+      descriptor.model.thinkingLevel === nextModel.thinkingLevel
+    ) {
+      return cloneDescriptor(descriptor);
+    }
+
+    const existingRow = this.agentRepoOrThrow().get(targetManagerId);
+    if (!existingRow) {
+      throw new Error(`Unknown manager: ${targetManagerId}`);
+    }
+
+    const basePrompt = this.runtimeContext.resolveSystemPromptForDescriptor({
+      role: "manager",
+      archetypeId: existingRow.archetypeId ?? MANAGER_ARCHETYPE_ID,
+    });
+    const resources = await this.runtimeContext.resolveRuntimeContextResources({
+      agentId: targetManagerId,
+      role: "manager",
+      managerId: targetManagerId,
+      cwd: descriptor.cwd,
+      model: nextModel,
+      memoryOwnerAgentId: existingRow.memoryOwnerSessionId,
+    });
+    const runtimeConfig = this.runtimeContext.buildRuntimeConfig(
+      {
+        agentId: targetManagerId,
+        role: "manager",
+        managerId: targetManagerId,
+        cwd: descriptor.cwd,
+        model: nextModel,
+        memoryOwnerAgentId: existingRow.memoryOwnerSessionId,
+      },
+      resources,
+    );
+    const systemPrompt = this.runtimeContext.buildSessionSystemPrompt(
+      basePrompt,
+      runtimeConfig.backend,
+      resources,
+    );
+
+    await this.lifecycle.stopSession(targetManagerId);
+    this.coreOrThrow().sessionService.reconfigure(targetManagerId, {
+      backend: runtimeConfig.backend,
+      cwd: descriptor.cwd,
+      model: runtimeConfig.model,
+      systemPrompt,
+      runtimeConfig: {
+        backendConfig: runtimeConfig.backendConfig,
+      },
+      updatedAt: this.now(),
+    });
+
+    const updated = this.lifecycle.requireDescriptor(targetManagerId);
+    this.emitStatus(updated.agentId, updated.status, 0);
+    this.emitAgentsSnapshot();
+    return cloneDescriptor(updated);
   }
 
   async spawnAgent(
