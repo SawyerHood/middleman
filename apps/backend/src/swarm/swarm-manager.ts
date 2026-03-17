@@ -887,17 +887,27 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
         if (descriptor.role === "worker") {
           this.pendingWorkerCompletionReportAgentIds.delete(descriptor.agentId);
         }
+        const runtimeErrorMessage = this.resolveRuntimeErrorMessage(
+          descriptor,
+          event.payload,
+        );
         const runtimeErrorEvent: ConversationLogEvent = {
           type: "conversation_log",
           agentId: descriptor.agentId,
           timestamp: event.timestamp,
           source: "runtime_log",
           kind: "message_end",
-          text: this.resolveRuntimeErrorMessage(descriptor, event.payload),
+          text: runtimeErrorMessage,
           isError: true,
         };
         this.persistConversationLog(runtimeErrorEvent);
         this.emitConversationLog(runtimeErrorEvent);
+        if (descriptor.role === "worker") {
+          void this.maybeEmitWorkerErrorReport(
+            descriptor.agentId,
+            runtimeErrorMessage,
+          );
+        }
         return;
       }
       case "message.started": {
@@ -1026,6 +1036,10 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     }
 
     if (provider === "anthropic") {
+      return "anthropic";
+    }
+
+    if (provider === "anthropic-claude-code") {
       return "anthropic";
     }
 
@@ -1206,6 +1220,35 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       const message = error instanceof Error ? error.message : String(error);
       console.error(
         `[swarm] Failed to send worker completion summary for ${agentId}: ${message}`,
+      );
+    }
+  }
+
+  private async maybeEmitWorkerErrorReport(
+    agentId: string,
+    errorMessage: string,
+  ): Promise<void> {
+    const descriptor = this.lifecycle.getAgent(agentId);
+    if (!descriptor || descriptor.role !== "worker") {
+      return;
+    }
+
+    const manager = this.lifecycle.getAgent(descriptor.managerId);
+    if (!manager || manager.role !== "manager") {
+      return;
+    }
+
+    try {
+      await this.sendMessage(
+        agentId,
+        manager.agentId,
+        `SYSTEM: Worker ${agentId} errored: ${errorMessage}`,
+        "auto",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[swarm] Failed to send worker error report for ${agentId}: ${message}`,
       );
     }
   }

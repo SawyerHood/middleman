@@ -86,6 +86,22 @@ function createManagerHarness(descriptor: AgentDescriptor) {
 }
 
 describe("SwarmManager core event projection", () => {
+  it("maps anthropic-claude-code to anthropic auth settings", () => {
+    const manager = new SwarmManager(
+      createConfig({
+        installDir: REPO_ROOT,
+        projectRoot: REPO_ROOT,
+        dataDir: "/tmp/middleman-swarm-manager-events",
+      }),
+    );
+
+    expect(
+      (manager as any).resolveSettingsAuthProviderForModel(
+        "anthropic-claude-code",
+      ),
+    ).toBe("anthropic");
+  });
+
   it("maps session.status.changed into agent_status with context usage", () => {
     const descriptor = makeDescriptor({
       agentId: "worker-1",
