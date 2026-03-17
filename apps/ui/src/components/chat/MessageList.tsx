@@ -374,7 +374,7 @@ function getDisplayEntrySpacingClass(
 function LoadingIndicator() {
   return (
     <div
-      className="mt-3 flex justify-start"
+      className="mt-3 flex min-h-5 items-center justify-start"
       role="status"
       aria-live="polite"
       aria-label="Assistant is working"
@@ -398,6 +398,14 @@ function OlderHistoryLoadingIndicator() {
       <div className="rounded-full border border-border/70 bg-background/90 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground shadow-sm backdrop-blur-sm">
         Loading earlier messages
       </div>
+    </div>
+  );
+}
+
+function LoadingIndicatorFooter() {
+  return (
+    <div className="px-2 pb-2 md:px-3 md:pb-3">
+      <LoadingIndicator />
     </div>
   );
 }
@@ -597,17 +605,18 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
     const agentLookup = useMemo(() => buildAgentLookup(agents), [agents]);
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
-      if (displayEntries.length > 0) {
-        virtuosoRef.current?.scrollToIndex({
-          index: "LAST",
-          align: "end",
-          behavior: behavior === "smooth" ? "smooth" : "auto",
-        });
-      }
+      const scrollBehavior = behavior === "smooth" ? "smooth" : "auto";
+      const scrollTargetTop =
+        scrollContainerRef.current?.scrollHeight ?? Number.MAX_SAFE_INTEGER;
+
+      virtuosoRef.current?.scrollTo({
+        top: scrollTargetTop,
+        behavior: scrollBehavior,
+      });
 
       isAtBottomRef.current = true;
       setShowScrollButton(false);
-    }, [displayEntries.length]);
+    }, []);
 
     useImperativeHandle(
       ref,
@@ -780,7 +789,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
       () => ({
         Footer: isLoading
           ? function VirtuosoFooter() {
-              return <LoadingIndicator />;
+              return <LoadingIndicatorFooter />;
             }
           : undefined,
         Header: isLoadingOlderHistory
