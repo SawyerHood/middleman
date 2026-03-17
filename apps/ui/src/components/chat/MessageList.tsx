@@ -830,7 +830,9 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
 
     const renderMessageRow = useCallback(
       (index: number, entry: DisplayEntry) => {
-        const previousEntry = index > 0 ? displayEntries[index - 1] : undefined;
+        const dataIndex = index - firstItemIndex;
+        const previousEntry =
+          dataIndex > 0 ? displayEntries[dataIndex - 1] : undefined;
         const rowSpacingClass = getDisplayEntrySpacingClass(
           entry,
           previousEntry,
@@ -850,6 +852,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
       [
         agentLookup,
         displayEntries,
+        firstItemIndex,
         isWorkerDetailView,
         onArtifactClick,
         wsUrl,

@@ -4,7 +4,11 @@ import { createElement, createRef, type RefObject } from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VirtuosoMockContext } from "react-virtuoso";
-import type { AgentDescriptor, ConversationEntry } from "@middleman/protocol";
+import type {
+  AgentDescriptor,
+  ConversationEntry,
+  ConversationMessageEvent,
+} from "@middleman/protocol";
 import { MessageList, type MessageListHandle } from "./MessageList";
 
 const manager: AgentDescriptor = {
@@ -40,6 +44,47 @@ function buildConversationMessages(count: number): ConversationEntry[] {
   });
 }
 
+function buildConversationMessage(
+  index: number,
+  role: ConversationMessageEvent["role"],
+  text: string,
+): ConversationEntry {
+  return {
+    type: "conversation_message",
+    agentId: "manager",
+    role,
+    text,
+    timestamp: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+    source:
+      role === "assistant"
+        ? "speak_to_user"
+        : role === "system"
+          ? "system"
+          : "user_input",
+  };
+}
+
+function findRowSpacingWrapper(node: HTMLElement): HTMLElement | null {
+  let current: HTMLElement | null = node;
+
+  while (current) {
+    const className = current.className;
+    if (
+      typeof className === "string" &&
+      (className.includes("pt-2") ||
+        className.includes("pt-1") ||
+        className.includes("pt-[var(--chat-tool-assistant-gap)]") ||
+        className.includes("pt-[var(--chat-block-gap)]"))
+    ) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
+}
+
 function renderMessageList({
   messages,
   viewportHeight = 240,
@@ -49,6 +94,7 @@ function renderMessageList({
   canLoadOlderHistory = false,
   isLoading = false,
   isLoadingHistory = false,
+  isWorkerDetailView = false,
 }: {
   messages: ConversationEntry[];
   viewportHeight?: number;
@@ -58,6 +104,7 @@ function renderMessageList({
   canLoadOlderHistory?: boolean;
   isLoading?: boolean;
   isLoadingHistory?: boolean;
+  isWorkerDetailView?: boolean;
 }) {
   return render(
     createElement(
@@ -74,6 +121,7 @@ function renderMessageList({
           isLoadingHistory,
           activeAgentId: "manager",
           canLoadOlderHistory,
+          isWorkerDetailView,
           onLoadOlderHistory,
         }),
       ),
@@ -183,5 +231,73 @@ describe("MessageList", () => {
 
     expect(screen.getByText("What can I do for you?")).toBeTruthy();
     expect(screen.queryByText("Loading conversation")).toBeNull();
+  });
+
+  it("restores vertical spacing between consecutive virtualized chat messages", () => {
+    renderMessageList({
+      messages: [
+        buildConversationMessage(0, "user", "first message"),
+        buildConversationMessage(1, "assistant", "second message"),
+      ],
+    });
+
+    const firstRow = findRowSpacingWrapper(screen.getByText("first message"));
+    const secondRow = findRowSpacingWrapper(screen.getByText("second message"));
+
+    expect(firstRow?.className ?? "").not.toContain("pt-2");
+    expect(secondRow?.className ?? "").toContain("pt-2");
+  });
+
+  it("preserves worker detail spacing between mixed execution and conversation rows", () => {
+    renderMessageList({
+      isWorkerDetailView: true,
+      messages: [
+        buildConversationMessage(0, "assistant", "assistant update"),
+        buildConversationMessage(1, "assistant", "follow-up reply"),
+        {
+          type: "agent_message",
+          agentId: "manager",
+          timestamp: "2026-01-01T00:00:02.000Z",
+          source: "agent_to_agent",
+          fromAgentId: "manager",
+          toAgentId: "worker-1",
+          text: "delegated task",
+        },
+        {
+          type: "agent_tool_call",
+          agentId: "manager",
+          actorAgentId: "worker-1",
+          timestamp: "2026-01-01T00:00:03.000Z",
+          kind: "tool_execution_start",
+          toolName: "read",
+          toolCallId: "call-1",
+          text: JSON.stringify({ path: "/tmp/file.txt" }),
+        },
+        {
+          type: "conversation_log",
+          agentId: "manager",
+          timestamp: "2026-01-01T00:00:04.000Z",
+          source: "runtime_log",
+          kind: "message_end",
+          text: "runtime failure",
+          isError: true,
+        },
+      ],
+    });
+
+    expect(
+      findRowSpacingWrapper(screen.getByText("follow-up reply"))?.className ?? "",
+    ).toContain("pt-[var(--chat-block-gap)]");
+    expect(
+      findRowSpacingWrapper(screen.getByText("delegated task"))?.className ?? "",
+    ).toContain("pt-[var(--chat-tool-assistant-gap)]");
+    expect(
+      findRowSpacingWrapper(
+        screen.getByRole("button", { name: /calling read tool/i }),
+      )?.className ?? "",
+    ).toContain("pt-1.5");
+    expect(
+      findRowSpacingWrapper(screen.getByText("Runtime error"))?.className ?? "",
+    ).toContain("pt-1.5");
   });
 });
