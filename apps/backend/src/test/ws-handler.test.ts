@@ -149,7 +149,9 @@ function createRichManagerStub() {
       thinkingLevel: "xhigh",
     },
   };
-  const managerTranscript = [
+  const managerTranscript: Array<
+    Extract<ServerEvent, { type: "conversation_message" }>
+  > = [
     {
       type: "conversation_message" as const,
       agentId: manager.agentId,
@@ -160,7 +162,9 @@ function createRichManagerStub() {
       source: "speak_to_user" as const,
     },
   ];
-  const workerHistory = [
+  const workerVisibleTranscript: Array<
+    Extract<ServerEvent, { type: "conversation_message" | "agent_message" }>
+  > = [
     {
       type: "conversation_message" as const,
       agentId: worker.agentId,
@@ -172,7 +176,7 @@ function createRichManagerStub() {
     },
     {
       type: "agent_message" as const,
-      agentId: manager.agentId,
+      agentId: worker.agentId,
       fromAgentId: manager.agentId,
       toAgentId: worker.agentId,
       text: "investigate",
@@ -180,6 +184,25 @@ function createRichManagerStub() {
       historyCursor: "2026-03-14T00:00:04.000Z|worker-1|message-2",
       source: "agent_to_agent" as const,
     },
+  ];
+  const workerHistory: Array<
+    Extract<
+      ServerEvent,
+      { type: "conversation_message" | "agent_message" | "agent_tool_call" }
+    >
+  > = [
+    ...workerVisibleTranscript,
+    ...Array.from({ length: 250 }, (_, index) => ({
+      type: "agent_tool_call" as const,
+      agentId: worker.agentId,
+      actorAgentId: worker.agentId,
+      timestamp: `2026-03-14T00:00:05.${String(index).padStart(3, "0")}Z`,
+      historyCursor: `2026-03-14T00:00:05.${String(index).padStart(3, "0")}Z|worker-1|tool-${index + 1}`,
+      kind: "tool_execution_update" as const,
+      toolName: "bash",
+      toolCallId: `tool-${index + 1}`,
+      text: '{"ok":true}',
+    })),
   ];
 
   return {
@@ -202,12 +225,20 @@ function createRichManagerStub() {
     handleUserMessage: vi.fn(async () => undefined),
     getVisibleTranscriptPage(agentId?: string, options = { limit: 200 }) {
       return pageEntries(
-        agentId === manager.agentId ? managerTranscript : [],
+        agentId === manager.agentId
+          ? managerTranscript
+          : agentId === worker.agentId
+            ? workerVisibleTranscript
+            : [],
         options,
       );
     },
     getVisibleTranscript(agentId?: string) {
-      return agentId === manager.agentId ? managerTranscript : [];
+      return agentId === manager.agentId
+        ? managerTranscript
+        : agentId === worker.agentId
+          ? workerVisibleTranscript
+          : [];
     },
     getConversationHistoryPage(agentId?: string, options = { limit: 200 }) {
       return pageEntries(
@@ -377,7 +408,7 @@ describe("WsHandler", () => {
     ]);
   });
 
-  it("loads full agent detail history when subscribing to a worker thread", async () => {
+  it("loads visible detail history when subscribing to a tool-heavy worker thread", async () => {
     const swarmManager = createRichManagerStub();
     const handler = new WsHandler({
       swarmManager: swarmManager as never,
@@ -399,14 +430,23 @@ describe("WsHandler", () => {
       agentId: "worker-1",
       mode: "replace",
       hasMore: false,
-      messages: [
-        expect.objectContaining({
-          type: "conversation_message",
-          text: "debug the crash",
-        }),
-        expect.objectContaining({ type: "agent_message", text: "investigate" }),
-      ],
     });
+    const detailHistoryEvent = events.at(-1) as Extract<
+      ServerEvent,
+      { type: "conversation_history" }
+    >;
+    expect(detailHistoryEvent.messages).toEqual([
+      expect.objectContaining({
+        type: "conversation_message",
+        text: "debug the crash",
+      }),
+      expect.objectContaining({ type: "agent_message", text: "investigate" }),
+    ]);
+    expect(
+      detailHistoryEvent.messages.some(
+        (entry) => entry.type === "agent_tool_call",
+      ),
+    ).toBe(false);
   });
 
   it("loads older history pages for the active subscription", async () => {
@@ -513,6 +553,158 @@ describe("WsHandler", () => {
       mode: "prepend",
       hasMore: false,
       messages: [expect.objectContaining({ text: "older" })],
+    });
+  });
+
+  it("loads older worker detail history from the visible transcript", async () => {
+    const manager: AgentDescriptor = {
+      agentId: "manager-1",
+      managerId: "manager-1",
+      displayName: "manager-1",
+      role: "manager",
+      status: "idle",
+      createdAt: "2026-03-14T00:00:00.000Z",
+      updatedAt: "2026-03-14T00:00:00.000Z",
+      cwd: "/tmp/project",
+      model: {
+        provider: "openai-codex-app-server",
+        modelId: "gpt-5.4",
+        thinkingLevel: "xhigh",
+      },
+    };
+    const worker: AgentDescriptor = {
+      agentId: "worker-1",
+      managerId: manager.agentId,
+      displayName: "worker-1",
+      role: "worker",
+      status: "idle",
+      createdAt: "2026-03-14T00:00:01.000Z",
+      updatedAt: "2026-03-14T00:00:01.000Z",
+      cwd: "/tmp/project",
+      model: {
+        provider: "openai-codex-app-server",
+        modelId: "gpt-5.4",
+        thinkingLevel: "xhigh",
+      },
+    };
+    const newerMessage = {
+      type: "conversation_message" as const,
+      agentId: worker.agentId,
+      role: "assistant" as const,
+      text: "latest visible detail message",
+      timestamp: "2026-03-14T00:00:03.000Z",
+      historyCursor: "2026-03-14T00:00:03.000Z|worker-1|message-2",
+      source: "system" as const,
+    };
+    const olderMessage = {
+      type: "agent_message" as const,
+      agentId: worker.agentId,
+      fromAgentId: manager.agentId,
+      toAgentId: worker.agentId,
+      text: "older visible detail message",
+      timestamp: "2026-03-14T00:00:02.000Z",
+      historyCursor: "2026-03-14T00:00:02.000Z|worker-1|message-1",
+      source: "agent_to_agent" as const,
+    };
+    const getVisibleTranscriptPage = vi.fn(
+      (agentId?: string, options?: { before?: string; limit?: number }) => {
+        if (agentId === manager.agentId) {
+          return {
+            entries: [],
+            hasMore: false,
+          };
+        }
+
+        if (options?.before === newerMessage.historyCursor) {
+          return {
+            entries: [olderMessage],
+            hasMore: false,
+          };
+        }
+
+        return {
+          entries: [newerMessage],
+          hasMore: true,
+        };
+      },
+    );
+    const swarmManager = {
+      getAgent(agentId: string) {
+        return agentId === manager.agentId
+          ? manager
+          : agentId === worker.agentId
+            ? worker
+            : undefined;
+      },
+      listAgents() {
+        return [manager, worker];
+      },
+      getVisibleTranscriptPage,
+      getConversationHistoryPage: vi.fn(() => ({
+        entries: [
+          {
+            type: "agent_tool_call" as const,
+            agentId: worker.agentId,
+            actorAgentId: worker.agentId,
+            timestamp: "2026-03-14T00:00:04.000Z",
+            kind: "tool_execution_update" as const,
+            toolName: "bash",
+            toolCallId: "tool-1",
+            text: '{"ok":true}',
+          },
+        ],
+        hasMore: false,
+      })),
+      getVisibleTranscript(agentId?: string) {
+        return agentId === worker.agentId ? [newerMessage] : [];
+      },
+      getConversationHistory() {
+        return [];
+      },
+      getConfig() {
+        return createConfig({
+          installDir: process.cwd(),
+          projectRoot: process.cwd(),
+          dataDir: "/tmp/middleman-test",
+        });
+      },
+    };
+    const handler = new WsHandler({
+      swarmManager: swarmManager as never,
+      allowNonManagerSubscriptions: true,
+    });
+    const { events, socket } = createSocket();
+
+    await (handler as any).handleSocketMessage(
+      socket,
+      JSON.stringify({ type: "subscribe", agentId: "manager-1" }),
+    );
+    await (handler as any).handleSocketMessage(
+      socket,
+      JSON.stringify({ type: "subscribe_agent_detail", agentId: "worker-1" }),
+    );
+    await (handler as any).handleSocketMessage(
+      socket,
+      JSON.stringify({
+        type: "load_older_history",
+        agentId: "worker-1",
+        before: newerMessage.historyCursor,
+      }),
+    );
+
+    expect(getVisibleTranscriptPage).toHaveBeenLastCalledWith("worker-1", {
+      before: newerMessage.historyCursor,
+      limit: 200,
+    });
+    expect(swarmManager.getConversationHistoryPage).not.toHaveBeenCalled();
+    expect(events.at(-1)).toMatchObject({
+      type: "conversation_history",
+      agentId: "worker-1",
+      mode: "prepend",
+      hasMore: false,
+      messages: [
+        expect.objectContaining({ text: "older visible detail message" }),
+      ],
     });
   });
 

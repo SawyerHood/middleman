@@ -290,20 +290,22 @@ export class WsHandler {
     }
 
     this.agentDetailSubscriptions.set(socket, targetAgentId);
-    const conversationHistoryPage =
-      this.swarmManager.getConversationHistoryPage(targetAgentId, {
+    const transcriptPage = this.swarmManager.getVisibleTranscriptPage(
+      targetAgentId,
+      {
         limit: BOOTSTRAP_HISTORY_LIMIT,
-      });
+      },
+    );
     this.sendConversationHistoryWithProgressiveFallback(
       socket,
       targetAgentId,
-      conversationHistoryPage.entries,
+      transcriptPage.entries,
       {
         mode: "replace",
-        hasMore: conversationHistoryPage.hasMore,
+        hasMore: transcriptPage.hasMore,
       },
       AGENT_DETAIL_HISTORY_TRUNCATED_CODE,
-      "entries",
+      "transcript messages",
     );
   }
 
@@ -516,15 +518,13 @@ export class WsHandler {
     }
 
     const isDetailHistoryRequest = detailSubscribedAgentId === targetAgentId;
-    const historyPage = isDetailHistoryRequest
-      ? this.swarmManager.getConversationHistoryPage(targetAgentId, {
-          before: command.before,
-          limit: BOOTSTRAP_HISTORY_LIMIT,
-        })
-      : this.swarmManager.getVisibleTranscriptPage(targetAgentId, {
-          before: command.before,
-          limit: BOOTSTRAP_HISTORY_LIMIT,
-        });
+    const historyPage = this.swarmManager.getVisibleTranscriptPage(
+      targetAgentId,
+      {
+        before: command.before,
+        limit: BOOTSTRAP_HISTORY_LIMIT,
+      },
+    );
 
     this.sendConversationHistoryWithProgressiveFallback(
       socket,
@@ -537,7 +537,7 @@ export class WsHandler {
       isDetailHistoryRequest
         ? AGENT_DETAIL_HISTORY_TRUNCATED_CODE
         : BOOTSTRAP_HISTORY_TRUNCATED_CODE,
-      isDetailHistoryRequest ? "entries" : "transcript messages",
+      "transcript messages",
     );
   }
 

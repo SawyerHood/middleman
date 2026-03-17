@@ -626,6 +626,13 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     this.emitAgentMessage(agentMessageEvent);
 
+    if (target.agentId !== agentMessageEvent.agentId) {
+      this.emitAgentMessage({
+        ...agentMessageEvent,
+        agentId: target.agentId,
+      });
+    }
+
     if (
       sender.role === "manager" &&
       target.role === "manager" &&
@@ -1057,9 +1064,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     const descriptor = this.lifecycle.requireDescriptor(sessionId);
     const tool = buildSwarmTools(this, descriptor, {
       availableArchetypeIds: this.archetypePromptRegistry.listArchetypeIds(),
-    }).find(
-      (definition) => definition.name === request.payload.toolName,
-    );
+    }).find((definition) => definition.name === request.payload.toolName);
     if (!tool) {
       throw new Error(`Unknown tool: ${request.payload.toolName}`);
     }
