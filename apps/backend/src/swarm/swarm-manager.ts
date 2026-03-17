@@ -1041,7 +1041,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     }
 
     const descriptor = this.lifecycle.requireDescriptor(sessionId);
-    const tool = buildSwarmTools(this, descriptor).find(
+    const tool = buildSwarmTools(this, descriptor, {
+      availableArchetypeIds: this.archetypePromptRegistry.listArchetypeIds(),
+    }).find(
       (definition) => definition.name === request.payload.toolName,
     );
     if (!tool) {

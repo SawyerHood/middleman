@@ -65,18 +65,32 @@ export class SwarmRuntimeContextService {
 
   resolveSystemPromptForDescriptor(descriptor: Pick<AgentDescriptor, "role" | "archetypeId">): string {
     const registry = this.options.getArchetypePromptRegistry();
+    let prompt: string | undefined;
     if (descriptor.archetypeId) {
-      const prompt = registry.resolvePrompt(descriptor.archetypeId);
-      if (prompt) {
-        return prompt;
-      }
+      prompt = registry.resolvePrompt(descriptor.archetypeId);
     }
 
-    if (descriptor.role === "manager") {
-      return registry.resolvePrompt(MANAGER_ARCHETYPE_ID) ?? DEFAULT_WORKER_SYSTEM_PROMPT;
+    if (!prompt && descriptor.role === "manager") {
+      prompt = registry.resolvePrompt(MANAGER_ARCHETYPE_ID) ?? DEFAULT_WORKER_SYSTEM_PROMPT;
     }
 
-    return DEFAULT_WORKER_SYSTEM_PROMPT;
+    if (!prompt) {
+      prompt = DEFAULT_WORKER_SYSTEM_PROMPT;
+    }
+
+    if (descriptor.role !== "manager") {
+      return prompt;
+    }
+
+    const availableArchetypeIds = registry.listArchetypeIds();
+    if (availableArchetypeIds.length === 0) {
+      return prompt;
+    }
+
+    return [
+      prompt.trim(),
+      `Available archetypes for spawn_agent: ${availableArchetypeIds.join(", ")}`,
+    ].join("\n\n");
   }
 
   async resolveAndValidateCwd(cwd: string): Promise<string> {

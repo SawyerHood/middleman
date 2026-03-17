@@ -29,6 +29,10 @@ export interface SwarmToolHost {
   ): Promise<{ targetContext: MessageSourceContext }>;
 }
 
+interface BuildSwarmToolsOptions {
+  availableArchetypeIds?: string[];
+}
+
 const deliveryModeSchema = Type.Union([
   Type.Literal("auto"),
   Type.Literal("followUp"),
@@ -115,7 +119,16 @@ function buildVisibleAgentEntries(
   return [...teamAgents, ...externalManagers];
 }
 
-export function buildSwarmTools(host: SwarmToolHost, descriptor: AgentDescriptor): ToolDefinition[] {
+export function buildSwarmTools(
+  host: SwarmToolHost,
+  descriptor: AgentDescriptor,
+  options: BuildSwarmToolsOptions = {}
+): ToolDefinition[] {
+  const availableArchetypeIds = options.availableArchetypeIds ?? [];
+  const archetypeIdDescriptionSuffix =
+    availableArchetypeIds.length > 0
+      ? ` Available archetype ids: ${availableArchetypeIds.join(", ")}.`
+      : "";
   const shared: ToolDefinition[] = [
     {
       name: "list_agents",
@@ -216,7 +229,9 @@ export function buildSwarmTools(host: SwarmToolHost, descriptor: AgentDescriptor
             "Required agent identifier. Normalized to lowercase kebab-case; collisions are suffixed numerically."
         }),
         archetypeId: Type.Optional(
-          Type.String({ description: "Optional archetype id (for example: merger)." })
+          Type.String({
+            description: `Optional archetype id.${archetypeIdDescriptionSuffix}`,
+          })
         ),
         systemPrompt: Type.Optional(Type.String({ description: "Optional system prompt override." })),
         model: Type.Optional(spawnModelPresetSchema),

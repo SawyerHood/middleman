@@ -478,6 +478,22 @@ describe('buildSwarmTools', () => {
     expect(tools.some((tool) => tool.name === 'get_outstanding_tasks')).toBe(false)
   })
 
+  it('includes available archetype ids in the spawn_agent schema description', () => {
+    const tools = buildSwarmTools(
+      makeHost(async () => makeWorkerDescriptor('worker')),
+      makeManagerDescriptor(),
+      {
+        availableArchetypeIds: ['manager', 'merger'],
+      },
+    )
+    const spawnTool = tools.find((tool) => tool.name === 'spawn_agent')
+    expect(spawnTool).toBeDefined()
+
+    expect(JSON.stringify(spawnTool!.parameters)).toContain(
+      'Available archetype ids: manager, merger.',
+    )
+  })
+
   it('returns the resolved speak_to_user target context without an explicit target override', async () => {
     let receivedTarget: { channel: 'web' } | undefined
 
