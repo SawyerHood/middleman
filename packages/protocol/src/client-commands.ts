@@ -23,12 +23,6 @@ export type ClientCommand =
       model?: ManagerModelPreset;
       requestId?: string;
     }
-  | {
-      type: "update_manager_model";
-      managerId: string;
-      model: ManagerModelPreset;
-      requestId?: string;
-    }
   | { type: "delete_manager"; managerId: string; requestId?: string }
   | { type: "list_directories"; path?: string; requestId?: string }
   | { type: "validate_directory"; path: string; requestId?: string }

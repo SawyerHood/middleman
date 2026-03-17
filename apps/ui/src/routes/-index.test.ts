@@ -10,7 +10,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { MESSAGE_DRAFTS_STORAGE_KEY } from '@/lib/message-drafts'
 import { IndexPage } from './index'
 
-const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus'] as const
+const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus', 'codex-app'] as const
 const TEST_BUILD_HASH = import.meta.env.VITE_BUILD_HASH || 'test-build'
 
 type ListenerMap = Record<string, Array<(event?: any) => void>>
@@ -403,13 +403,13 @@ function setPointerType(pointerType: 'coarse' | 'fine'): void {
 }
 
 describe('IndexPage create manager model selection', () => {
-  it('shows only allowed model presets and defaults to pi-codex', async () => {
+  it('shows only allowed model presets and defaults to codex-app', async () => {
     await renderPage()
 
     click(getAllByRole(container, 'button', { name: 'Add manager' })[0]!)
 
     const modelSelect = getByRole(document.body, 'combobox', { name: 'Model' })
-    expect(modelSelect.textContent).toContain('pi-codex')
+    expect(modelSelect.textContent).toContain('codex-app')
 
     click(modelSelect as HTMLElement)
 
@@ -471,65 +471,6 @@ describe('IndexPage create manager model selection', () => {
     })
 
     await vi.advanceTimersByTimeAsync(0)
-  })
-
-  it('shows only Pi model options and sends update_manager_model from the chat header', async () => {
-    const socket = await renderPage()
-
-    emitServerEvent(socket, {
-      type: 'agents_snapshot',
-      agents: [buildManager('manager', '/tmp/manager')],
-    })
-
-    await flushWsUiUpdates()
-
-    click(getByRole(container, 'button', { name: 'More actions' }))
-    click(getByRole(document.body, 'menuitem', { name: 'Change model' }))
-
-    const modelSelect = getByRole(document.body, 'combobox', { name: 'Model' })
-    expect(modelSelect.textContent).toContain('pi-codex')
-
-    click(modelSelect as HTMLElement)
-
-    const optionValues = getAllByRole(document.body, 'option').map((option) => option.textContent?.trim() ?? '')
-    expect(optionValues).toEqual([...CREATE_MANAGER_MODEL_PRESETS])
-
-    const piOpusOption = getByRole(document.body, 'option', { name: 'pi-opus' }) as HTMLElement
-    flushSync(() => {
-      fireEvent.pointerEnter(piOpusOption, { pointerType: 'mouse' })
-      fireEvent.mouseEnter(piOpusOption)
-      fireEvent.mouseMove(piOpusOption)
-    })
-    await vi.advanceTimersByTimeAsync(0)
-    click(piOpusOption)
-    await vi.advanceTimersByTimeAsync(0)
-
-    click(getByRole(document.body, 'button', { name: 'Save changes' }))
-
-    const updatePayload = JSON.parse(socket.sentPayloads.at(-1) ?? '{}')
-    expect(updatePayload).toMatchObject({
-      type: 'update_manager_model',
-      managerId: 'manager',
-      model: 'pi-opus',
-    })
-    expect(typeof updatePayload.requestId).toBe('string')
-
-    emitServerEvent(socket, {
-      type: 'manager_updated',
-      requestId: updatePayload.requestId,
-      manager: {
-        ...buildManager('manager', '/tmp/manager'),
-        status: 'stopped',
-        updatedAt: new Date().toISOString(),
-        model: {
-          provider: 'anthropic',
-          modelId: 'claude-opus-4-6',
-          thinkingLevel: 'xhigh',
-        },
-      },
-    })
-
-    await flushWsUiUpdates()
   })
 
   it('shows only user input and speak_to_user transcript entries for the selected manager context', async () => {

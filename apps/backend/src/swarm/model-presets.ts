@@ -1,9 +1,5 @@
-import type {
-  AgentModelDescriptor,
-  ManagerSwarmModelPreset,
-  SwarmModelPreset,
-} from "./types.js";
-import { MANAGER_SWARM_MODEL_PRESETS, SWARM_MODEL_PRESETS } from "./types.js";
+import type { AgentModelDescriptor, SwarmModelPreset } from "./types.js";
+import { SWARM_MODEL_PRESETS } from "./types.js";
 
 export const DEFAULT_SWARM_MODEL_PRESET: SwarmModelPreset = "pi-codex";
 const PI_CODEX_MODEL_ID = "gpt-5.4";
@@ -37,24 +33,13 @@ const MODEL_PRESET_DESCRIPTORS: Record<SwarmModelPreset, AgentModelDescriptor> =
 };
 
 const VALID_SWARM_MODEL_PRESET_VALUES = new Set<string>(SWARM_MODEL_PRESETS);
-const VALID_MANAGER_SWARM_MODEL_PRESET_VALUES = new Set<string>(
-  MANAGER_SWARM_MODEL_PRESETS,
-);
 
 export function describeSwarmModelPresets(): string {
   return SWARM_MODEL_PRESETS.join("|");
 }
 
-export function describeManagerSwarmModelPresets(): string {
-  return MANAGER_SWARM_MODEL_PRESETS.join("|");
-}
-
 export function isSwarmModelPreset(value: unknown): value is SwarmModelPreset {
   return typeof value === "string" && VALID_SWARM_MODEL_PRESET_VALUES.has(value);
-}
-
-export function isManagerSwarmModelPreset(value: unknown): value is ManagerSwarmModelPreset {
-  return typeof value === "string" && VALID_MANAGER_SWARM_MODEL_PRESET_VALUES.has(value);
 }
 
 export function parseSwarmModelPreset(value: unknown, fieldName: string): SwarmModelPreset | undefined {
@@ -64,21 +49,6 @@ export function parseSwarmModelPreset(value: unknown, fieldName: string): SwarmM
 
   if (!isSwarmModelPreset(value)) {
     throw new Error(`${fieldName} must be one of ${describeSwarmModelPresets()}`);
-  }
-
-  return value;
-}
-
-export function parseManagerSwarmModelPreset(
-  value: unknown,
-  fieldName: string
-): ManagerSwarmModelPreset | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (!isManagerSwarmModelPreset(value)) {
-    throw new Error(`${fieldName} must be one of ${describeManagerSwarmModelPresets()}`);
   }
 
   return value;

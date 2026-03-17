@@ -382,56 +382,6 @@ export class SessionRepo {
       });
   }
 
-  reconfigure(
-    sessionId: string,
-    input: {
-      backend: SessionRecord["backend"];
-      cwd: string;
-      model: string;
-      systemPrompt?: string;
-      runtimeConfig?: Pick<SessionRuntimeConfig, "deliveryDefaults" | "backendConfig">;
-      updatedAt?: string;
-    },
-  ): void {
-    this.db
-      .prepare<{
-        sessionId: string;
-        backend: SessionRecord["backend"];
-        cwd: string;
-        model: string;
-        system_prompt: string | null;
-        runtime_config_json: string;
-        updated_at: string;
-      }>(
-        `UPDATE sessions
-         SET backend = @backend,
-             status = 'stopped',
-             cwd = @cwd,
-             model = @model,
-             system_prompt = @system_prompt,
-             backend_checkpoint_json = NULL,
-             runtime_config_json = @runtime_config_json,
-             last_error_json = NULL,
-             context_usage_json = NULL,
-             updated_at = @updated_at
-         WHERE id = @sessionId`,
-      )
-      .run({
-        sessionId,
-        backend: input.backend,
-        cwd: input.cwd,
-        model: input.model,
-        system_prompt: input.systemPrompt ?? null,
-        runtime_config_json: serializeJson({
-          ...(input.runtimeConfig?.deliveryDefaults
-            ? { deliveryDefaults: input.runtimeConfig.deliveryDefaults }
-            : {}),
-          backendConfig: { ...(input.runtimeConfig?.backendConfig ?? {}) },
-        }),
-        updated_at: input.updatedAt ?? nowTimestamp(),
-      });
-  }
-
   resetState(
     sessionId: string,
     input: {

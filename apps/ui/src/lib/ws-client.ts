@@ -62,7 +62,6 @@ type Listener = (state: ManagerWsState) => void;
 
 type WsRequestResultMap = {
   create_manager: AgentDescriptor;
-  update_manager_model: AgentDescriptor;
   delete_manager: { managerId: string };
   reorder_managers: string[];
   stop_all_agents: {
@@ -78,7 +77,6 @@ type WsRequestResultMap = {
 type WsRequestType = Extract<keyof WsRequestResultMap, string>;
 const WS_REQUEST_TYPES: WsRequestType[] = [
   "create_manager",
-  "update_manager_model",
   "delete_manager",
   "reorder_managers",
   "stop_all_agents",
@@ -92,7 +90,6 @@ const WS_REQUEST_ERROR_HINTS: Array<{
   codeFragment: string;
 }> = [
   { requestType: "create_manager", codeFragment: "create_manager" },
-  { requestType: "update_manager_model", codeFragment: "update_manager_model" },
   { requestType: "delete_manager", codeFragment: "delete_manager" },
   { requestType: "reorder_managers", codeFragment: "reorder_managers" },
   { requestType: "stop_all_agents", codeFragment: "stop_all_agents" },
@@ -441,31 +438,6 @@ export class ManagerWsClient {
       type: "create_manager",
       name,
       cwd,
-      model,
-      requestId,
-    }));
-  }
-
-  async updateManagerModel(
-    managerId: string,
-    model: ManagerModelPreset,
-  ): Promise<AgentDescriptor> {
-    const trimmedManagerId = managerId.trim();
-    if (!trimmedManagerId) {
-      throw new Error("Manager id is required.");
-    }
-
-    if (!MANAGER_MODEL_PRESETS.includes(model)) {
-      throw new Error("Manager model is required.");
-    }
-
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      throw new Error("WebSocket is disconnected. Reconnecting...");
-    }
-
-    return this.enqueueRequest("update_manager_model", (requestId) => ({
-      type: "update_manager_model",
-      managerId: trimmedManagerId,
       model,
       requestId,
     }));
@@ -848,16 +820,6 @@ export class ManagerWsClient {
         this.applyManagerCreated(event.manager);
         this.requestTracker.resolve(
           "create_manager",
-          event.requestId,
-          event.manager,
-        );
-        break;
-      }
-
-      case "manager_updated": {
-        this.applyManagerCreated(event.manager);
-        this.requestTracker.resolve(
-          "update_manager_model",
           event.requestId,
           event.manager,
         );

@@ -36,7 +36,7 @@ import { cn } from '@/lib/utils'
 import type {
   AgentDescriptor,
   AgentStatus,
-  ModelPreset,
+  ManagerModelPreset,
 } from '@middleman/protocol'
 
 interface AgentSidebarProps {
@@ -151,7 +151,7 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
   return <span className={cn('inline-block size-1.5 rounded-full bg-current', className)} aria-hidden="true" />
 }
 
-function getModelLabel(agent: AgentDescriptor, preset: ModelPreset | undefined): string {
+function getModelLabel(agent: AgentDescriptor, preset: ManagerModelPreset | undefined): string {
   if (preset === 'pi-opus') {
     return 'opus'
   }

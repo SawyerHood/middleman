@@ -189,15 +189,6 @@ function createRichManagerStub() {
       managerId: "manager-2",
       displayName: "manager-2",
     })),
-    updateManagerModel: vi.fn(async () => ({
-      ...manager,
-      model: {
-        provider: "anthropic",
-        modelId: "claude-opus-4-6",
-        thinkingLevel: "xhigh",
-      },
-      status: "stopped",
-    })),
     deleteManager: vi.fn(async () => ({
       managerId: manager.agentId,
       terminatedWorkerIds: [worker.agentId],
@@ -559,7 +550,7 @@ describe("WsHandler", () => {
     expect(events.some((event) => event.type === "error")).toBe(false);
   });
 
-  it("routes create_manager, update_manager_model, and delete_manager commands with request ids", async () => {
+  it("routes create_manager and delete_manager commands with request ids", async () => {
     const swarmManager = createRichManagerStub();
     const handler = new WsHandler({
       swarmManager: swarmManager as never,
@@ -586,15 +577,6 @@ describe("WsHandler", () => {
     await (handler as any).handleSocketMessage(
       socket,
       JSON.stringify({
-        type: "update_manager_model",
-        managerId: "manager-1",
-        model: "pi-opus",
-        requestId: "update-1",
-      }),
-    );
-    await (handler as any).handleSocketMessage(
-      socket,
-      JSON.stringify({
         type: "delete_manager",
         managerId: "manager-1",
         requestId: "delete-1",
@@ -606,11 +588,6 @@ describe("WsHandler", () => {
       cwd: "/tmp/project",
       model: undefined,
     });
-    expect(swarmManager.updateManagerModel).toHaveBeenCalledWith(
-      "manager-1",
-      "manager-1",
-      "pi-opus",
-    );
     expect(swarmManager.deleteManager).toHaveBeenCalledWith(
       "manager-1",
       "manager-1",
@@ -620,20 +597,6 @@ describe("WsHandler", () => {
         type: "manager_created",
         requestId: "create-1",
         manager: expect.objectContaining({ agentId: "manager-2" }),
-      }),
-    );
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        type: "manager_updated",
-        requestId: "update-1",
-        manager: expect.objectContaining({
-          agentId: "manager-1",
-          status: "stopped",
-          model: expect.objectContaining({
-            provider: "anthropic",
-            modelId: "claude-opus-4-6",
-          }),
-        }),
       }),
     );
     expect(events).toContainEqual(

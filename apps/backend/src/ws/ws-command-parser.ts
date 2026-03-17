@@ -2,8 +2,8 @@ import type { ClientCommand } from "@middleman/protocol";
 import { type RawData } from "ws";
 import { parseConversationAttachments } from "./attachment-parser.js";
 import {
-  describeManagerSwarmModelPresets,
-  isManagerSwarmModelPreset,
+  describeSwarmModelPresets,
+  isSwarmModelPreset,
 } from "../swarm/model-presets.js";
 
 export type ParsedClientCommand =
@@ -214,10 +214,10 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
         error: "create_manager.cwd must be a non-empty string",
       };
     }
-    if (model !== undefined && !isManagerSwarmModelPreset(model)) {
+    if (model !== undefined && !isSwarmModelPreset(model)) {
       return {
         ok: false,
-        error: `create_manager.model must be one of ${describeManagerSwarmModelPresets()}`,
+        error: `create_manager.model must be one of ${describeSwarmModelPresets()}`,
       };
     }
     if (requestId !== undefined && typeof requestId !== "string") {
@@ -233,41 +233,6 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
         type: "create_manager",
         name: name.trim(),
         cwd,
-        model,
-        requestId,
-      },
-    };
-  }
-
-  if (maybe.type === "update_manager_model") {
-    const managerId = (maybe as { managerId?: unknown }).managerId;
-    const model = (maybe as { model?: unknown }).model;
-    const requestId = (maybe as { requestId?: unknown }).requestId;
-
-    if (typeof managerId !== "string" || managerId.trim().length === 0) {
-      return {
-        ok: false,
-        error: "update_manager_model.managerId must be a non-empty string",
-      };
-    }
-    if (!isManagerSwarmModelPreset(model)) {
-      return {
-        ok: false,
-        error: `update_manager_model.model must be one of ${describeManagerSwarmModelPresets()}`,
-      };
-    }
-    if (requestId !== undefined && typeof requestId !== "string") {
-      return {
-        ok: false,
-        error: "update_manager_model.requestId must be a string when provided",
-      };
-    }
-
-    return {
-      ok: true,
-      command: {
-        type: "update_manager_model",
-        managerId: managerId.trim(),
         model,
         requestId,
       },
@@ -445,7 +410,6 @@ export function extractRequestId(command: ClientCommand): string | undefined {
   switch (command.type) {
     case "reorder_managers":
     case "create_manager":
-    case "update_manager_model":
     case "delete_manager":
     case "stop_all_agents":
     case "list_directories":

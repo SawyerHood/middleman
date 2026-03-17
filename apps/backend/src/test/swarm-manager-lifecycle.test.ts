@@ -31,7 +31,6 @@ interface Harness {
   interruptCalls: string[];
   manager: SwarmManager;
   managerOrderRepo: MiddlemanManagerOrderRepo;
-  reconfigureCalls: Array<{ sessionId: string; backend: string; model: string }>;
   resetCalls: Array<{ sessionId: string; systemPrompt: string }>;
   sessionService: SwarmdCoreHandle["sessionService"];
   sessions: Map<string, SessionRecord>;
@@ -58,7 +57,6 @@ async function createHarness(): Promise<Harness> {
   const sessions = new Map<string, SessionRecord>();
   const createdMessages: Array<{ sessionId: string; text: string }> = [];
   const interruptCalls: string[] = [];
-  const reconfigureCalls: Array<{ sessionId: string; backend: string; model: string }> = [];
   const resetCalls: Array<{ sessionId: string; systemPrompt: string }> = [];
   const startCalls: string[] = [];
 
@@ -138,43 +136,6 @@ async function createHarness(): Promise<Harness> {
         updatedAt: session.updatedAt,
       });
       resetCalls.push({ sessionId, systemPrompt: input.systemPrompt });
-      return session;
-    },
-    reconfigure(
-      sessionId: string,
-      input: {
-        backend: SessionRecord["backend"];
-        cwd: string;
-        model: string;
-        systemPrompt?: string;
-        updatedAt?: string;
-      },
-    ) {
-      const session = sessions.get(sessionId);
-      if (!session) {
-        throw new Error(`Missing session ${sessionId}`);
-      }
-      session.backend = input.backend;
-      session.cwd = input.cwd;
-      session.model = input.model;
-      session.systemPrompt = input.systemPrompt;
-      session.backendCheckpoint = null;
-      session.lastError = null;
-      session.contextUsage = null;
-      session.status = "stopped";
-      session.updatedAt = input.updatedAt ?? new Date().toISOString();
-      sessionRepo.reconfigure(sessionId, {
-        backend: input.backend,
-        cwd: input.cwd,
-        model: input.model,
-        systemPrompt: input.systemPrompt,
-        updatedAt: session.updatedAt,
-      });
-      reconfigureCalls.push({
-        sessionId,
-        backend: input.backend,
-        model: input.model,
-      });
       return session;
     },
     delete(sessionId: string) {
@@ -291,7 +252,6 @@ async function createHarness(): Promise<Harness> {
     interruptCalls,
     manager,
     managerOrderRepo,
-    reconfigureCalls,
     resetCalls,
     sessionService: sessionService as unknown as SwarmdCoreHandle["sessionService"],
     sessions,
@@ -315,7 +275,7 @@ describe("SwarmManager lifecycle", () => {
     const created = await harness.manager.createManager("__bootstrap_manager__", {
       name: "Product Manager",
       cwd: REPO_ROOT,
-      model: "pi-codex",
+      model: "codex-app",
     });
 
     expect(created.agentId).toBe("product-manager");
@@ -344,7 +304,7 @@ describe("SwarmManager lifecycle", () => {
     const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
       name: "Manager",
       cwd: REPO_ROOT,
-      model: "pi-codex",
+      model: "codex-app",
     });
     const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
       agentId: "worker",
@@ -379,7 +339,7 @@ describe("SwarmManager lifecycle", () => {
     const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
       name: "Manager",
       cwd: REPO_ROOT,
-      model: "pi-codex",
+      model: "codex-app",
     });
     const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
       agentId: "worker",
@@ -406,12 +366,12 @@ describe("SwarmManager lifecycle", () => {
     const senderManager = await harness.manager.createManager("__bootstrap_manager__", {
       name: "Sender",
       cwd: REPO_ROOT,
-      model: "pi-codex",
+      model: "codex-app",
     });
     const recipientManager = await harness.manager.createManager(senderManager.agentId, {
       name: "Recipient",
       cwd: REPO_ROOT,
-      model: "pi-codex",
+      model: "codex-app",
     });
 
     const agentMessages: Array<{ agentId: string; fromAgentId?: string; toAgentId: string; text: string }> = [];
@@ -457,7 +417,7 @@ describe("SwarmManager lifecycle", () => {
     const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
       name: "Manager",
       cwd: REPO_ROOT,
-      model: "pi-codex",
+      model: "codex-app",
     });
     const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
       agentId: "worker",
@@ -487,7 +447,7 @@ describe("SwarmManager lifecycle", () => {
     const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
       name: "Manager",
       cwd: REPO_ROOT,
-      model: "pi-codex",
+      model: "codex-app",
     });
     const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
       agentId: "worker",
@@ -524,7 +484,7 @@ describe("SwarmManager lifecycle", () => {
     const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
       name: "Manager",
       cwd: REPO_ROOT,
-      model: "pi-codex",
+      model: "codex-app",
     });
 
     await harness.manager.handleUserMessage("hello from the web", {
@@ -562,61 +522,6 @@ describe("SwarmManager lifecycle", () => {
     });
     expect(harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget).toEqual({
       channel: "web",
-    });
-  });
-
-  it("reconfigures a manager model and restarts with the new runtime on the next message", async () => {
-    const harness = await createHarness();
-    harnesses.push(harness);
-
-    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
-      name: "Manager",
-      cwd: REPO_ROOT,
-      model: "pi-codex",
-    });
-
-    harness.startCalls.length = 0;
-
-    const updated = await harness.manager.updateManagerModel(
-      managerDescriptor.agentId,
-      managerDescriptor.agentId,
-      "pi-opus",
-    );
-
-    expect(updated).toMatchObject({
-      agentId: managerDescriptor.agentId,
-      status: "stopped",
-      model: {
-        provider: "anthropic",
-        modelId: "claude-opus-4-6",
-        thinkingLevel: "xhigh",
-      },
-    });
-    expect(harness.reconfigureCalls).toEqual([
-      {
-        sessionId: managerDescriptor.agentId,
-        backend: "pi",
-        model: "anthropic/claude-opus-4-6",
-      },
-    ]);
-    expect(harness.sessions.get(managerDescriptor.agentId)).toMatchObject({
-      status: "stopped",
-      backend: "pi",
-      model: "anthropic/claude-opus-4-6",
-    });
-
-    await harness.manager.handleUserMessage("continue", {
-      targetAgentId: managerDescriptor.agentId,
-      sourceContext: {
-        channel: "web",
-      },
-    });
-
-    expect(harness.startCalls).toEqual([managerDescriptor.agentId]);
-    expect(harness.sessions.get(managerDescriptor.agentId)?.status).toBe("idle");
-    expect(harness.createdMessages.at(-1)).toMatchObject({
-      sessionId: managerDescriptor.agentId,
-      text: "continue",
     });
   });
 });

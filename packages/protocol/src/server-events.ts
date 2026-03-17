@@ -88,12 +88,6 @@ export interface ManagerDeletedEvent {
   requestId?: string;
 }
 
-export interface ManagerUpdatedEvent {
-  type: "manager_updated";
-  manager: AgentDescriptor;
-  requestId?: string;
-}
-
 export interface ManagerOrderUpdatedEvent {
   type: "manager_order_updated";
   managerIds: string[];
@@ -184,7 +178,6 @@ export type ServerEvent =
   | AgentsSnapshotEvent
   | ManagerCreatedEvent
   | ManagerDeletedEvent
-  | ManagerUpdatedEvent
   | ManagerOrderUpdatedEvent
   | StopAllAgentsResultEvent
   | DirectoriesListedEvent

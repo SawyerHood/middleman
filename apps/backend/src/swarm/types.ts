@@ -22,13 +22,6 @@ export const SWARM_MODEL_PRESETS = [
 
 export type SwarmModelPreset = (typeof SWARM_MODEL_PRESETS)[number];
 
-export const MANAGER_SWARM_MODEL_PRESETS = [
-  "pi-codex",
-  "pi-opus",
-] as const;
-
-export type ManagerSwarmModelPreset = (typeof MANAGER_SWARM_MODEL_PRESETS)[number];
-
 export interface AgentModelDescriptor {
   provider: string;
   modelId: string;
