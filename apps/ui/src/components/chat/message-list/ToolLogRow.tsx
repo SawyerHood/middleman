@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { memo, useId, useState } from 'react'
 import { AlertCircle, Check, ChevronRight, Copy, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -780,7 +780,7 @@ function RuntimeErrorLog({ entry }: { entry: ConversationLogEntry }) {
   )
 }
 
-export function ToolLogRow({
+function ToolLogRowBase({
   type,
   entry,
 }: {
@@ -793,3 +793,65 @@ export function ToolLogRow({
 
   return <ToolExecutionLogRow entry={entry as ToolExecutionDisplayEntry} />
 }
+
+function areToolExecutionEntriesEqual(
+  previousEntry: ToolExecutionDisplayEntry,
+  nextEntry: ToolExecutionDisplayEntry,
+): boolean {
+  return (
+    previousEntry.id === nextEntry.id &&
+    previousEntry.actorAgentId === nextEntry.actorAgentId &&
+    previousEntry.toolName === nextEntry.toolName &&
+    previousEntry.toolCallId === nextEntry.toolCallId &&
+    previousEntry.inputPayload === nextEntry.inputPayload &&
+    previousEntry.latestPayload === nextEntry.latestPayload &&
+    previousEntry.latestUpdatePayload === nextEntry.latestUpdatePayload &&
+    previousEntry.outputPayload === nextEntry.outputPayload &&
+    previousEntry.timestamp === nextEntry.timestamp &&
+    previousEntry.startedAt === nextEntry.startedAt &&
+    previousEntry.latestAt === nextEntry.latestAt &&
+    previousEntry.endedAt === nextEntry.endedAt &&
+    previousEntry.durationMs === nextEntry.durationMs &&
+    previousEntry.latestKind === nextEntry.latestKind &&
+    previousEntry.isStreaming === nextEntry.isStreaming &&
+    previousEntry.isError === nextEntry.isError &&
+    previousEntry.updates.length === nextEntry.updates.length &&
+    previousEntry.kindSequence.length === nextEntry.kindSequence.length
+  )
+}
+
+function areRuntimeErrorEntriesEqual(
+  previousEntry: ConversationLogEntry,
+  nextEntry: ConversationLogEntry,
+): boolean {
+  return (
+    previousEntry === nextEntry ||
+    (previousEntry.agentId === nextEntry.agentId &&
+      previousEntry.timestamp === nextEntry.timestamp &&
+      previousEntry.kind === nextEntry.kind &&
+      previousEntry.isError === nextEntry.isError &&
+      previousEntry.text === nextEntry.text)
+  )
+}
+
+export const ToolLogRow = memo(ToolLogRowBase, (previousProps, nextProps) => {
+  if (previousProps.type !== nextProps.type) {
+    return false
+  }
+
+  if (previousProps.entry === nextProps.entry) {
+    return true
+  }
+
+  if (previousProps.type === 'runtime_error_log') {
+    return areRuntimeErrorEntriesEqual(
+      previousProps.entry as ConversationLogEntry,
+      nextProps.entry as ConversationLogEntry,
+    )
+  }
+
+  return areToolExecutionEntriesEqual(
+    previousProps.entry as ToolExecutionDisplayEntry,
+    nextProps.entry as ToolExecutionDisplayEntry,
+  )
+})

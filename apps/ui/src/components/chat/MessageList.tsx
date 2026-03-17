@@ -1,5 +1,7 @@
 import {
+  type ComponentPropsWithoutRef,
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -9,8 +11,12 @@ import {
   useState,
 } from "react";
 import { ChevronDown } from "lucide-react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { Button } from "@/components/ui/button";
-import { buildAgentLookup } from "@/lib/agent-message-utils";
+import {
+  buildAgentLookup,
+  type AgentLookup,
+} from "@/lib/agent-message-utils";
 import type { ArtifactReference } from "@/lib/artifacts";
 import { getConversationEntryStableId } from "@/lib/conversation-history";
 import { cn } from "@/lib/utils";
@@ -46,6 +52,13 @@ export interface MessageListHandle {
 
 const AUTO_SCROLL_THRESHOLD_PX = 100;
 const LOAD_OLDER_HISTORY_THRESHOLD_PX = 48;
+const MESSAGE_LIST_FIRST_ITEM_INDEX = 1_000_000;
+const MESSAGE_LIST_INITIAL_ITEM_RENDER_LIMIT = 12;
+const MESSAGE_LIST_OVERSCAN_PX = 240;
+const MESSAGE_LIST_VIEWPORT_BUFFER_PX = {
+  top: 240,
+  bottom: 360,
+};
 
 type DisplayEntry =
   | {
@@ -68,15 +81,6 @@ type DisplayEntry =
       id: string;
       entry: ConversationLogEntry;
     };
-
-function isNearBottom(
-  container: HTMLElement,
-  threshold = AUTO_SCROLL_THRESHOLD_PX,
-): boolean {
-  const distanceFromBottom =
-    container.scrollHeight - container.scrollTop - container.clientHeight;
-  return distanceFromBottom <= threshold;
-}
 
 function isToolExecutionLog(
   entry: ConversationLogEntry,
@@ -398,6 +402,160 @@ function OlderHistoryLoadingIndicator() {
   );
 }
 
+const VirtualizedMessageScroller = forwardRef<
+  HTMLDivElement,
+  ComponentPropsWithoutRef<"div">
+>(function VirtualizedMessageScroller({ className, ...props }, ref) {
+  return (
+    <div
+      {...props}
+      ref={ref}
+      className={cn(
+        "app-scroll-area h-full min-h-0 flex-1 overflow-y-auto",
+        "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
+        "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent",
+        "[scrollbar-width:thin] [scrollbar-color:transparent_transparent]",
+        "hover:[&::-webkit-scrollbar-thumb]:bg-border hover:[scrollbar-color:var(--color-border)_transparent]",
+        className,
+      )}
+    />
+  );
+});
+
+VirtualizedMessageScroller.displayName = "VirtualizedMessageScroller";
+
+const VirtualizedMessageListBody = forwardRef<
+  HTMLDivElement,
+  ComponentPropsWithoutRef<"div">
+>(function VirtualizedMessageListBody({ className, ...props }, ref) {
+  return <div {...props} ref={ref} className={cn("p-2 md:p-3", className)} />;
+});
+
+VirtualizedMessageListBody.displayName = "VirtualizedMessageListBody";
+
+function areToolExecutionDisplayEntriesEqual(
+  previousEntry: ToolExecutionDisplayEntry,
+  nextEntry: ToolExecutionDisplayEntry,
+): boolean {
+  return (
+    previousEntry.id === nextEntry.id &&
+    previousEntry.actorAgentId === nextEntry.actorAgentId &&
+    previousEntry.toolName === nextEntry.toolName &&
+    previousEntry.toolCallId === nextEntry.toolCallId &&
+    previousEntry.inputPayload === nextEntry.inputPayload &&
+    previousEntry.latestPayload === nextEntry.latestPayload &&
+    previousEntry.latestUpdatePayload === nextEntry.latestUpdatePayload &&
+    previousEntry.outputPayload === nextEntry.outputPayload &&
+    previousEntry.timestamp === nextEntry.timestamp &&
+    previousEntry.startedAt === nextEntry.startedAt &&
+    previousEntry.latestAt === nextEntry.latestAt &&
+    previousEntry.endedAt === nextEntry.endedAt &&
+    previousEntry.durationMs === nextEntry.durationMs &&
+    previousEntry.latestKind === nextEntry.latestKind &&
+    previousEntry.isStreaming === nextEntry.isStreaming &&
+    previousEntry.isError === nextEntry.isError &&
+    previousEntry.updates.length === nextEntry.updates.length &&
+    previousEntry.kindSequence.length === nextEntry.kindSequence.length
+  );
+}
+
+interface MessageListRowProps {
+  entry: DisplayEntry;
+  rowSpacingClass: string;
+  agentLookup: AgentLookup;
+  onArtifactClick?: (artifact: ArtifactReference) => void;
+  wsUrl?: string;
+}
+
+const MessageListRow = memo(function MessageListRow({
+  entry,
+  rowSpacingClass,
+  agentLookup,
+  onArtifactClick,
+  wsUrl,
+}: MessageListRowProps) {
+  if (entry.type === "conversation_message") {
+    return (
+      <div className={rowSpacingClass}>
+        <ConversationMessageRow
+          message={entry.message}
+          onArtifactClick={onArtifactClick}
+          wsUrl={wsUrl}
+        />
+      </div>
+    );
+  }
+
+  if (entry.type === "agent_message") {
+    return (
+      <div className={rowSpacingClass}>
+        <AgentMessageRow message={entry.message} agentLookup={agentLookup} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={rowSpacingClass}>
+      <ToolLogRow type={entry.type} entry={entry.entry} />
+    </div>
+  );
+}, areMessageListRowPropsEqual);
+
+function areMessageListRowPropsEqual(
+  previousProps: MessageListRowProps,
+  nextProps: MessageListRowProps,
+): boolean {
+  if (
+    previousProps.rowSpacingClass !== nextProps.rowSpacingClass ||
+    previousProps.agentLookup !== nextProps.agentLookup ||
+    previousProps.onArtifactClick !== nextProps.onArtifactClick ||
+    previousProps.wsUrl !== nextProps.wsUrl
+  ) {
+    return false;
+  }
+
+  const previousEntry = previousProps.entry;
+  const nextEntry = nextProps.entry;
+
+  if (
+    previousEntry === nextEntry ||
+    (previousEntry.type === nextEntry.type && previousEntry.id === nextEntry.id)
+  ) {
+    if (
+      previousEntry.type === "conversation_message" &&
+      nextEntry.type === "conversation_message"
+    ) {
+      return previousEntry.message === nextEntry.message;
+    }
+
+    if (
+      previousEntry.type === "agent_message" &&
+      nextEntry.type === "agent_message"
+    ) {
+      return previousEntry.message === nextEntry.message;
+    }
+
+    if (
+      previousEntry.type === "tool_execution" &&
+      nextEntry.type === "tool_execution"
+    ) {
+      return areToolExecutionDisplayEntriesEqual(
+        previousEntry.entry,
+        nextEntry.entry,
+      );
+    }
+
+    if (
+      previousEntry.type === "runtime_error_log" &&
+      nextEntry.type === "runtime_error_log"
+    ) {
+      return previousEntry.entry === nextEntry.entry;
+    }
+  }
+
+  return false;
+}
+
 export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
   function MessageList(
     {
@@ -415,8 +573,8 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
     },
     ref,
   ) {
-    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-    const bottomRef = useRef<HTMLDivElement | null>(null);
+    const virtuosoRef = useRef<VirtuosoHandle | null>(null);
+    const scrollContainerRef = useRef<HTMLElement | null>(null);
     const previousAgentIdRef = useRef<string | null>(null);
     const previousFirstEntryIdRef = useRef<string | null>(null);
     const previousEntryCountRef = useRef(0);
@@ -425,11 +583,12 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
     const pendingOlderHistoryScrollRef = useRef<{
       previousFirstEntryId: string | null;
       previousEntryCount: number;
-      previousScrollHeight: number;
-      previousScrollTop: number;
     } | null>(null);
     const didPrependHistoryRef = useRef(false);
     const [showScrollButton, setShowScrollButton] = useState(false);
+    const [firstItemIndex, setFirstItemIndex] = useState(
+      MESSAGE_LIST_FIRST_ITEM_INDEX,
+    );
 
     const displayEntries = useMemo(
       () => buildDisplayEntries(messages),
@@ -438,20 +597,17 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
     const agentLookup = useMemo(() => buildAgentLookup(agents), [agents]);
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
-      const container = scrollContainerRef.current;
-      if (!container) {
-        return;
-      }
-
-      if (behavior === "smooth") {
-        container.scrollTo({ top: container.scrollHeight, behavior });
-      } else {
-        container.scrollTop = container.scrollHeight;
+      if (displayEntries.length > 0) {
+        virtuosoRef.current?.scrollToIndex({
+          index: "LAST",
+          align: "end",
+          behavior: behavior === "smooth" ? "smooth" : "auto",
+        });
       }
 
       isAtBottomRef.current = true;
       setShowScrollButton(false);
-    }, []);
+    }, [displayEntries.length]);
 
     useImperativeHandle(
       ref,
@@ -460,30 +616,6 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
       }),
       [scrollToBottom],
     );
-
-    const updateIsAtBottom = () => {
-      const container = scrollContainerRef.current;
-      if (!container) {
-        isAtBottomRef.current = true;
-        setShowScrollButton(false);
-        return;
-      }
-
-      const isAtBottom = isNearBottom(container);
-      isAtBottomRef.current = isAtBottom;
-      setShowScrollButton(!isAtBottom);
-    };
-
-    const handleScroll = () => {
-      updateIsAtBottom();
-
-      const container = scrollContainerRef.current;
-      if (!container || container.scrollTop > LOAD_OLDER_HISTORY_THRESHOLD_PX) {
-        return;
-      }
-
-      requestOlderHistory();
-    };
 
     const requestOlderHistory = useCallback(() => {
       if (
@@ -503,8 +635,6 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
       pendingOlderHistoryScrollRef.current = {
         previousFirstEntryId: displayEntries[0]?.id ?? null,
         previousEntryCount: displayEntries.length,
-        previousScrollHeight: container.scrollHeight,
-        previousScrollTop: container.scrollTop,
       };
 
       onLoadOlderHistory();
@@ -523,23 +653,18 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
         return;
       }
 
-      const container = scrollContainerRef.current;
-      if (!container) {
-        pendingOlderHistoryScrollRef.current = null;
-        return;
-      }
-
       const currentFirstEntryId = displayEntries[0]?.id ?? null;
       const didPrependHistory =
         currentFirstEntryId !== pendingRestore.previousFirstEntryId &&
-        displayEntries.length >= pendingRestore.previousEntryCount;
+        displayEntries.length > pendingRestore.previousEntryCount;
 
       if (didPrependHistory) {
-        container.scrollTop =
-          pendingRestore.previousScrollTop +
-          (container.scrollHeight - pendingRestore.previousScrollHeight);
+        const prependedEntryCount =
+          displayEntries.length - pendingRestore.previousEntryCount;
+        setFirstItemIndex((currentValue) =>
+          Math.max(1, currentValue - prependedEntryCount),
+        );
         didPrependHistoryRef.current = true;
-        updateIsAtBottom();
       }
 
       if (didPrependHistory || !isLoadingOlderHistory) {
@@ -586,6 +711,10 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
         scrollToBottom(shouldForceScroll ? "auto" : "smooth");
       }
 
+      if (didAgentChange || didConversationReset) {
+        setFirstItemIndex(MESSAGE_LIST_FIRST_ITEM_INDEX);
+      }
+
       hasScrolledRef.current = true;
       previousAgentIdRef.current = nextAgentId;
       previousFirstEntryIdRef.current = nextFirstEntryId;
@@ -619,6 +748,80 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
       scrollToBottom("smooth");
     };
 
+    const handleScrollerRef = useCallback(
+      (node: HTMLElement | Window | null) => {
+        scrollContainerRef.current =
+          node instanceof HTMLElement ? node : null;
+      },
+      [],
+    );
+
+    const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
+      isAtBottomRef.current = atBottom;
+      setShowScrollButton(!atBottom);
+    }, []);
+
+    const handleAtTopStateChange = useCallback(
+      (atTop: boolean) => {
+        if (!atTop) {
+          return;
+        }
+
+        requestOlderHistory();
+      },
+      [requestOlderHistory],
+    );
+
+    const handleStartReached = useCallback(() => {
+      requestOlderHistory();
+    }, [requestOlderHistory]);
+
+    const virtuosoComponents = useMemo(
+      () => ({
+        Footer: isLoading
+          ? function VirtuosoFooter() {
+              return <LoadingIndicator />;
+            }
+          : undefined,
+        Header: isLoadingOlderHistory
+          ? function VirtuosoHeader() {
+              return <OlderHistoryLoadingIndicator />;
+            }
+          : undefined,
+        List: VirtualizedMessageListBody,
+        Scroller: VirtualizedMessageScroller,
+      }),
+      [isLoading, isLoadingOlderHistory],
+    );
+
+    const renderMessageRow = useCallback(
+      (index: number, entry: DisplayEntry) => {
+        const previousEntry = index > 0 ? displayEntries[index - 1] : undefined;
+        const rowSpacingClass = getDisplayEntrySpacingClass(
+          entry,
+          previousEntry,
+          isWorkerDetailView,
+        );
+
+        return (
+          <MessageListRow
+            entry={entry}
+            rowSpacingClass={rowSpacingClass}
+            agentLookup={agentLookup}
+            onArtifactClick={onArtifactClick}
+            wsUrl={wsUrl}
+          />
+        );
+      },
+      [
+        agentLookup,
+        displayEntries,
+        isWorkerDetailView,
+        onArtifactClick,
+        wsUrl,
+      ],
+    );
+
     return (
       <div className="relative min-h-0 flex flex-1 flex-col overflow-hidden">
         {displayEntries.length === 0 && !isLoading ? (
@@ -630,63 +833,29 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
           </div>
         ) : (
           <>
-            <div
-              ref={scrollContainerRef}
-              onScroll={handleScroll}
-              className={cn(
-                "app-scroll-area min-h-0 flex-1 overflow-y-auto",
-                "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
-                "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent",
-                "[scrollbar-width:thin] [scrollbar-color:transparent_transparent]",
-                "hover:[&::-webkit-scrollbar-thumb]:bg-border hover:[scrollbar-color:var(--color-border)_transparent]",
-              )}
-            >
-              <div className="p-2 md:p-3">
-                {isLoadingOlderHistory ? (
-                  <OlderHistoryLoadingIndicator />
-                ) : null}
-                {displayEntries.map((entry, index) => {
-                  const previousEntry =
-                    index > 0 ? displayEntries[index - 1] : undefined;
-                  const rowSpacingClass = getDisplayEntrySpacingClass(
-                    entry,
-                    previousEntry,
-                    isWorkerDetailView,
-                  );
-
-                  if (entry.type === "conversation_message") {
-                    return (
-                      <div key={entry.id} className={rowSpacingClass}>
-                        <ConversationMessageRow
-                          message={entry.message}
-                          onArtifactClick={onArtifactClick}
-                          wsUrl={wsUrl}
-                        />
-                      </div>
-                    );
-                  }
-
-                  if (entry.type === "agent_message") {
-                    return (
-                      <div key={entry.id} className={rowSpacingClass}>
-                        <AgentMessageRow
-                          message={entry.message}
-                          agentLookup={agentLookup}
-                        />
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div key={entry.id} className={rowSpacingClass}>
-                      <ToolLogRow type={entry.type} entry={entry.entry} />
-                    </div>
-                  );
-                })}
-                {isLoading ? <LoadingIndicator /> : null}
-                <div ref={bottomRef} />
-              </div>
-            </div>
+            <Virtuoso
+              ref={virtuosoRef}
+              data={displayEntries}
+              components={virtuosoComponents}
+              firstItemIndex={firstItemIndex}
+              initialItemCount={
+                displayEntries.length <= MESSAGE_LIST_INITIAL_ITEM_RENDER_LIMIT
+                  ? displayEntries.length
+                  : undefined
+              }
+              increaseViewportBy={MESSAGE_LIST_VIEWPORT_BUFFER_PX}
+              overscan={MESSAGE_LIST_OVERSCAN_PX}
+              atBottomThreshold={AUTO_SCROLL_THRESHOLD_PX}
+              atBottomStateChange={handleAtBottomStateChange}
+              atTopThreshold={LOAD_OLDER_HISTORY_THRESHOLD_PX}
+              atTopStateChange={handleAtTopStateChange}
+              startReached={handleStartReached}
+              scrollerRef={handleScrollerRef}
+              computeItemKey={(_index, entry) => entry.id}
+              itemContent={renderMessageRow}
+              className="min-h-0 flex-1"
+              style={{ height: "100%" }}
+            />
 
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
               <Button
