@@ -53,6 +53,8 @@ export function useManagerActions({
   handleCloseDeleteManagerDialog: () => void
   isStoppingAllAgents: boolean
   handleStopAllAgents: () => Promise<void>
+  isUpdatingManagerModel: boolean
+  handleUpdateManagerModel: (model: ManagerModelPreset) => Promise<void>
 } {
   const [isCreateManagerDialogOpen, setIsCreateManagerDialogOpen] = useState(false)
   const [newManagerName, setNewManagerName] = useState('')
@@ -70,6 +72,7 @@ export function useManagerActions({
   const [isDeletingManager, setIsDeletingManager] = useState(false)
 
   const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false)
+  const [isUpdatingManagerModel, setIsUpdatingManagerModel] = useState(false)
   const agents = useAtomValue(agentsAtom)
   const activeAgent = useAtomValue(activeAgentAtom)
   const setLastError = useSetAtom(lastErrorAtom)
@@ -107,6 +110,30 @@ export function useManagerActions({
       setIsStoppingAllAgents(false)
     }
   }, [activeAgent, clearPendingResponseForAgent, clientRef, setLastError])
+
+  const handleUpdateManagerModel = useCallback(async (model: ManagerModelPreset) => {
+    const client = clientRef.current
+    if (!client) {
+      throw new Error('WebSocket client is not available.')
+    }
+
+    if (activeAgent?.role !== 'manager') {
+      throw new Error('No active manager is selected.')
+    }
+
+    setIsUpdatingManagerModel(true)
+
+    try {
+      await client.updateManagerModel(activeAgent.agentId, model)
+      setLastError(null)
+    } catch (error) {
+      const message = toErrorMessage(error)
+      setLastError(`Failed to update manager model: ${message}`)
+      throw error instanceof Error ? error : new Error(message)
+    } finally {
+      setIsUpdatingManagerModel(false)
+    }
+  }, [activeAgent, clientRef, setLastError])
 
   const handleOpenCreateManagerDialog = useCallback(() => {
     const defaultCwd =
@@ -286,6 +313,8 @@ export function useManagerActions({
     handleCloseDeleteManagerDialog,
     isStoppingAllAgents,
     handleStopAllAgents,
+    isUpdatingManagerModel,
+    handleUpdateManagerModel,
   }
 }
 
