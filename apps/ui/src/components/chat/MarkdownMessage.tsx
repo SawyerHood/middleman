@@ -171,8 +171,8 @@ export const MarkdownMessage = memo(function MarkdownMessage({
                 <ol
                   className={cn(
                     isDocument
-                      ? 'mb-5 list-decimal space-y-1.5 pl-6 text-foreground/90 last:mb-0'
-                      : 'mb-2 list-decimal space-y-0.5 pl-5 last:mb-0',
+                      ? 'mb-5 list-decimal space-y-1.5 pl-8 text-foreground/90 last:mb-0'
+                      : 'mb-2 list-decimal space-y-0.5 pl-7 last:mb-0',
                   )}
                 >
                   {children}

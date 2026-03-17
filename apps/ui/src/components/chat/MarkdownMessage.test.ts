@@ -30,6 +30,14 @@ describe('MarkdownMessage', () => {
     expect(html).toContain('<em class="italic">italic</em>')
   })
 
+  it('adds enough ordered-list padding for multi-digit markers', () => {
+    const content = ['9. nine', '10. ten', '11. eleven'].join('\n')
+
+    const html = renderToStaticMarkup(createElement(MarkdownMessage, { content }))
+
+    expect(html).toContain('<ol class="mb-2 list-decimal space-y-0.5 pl-7')
+  })
+
   it('keeps raw HTML escaped and sanitizes javascript links', () => {
     const content = ['[xss](javascript:alert(1))', '', '<script>alert("x")</script>'].join('\n')
 
