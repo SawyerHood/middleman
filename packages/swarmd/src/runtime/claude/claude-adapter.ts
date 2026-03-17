@@ -118,12 +118,28 @@ export class ClaudeBackendAdapter implements BackendAdapter {
 
   async resumeThread(checkpoint: BackendCheckpoint): Promise<BackendCheckpoint> {
     const claudeCheckpoint = this.normalizeClaudeCheckpoint(checkpoint);
-    return await this.activateSession(claudeCheckpoint, {
-      resume: claudeCheckpoint.sessionId,
-      ...(claudeCheckpoint.resumeAtMessageId
-        ? { resumeSessionAt: claudeCheckpoint.resumeAtMessageId }
-        : {}),
-    });
+    try {
+      return await this.activateSession(claudeCheckpoint, {
+        resume: claudeCheckpoint.sessionId,
+        ...(claudeCheckpoint.resumeAtMessageId
+          ? { resumeSessionAt: claudeCheckpoint.resumeAtMessageId }
+          : {}),
+      });
+    } catch (error) {
+      if (!isMissingClaudeConversation(error)) {
+        throw error;
+      }
+
+      this.callbacks.log("warn", "Claude checkpoint resume failed; starting a fresh session.", {
+        sessionId: claudeCheckpoint.sessionId,
+        error: toErrorMessage(error),
+      });
+
+      const freshCheckpoint = this.createFreshCheckpoint();
+      return await this.activateSession(freshCheckpoint, {
+        sessionId: freshCheckpoint.sessionId,
+      });
+    }
   }
 
   async readHistory(
@@ -324,6 +340,14 @@ function isMissingClaudeSdk(error: unknown): boolean {
   }
 
   return error.message.includes("@anthropic-ai/claude-agent-sdk");
+}
+
+function isMissingClaudeConversation(error: unknown): boolean {
+  return toErrorMessage(error).toLowerCase().includes("no conversation found");
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function readNonEmptyString(value: unknown): string | undefined {

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EventEnvelope, SessionRuntimeConfig, SessionStatus, UserInput } from "../src/index.js";
 import {
   ClaudeEventMapper,
+  createClaudeBackendAdapter,
   ClaudeQuerySession,
   type ClaudeSdkMessage,
   type ClaudeSdkModule,
@@ -111,6 +112,25 @@ function flush(): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, 0);
   });
+}
+
+function createFailingHandle(error: Error): ClaudeSdkQueryHandle {
+  return {
+    async interrupt() {},
+    async initializationResult(): Promise<never> {
+      throw error;
+    },
+    close() {},
+    async return() {
+      return {
+        value: undefined as unknown as ClaudeSdkMessage,
+        done: true,
+      };
+    },
+    async *[Symbol.asyncIterator](): AsyncIterator<ClaudeSdkMessage> {
+      throw error;
+    },
+  };
 }
 
 function createCallbacks() {
@@ -423,6 +443,34 @@ describe("ClaudeQuerySession", () => {
     await session.dispose();
   });
 
+  it("captures Claude stderr and enriches startup failures", async () => {
+    const callbacks = createCallbacks();
+    const startupError = new Error("Claude Code process exited with code 1");
+    const sdk: Pick<ClaudeSdkModule, "query"> = {
+      query: vi.fn(({ options }) => {
+        options.stderr?.("No conversation found with session ID: stale-session\n");
+        return createFailingHandle(startupError);
+      }),
+    };
+
+    const session = new ClaudeQuerySession({
+      sdk,
+      callbacks: callbacks.callbacks,
+      config: createConfig(),
+      sessionId: "ses_runtime",
+      threadId: "thr_runtime",
+    });
+
+    await expect(session.start()).rejects.toThrow(
+      "Claude stderr: No conversation found with session ID: stale-session",
+    );
+    expect(callbacks.callbacks.log).toHaveBeenCalledWith("debug", "Claude query stderr.", {
+      line: "No conversation found with session ID: stale-session",
+    });
+
+    await session.dispose();
+  });
+
   it("manages busy and interrupting state while deferring the next prompt", async () => {
     const callbacks = createCallbacks();
     const handle = new FakeClaudeQueryHandle();
@@ -610,5 +658,53 @@ describe("ClaudeQuerySession", () => {
     });
 
     await session.dispose();
+  });
+
+  it("starts a fresh Claude session when resuming a missing conversation checkpoint", async () => {
+    const callbacks = createCallbacks();
+    const freshHandle = new FakeClaudeQueryHandle();
+    const sdk: ClaudeSdkModule = {
+      query: vi.fn(({ prompt, options }) => {
+        if (options.resume === "stale-session") {
+          options.stderr?.("No conversation found with session ID: stale-session\n");
+          return createFailingHandle(new Error("Claude Code process exited with code 1"));
+        }
+
+        freshHandle.attachPrompt(prompt);
+        return freshHandle;
+      }),
+    };
+
+    const adapter = createClaudeBackendAdapter(callbacks.callbacks, {
+      loadSdk: async () => sdk,
+    });
+
+    const bootstrapPromise = adapter.bootstrap(createConfig(), {
+      backend: "claude",
+      sessionId: "stale-session",
+    });
+
+    freshHandle.pushEvent({
+      type: "system:init",
+      session_id: "fresh-session-live",
+    });
+
+    await expect(bootstrapPromise).resolves.toEqual({
+      checkpoint: {
+        backend: "claude",
+        sessionId: "fresh-session-live",
+      },
+    });
+    expect(sdk.query).toHaveBeenCalledTimes(2);
+    expect(callbacks.callbacks.log).toHaveBeenCalledWith(
+      "warn",
+      "Claude checkpoint resume failed; starting a fresh session.",
+      expect.objectContaining({
+        sessionId: "stale-session",
+        error: expect.stringContaining("No conversation found"),
+      }),
+    );
+
+    await adapter.stop();
   });
 });

@@ -71,6 +71,9 @@ export interface ClaudeSdkQueryOptions {
   permissionMode?: string;
   allowDangerouslySkipPermissions?: boolean;
   settingSources?: string[];
+  debug?: boolean;
+  debugFile?: string;
+  stderr?: (data: string) => void;
 }
 
 export interface ClaudeSdkQueryHandle extends AsyncIterable<ClaudeSdkMessage> {
@@ -107,6 +110,7 @@ export class ClaudeQuerySession {
   private readonly abortController = new AbortController();
   private readonly started = createDeferred<ClaudeCheckpoint>();
   private readonly idleWaiters = new Set<() => void>();
+  private readonly recentStderrLines: string[] = [];
 
   private state: SessionStatus = "starting";
   private currentCheckpoint: ClaudeCheckpoint | undefined;
@@ -124,6 +128,7 @@ export class ClaudeQuerySession {
   private terminateRequested = false;
   private finalStatusEmitted = false;
   private lastContextUsage: SessionContextUsage | null = null;
+  private pendingStderr = "";
 
   constructor(private readonly options: ClaudeQuerySessionOptions) {
     this.currentCheckpoint = options.checkpoint;
@@ -156,12 +161,19 @@ export class ClaudeQuerySession {
         ...(this.options.mcpServers ? { mcpServers: this.options.mcpServers } : {}),
         ...(this.options.allowedTools ? { allowedTools: this.options.allowedTools } : {}),
         settingSources: [],
+        stderr: (data) => {
+          this.captureStderr(data);
+        },
         abortController: this.abortController,
       },
     });
 
     this.consumePromise = this.consume();
-    await this.queryHandle.initializationResult?.();
+    try {
+      await this.queryHandle.initializationResult?.();
+    } catch (error) {
+      throw this.enrichError(error);
+    }
 
     if (this.currentCheckpoint) {
       this.publishCheckpoint(this.currentCheckpoint);
@@ -290,15 +302,18 @@ export class ClaudeQuerySession {
         return;
       }
 
+      const recentStderr = this.getRecentStderr();
+      const enrichedError = enrichClaudeError(error, recentStderr);
       this.options.callbacks.log("error", "Claude query session failed.", {
-        error: toErrorMessage(error),
+        error: toErrorMessage(enrichedError),
+        ...(recentStderr.length > 0 ? { stderr: recentStderr } : {}),
       });
 
       if (!this.started.settled) {
-        this.started.reject(error);
+        this.started.reject(enrichedError);
       }
 
-      const sessionError = toSessionErrorInfo("CLAUDE_QUERY_FAILED", error, true);
+      const sessionError = toSessionErrorInfo("CLAUDE_QUERY_FAILED", enrichedError, true);
       await this.setStatus("errored", sessionError);
       this.options.callbacks.emitEvent(
         createNormalizedEvent({
@@ -308,7 +323,7 @@ export class ClaudeQuerySession {
           type: "session.errored",
           payload: {
             backend: "claude",
-            message: toErrorMessage(error),
+            message: toErrorMessage(enrichedError),
           },
         }),
       );
@@ -560,6 +575,55 @@ export class ClaudeQuerySession {
     this.idleWaiters.clear();
   }
 
+  private captureStderr(data: string): void {
+    if (data.length === 0) {
+      return;
+    }
+
+    const combined = `${this.pendingStderr}${data}`;
+    const lines = combined.split(/\r?\n/u);
+    this.pendingStderr = lines.pop() ?? "";
+
+    for (const line of lines) {
+      this.recordStderrLine(line);
+    }
+  }
+
+  private recordStderrLine(line: string): void {
+    const normalizedLine = line.trim();
+    if (normalizedLine.length === 0) {
+      return;
+    }
+
+    this.recentStderrLines.push(normalizedLine);
+    if (this.recentStderrLines.length > MAX_CLAUDE_STDERR_LINES) {
+      this.recentStderrLines.shift();
+    }
+
+    this.options.callbacks.log("debug", "Claude query stderr.", {
+      line: normalizedLine,
+    });
+  }
+
+  private flushPendingStderr(): void {
+    if (this.pendingStderr.length === 0) {
+      return;
+    }
+
+    const line = this.pendingStderr;
+    this.pendingStderr = "";
+    this.recordStderrLine(line);
+  }
+
+  private getRecentStderr(): string[] {
+    this.flushPendingStderr();
+    return [...this.recentStderrLines];
+  }
+
+  private enrichError(error: unknown): Error {
+    return enrichClaudeError(error, this.getRecentStderr());
+  }
+
   private captureContextUsage(event: ClaudeSdkMessage): void {
     const nextUsage = extractClaudeContextUsage(event, this.options.config.model);
     if (!nextUsage || areContextUsagesEqual(this.lastContextUsage, nextUsage)) {
@@ -574,12 +638,16 @@ export class ClaudeQuerySession {
 function createDeferred<T>(): Deferred<T> {
   let resolvePromise!: (value: T) => void;
   let rejectPromise!: (error: unknown) => void;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  void promise.catch(() => {
+    // Consumers may await this later; suppress unhandled rejections when startup fails early.
+  });
 
   const deferred: Deferred<T> = {
-    promise: new Promise<T>((resolve, reject) => {
-      resolvePromise = resolve;
-      rejectPromise = reject;
-    }),
+    promise,
     resolve(value) {
       if (deferred.settled) {
         return;
@@ -606,6 +674,9 @@ function isIdleLike(status: SessionStatus): boolean {
   return status === "idle" || status === "stopped" || status === "terminated" || status === "errored";
 }
 
+const MAX_CLAUDE_STDERR_LINES = 20;
+const MAX_CLAUDE_STDERR_SUMMARY_LINES = 3;
+
 function sameCheckpoint(left: ClaudeCheckpoint | undefined, right: ClaudeCheckpoint): boolean {
   return (
     left?.sessionId === right.sessionId && left?.resumeAtMessageId === right.resumeAtMessageId
@@ -614,6 +685,26 @@ function sameCheckpoint(left: ClaudeCheckpoint | undefined, right: ClaudeCheckpo
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function enrichClaudeError(error: unknown, stderrLines: readonly string[]): Error {
+  const baseError = error instanceof Error ? error : new Error(toErrorMessage(error));
+  const stderrSummary = summarizeClaudeStderr(stderrLines);
+  if (!stderrSummary || baseError.message.includes(stderrSummary)) {
+    return baseError;
+  }
+
+  const enrichedError = new Error(`${baseError.message}. Claude stderr: ${stderrSummary}`);
+  enrichedError.name = baseError.name;
+  return enrichedError;
+}
+
+function summarizeClaudeStderr(stderrLines: readonly string[]): string | null {
+  if (stderrLines.length === 0) {
+    return null;
+  }
+
+  return stderrLines.slice(-MAX_CLAUDE_STDERR_SUMMARY_LINES).join(" | ");
 }
 
 function toSessionErrorInfo(code: string, error: unknown, retryable: boolean): SessionErrorInfo {
