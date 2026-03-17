@@ -25,18 +25,6 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
     `,
   },
   {
-    id: "middleman_004_integration_profiles",
-    sql: `
-      CREATE TABLE IF NOT EXISTS middleman_integration_profiles (
-        id TEXT PRIMARY KEY,
-        manager_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-        provider TEXT NOT NULL CHECK (provider IN ('slack', 'telegram')),
-        config_json TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `,
-  },
-  {
     id: "middleman_005_settings",
     sql: `
       CREATE TABLE IF NOT EXISTS middleman_settings (
@@ -46,13 +34,6 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         updated_at TEXT NOT NULL,
         PRIMARY KEY (namespace, key)
       );
-    `,
-  },
-  {
-    id: "middleman_006_integration_profile_uniqueness",
-    sql: `
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_middleman_integration_profiles_manager_provider
-        ON middleman_integration_profiles(manager_session_id, provider);
     `,
   },
   {
@@ -97,6 +78,12 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
       DROP TABLE IF EXISTS middleman_escalations;
     `,
   },
+  {
+    id: "middleman_011_drop_integration_profiles",
+    sql: `
+      DROP TABLE IF EXISTS middleman_integration_profiles;
+    `,
+  },
 ];
 
 export interface MiddlemanAgentRow {
@@ -107,14 +94,6 @@ export interface MiddlemanAgentRow {
   memoryOwnerSessionId: string;
   replyTarget?: MessageTargetContext;
   createdAt: string;
-  updatedAt: string;
-}
-
-export interface IntegrationProfileRecord {
-  id: string;
-  managerId: string;
-  provider: "slack" | "telegram";
-  config: Record<string, unknown>;
   updatedAt: string;
 }
 
@@ -380,77 +359,6 @@ export class MiddlemanManagerOrderRepo {
     ).run({ manager_session_id: managerId });
 
     this.reorder(this.list());
-  }
-}
-
-export class MiddlemanIntegrationProfileRepo {
-  constructor(private readonly db: Database) {}
-
-  listAll(): IntegrationProfileRecord[] {
-    return this.db
-      .prepare<
-        [],
-        {
-          id: string;
-          manager_session_id: string;
-          provider: "slack" | "telegram";
-          config_json: string;
-          updated_at: string;
-        }
-      >(
-        `SELECT id, manager_session_id, provider, config_json, updated_at
-         FROM middleman_integration_profiles
-         ORDER BY provider ASC, manager_session_id ASC`,
-      )
-      .all()
-      .map((row: {
-        id: string;
-        manager_session_id: string;
-        provider: "slack" | "telegram";
-        config_json: string;
-        updated_at: string;
-      }) => ({
-        id: row.id,
-        managerId: row.manager_session_id,
-        provider: row.provider,
-        config: parseJsonObject(row.config_json),
-        updatedAt: row.updated_at,
-      }));
-  }
-
-  listByProvider(provider: "slack" | "telegram"): IntegrationProfileRecord[] {
-    return this.listAll().filter((profile) => profile.provider === provider);
-  }
-
-  get(managerId: string, provider: "slack" | "telegram"): IntegrationProfileRecord | null {
-    return this.listByProvider(provider).find((profile) => profile.managerId === managerId) ?? null;
-  }
-
-  upsert(profile: IntegrationProfileRecord): IntegrationProfileRecord {
-    this.db
-      .prepare<{
-        id: string;
-        manager_session_id: string;
-        provider: "slack" | "telegram";
-        config_json: string;
-        updated_at: string;
-      }>(
-        `INSERT INTO middleman_integration_profiles (id, manager_session_id, provider, config_json, updated_at)
-         VALUES (@id, @manager_session_id, @provider, @config_json, @updated_at)
-         ON CONFLICT(manager_session_id, provider) DO UPDATE SET
-           id = excluded.id,
-           config_json = excluded.config_json,
-           updated_at = excluded.updated_at`,
-      )
-      .run({
-        id: profile.id,
-        manager_session_id: profile.managerId,
-        provider: profile.provider,
-        config_json: serializeJson(profile.config),
-        updated_at: profile.updatedAt,
-      });
-
-    return this.get(profile.managerId, profile.provider)!;
   }
 }
 

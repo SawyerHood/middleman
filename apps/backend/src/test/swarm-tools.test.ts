@@ -478,8 +478,8 @@ describe('buildSwarmTools', () => {
     expect(tools.some((tool) => tool.name === 'get_outstanding_tasks')).toBe(false)
   })
 
-  it('forwards speak_to_user target metadata and returns resolved target context', async () => {
-    let receivedTarget: { channel: 'web' | 'slack' | 'telegram'; channelId?: string; userId?: string; threadTs?: string } | undefined
+  it('returns the resolved speak_to_user target context without an explicit target override', async () => {
+    let receivedTarget: { channel: 'web' } | undefined
 
     const host: SwarmToolHost = {
       listAgents: () => [makeManagerDescriptor()],
@@ -495,9 +495,6 @@ describe('buildSwarmTools', () => {
         return {
           targetContext: {
             channel: targetContext?.channel ?? 'web',
-            channelId: targetContext?.channelId,
-            userId: targetContext?.userId,
-            threadTs: targetContext?.threadTs,
           },
         }
       },
@@ -510,29 +507,18 @@ describe('buildSwarmTools', () => {
     const result = await speakTool!.execute(
       'tool-call',
       {
-        text: 'Reply in Slack thread',
-        target: {
-          channel: 'slack',
-          channelId: 'C12345',
-          threadTs: '173.456',
-        },
+        text: 'Reply on the web',
       },
       undefined,
       undefined,
       undefined as any,
     )
 
-    expect(receivedTarget).toEqual({
-      channel: 'slack',
-      channelId: 'C12345',
-      threadTs: '173.456',
-    })
+    expect(receivedTarget).toBeUndefined()
     expect(result.details).toMatchObject({
       published: true,
       targetContext: {
-        channel: 'slack',
-        channelId: 'C12345',
-        threadTs: '173.456',
+        channel: 'web',
       },
     })
   })

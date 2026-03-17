@@ -140,7 +140,7 @@ describe("projectStoredMessage", () => {
             ],
             details: {
               text: "hello from details",
-              targetContext: { channel: "slack", channelId: "C123" },
+              targetContext: { channel: "web" },
             },
           },
         },
@@ -220,7 +220,7 @@ describe("projectStoredMessage", () => {
       historyCursor:
         "2026-03-15T00:00:04.000Z|manager-1|2026-03-15T00:00:04.000Z:tool-1|tool-1",
       source: "speak_to_user",
-      sourceContext: { channel: "slack", channelId: "C123" },
+      sourceContext: { channel: "web" },
     });
     expect(agentMessage).toEqual({
       type: "agent_message",

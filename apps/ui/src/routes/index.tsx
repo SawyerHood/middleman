@@ -662,9 +662,6 @@ export function IndexPage() {
         {activeView === "settings" ? (
           <SettingsPanel
             wsUrl={wsUrl}
-            managers={state.agents.filter((agent) => agent.role === "manager")}
-            slackStatus={state.slackStatus}
-            telegramStatus={state.telegramStatus}
             statusBanner={statusBanner}
             onBack={() =>
               navigateToRoute({
@@ -737,7 +734,6 @@ export function IndexPage() {
               disabled={!state.connected || !activeAgentId}
               allowWhileLoading
               agentLabel={activeAgentLabel}
-              wsUrl={wsUrl}
             />
           </>
         )}

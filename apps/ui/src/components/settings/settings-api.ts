@@ -7,11 +7,7 @@ import type {
   SettingsAuthProviderId,
   SettingsAuthProvider,
   SettingsAuthOAuthFlowState,
-  SlackSettingsConfig,
-  SlackChannelDescriptor,
-  TelegramSettingsConfig,
 } from './settings-types'
-import type { SlackStatusEvent, TelegramStatusEvent } from '@middleman/protocol'
 import { resolveApiEndpoint } from '@/lib/api-endpoint'
 
 /* ------------------------------------------------------------------ */
@@ -30,7 +26,7 @@ export const SETTINGS_AUTH_PROVIDER_META: Record<
   },
   'openai-codex': {
     label: 'OpenAI API key',
-    description: 'Used for Codex runtime sessions and voice transcription.',
+    description: 'Used for Codex runtime sessions.',
     placeholder: 'sk-...',
     helpUrl: 'https://platform.openai.com/api-keys',
   },
@@ -99,40 +95,6 @@ function parseSettingsAuthProvider(value: unknown): SettingsAuthProvider | null 
     authType: provider.authType,
     maskedValue: typeof provider.maskedValue === 'string' ? provider.maskedValue : undefined,
   }
-}
-
-function isSlackSettingsConfig(value: unknown): value is SlackSettingsConfig {
-  if (!value || typeof value !== 'object') return false
-  const config = value as Partial<SlackSettingsConfig>
-  return (
-    typeof config.profileId === 'string' && typeof config.enabled === 'boolean' &&
-    config.mode === 'socket' && typeof config.hasAppToken === 'boolean' &&
-    typeof config.hasBotToken === 'boolean' && Boolean(config.listen) &&
-    Boolean(config.response) && Boolean(config.attachments)
-  )
-}
-
-function isSlackChannelDescriptor(value: unknown): value is SlackChannelDescriptor {
-  if (!value || typeof value !== 'object') return false
-  const channel = value as Partial<SlackChannelDescriptor>
-  return (
-    typeof channel.id === 'string' && channel.id.trim().length > 0 &&
-    typeof channel.name === 'string' && channel.name.trim().length > 0 &&
-    typeof channel.isPrivate === 'boolean' && typeof channel.isMember === 'boolean'
-  )
-}
-
-function isTelegramSettingsConfig(value: unknown): value is TelegramSettingsConfig {
-  if (!value || typeof value !== 'object') return false
-  const config = value as Partial<TelegramSettingsConfig>
-  const hasValidAllowedUserIds = config.allowedUserIds === undefined ||
-    (Array.isArray(config.allowedUserIds) && config.allowedUserIds.every((e) => typeof e === 'string'))
-  return (
-    typeof config.profileId === 'string' && typeof config.enabled === 'boolean' &&
-    config.mode === 'polling' && typeof config.hasBotToken === 'boolean' &&
-    hasValidAllowedUserIds && Boolean(config.polling) &&
-    Boolean(config.delivery) && Boolean(config.attachments)
-  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -275,100 +237,4 @@ export async function submitSettingsAuthOAuthPrompt(wsUrl: string, provider: Set
   const endpoint = resolveApiEndpoint(wsUrl, `/api/settings/auth/login/${encodeURIComponent(provider)}/respond`)
   const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value }) })
   if (!response.ok) throw new Error(await readApiError(response))
-}
-
-/* ------------------------------------------------------------------ */
-/*  Slack API                                                         */
-/* ------------------------------------------------------------------ */
-
-function resolveManagerIntegrationEndpoint(wsUrl: string, managerId: string, provider: 'slack' | 'telegram', suffix = ''): string {
-  const normalizedManagerId = managerId.trim()
-  if (!normalizedManagerId) {
-    throw new Error('managerId is required.')
-  }
-  return resolveApiEndpoint(wsUrl, `/api/managers/${encodeURIComponent(normalizedManagerId)}/integrations/${provider}${suffix}`)
-}
-
-export async function fetchSlackSettings(wsUrl: string, managerId: string): Promise<{ config: SlackSettingsConfig; status: SlackStatusEvent | null }> {
-  const endpoint = resolveManagerIntegrationEndpoint(wsUrl, managerId, 'slack')
-  const response = await fetch(endpoint)
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { config?: unknown; status?: SlackStatusEvent }
-  if (!isSlackSettingsConfig(payload.config)) throw new Error('Invalid Slack settings response from backend.')
-  return { config: payload.config, status: payload.status ?? null }
-}
-
-export async function updateSlackSettings(wsUrl: string, managerId: string, patch: Record<string, unknown>): Promise<{ config: SlackSettingsConfig; status: SlackStatusEvent | null }> {
-  const endpoint = resolveManagerIntegrationEndpoint(wsUrl, managerId, 'slack')
-  const response = await fetch(endpoint, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) })
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { config?: unknown; status?: SlackStatusEvent }
-  if (!isSlackSettingsConfig(payload.config)) throw new Error('Invalid Slack settings response from backend.')
-  return { config: payload.config, status: payload.status ?? null }
-}
-
-export async function disableSlackSettings(wsUrl: string, managerId: string): Promise<{ config: SlackSettingsConfig; status: SlackStatusEvent | null }> {
-  const endpoint = resolveManagerIntegrationEndpoint(wsUrl, managerId, 'slack')
-  const response = await fetch(endpoint, { method: 'DELETE' })
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { config?: unknown; status?: SlackStatusEvent }
-  if (!isSlackSettingsConfig(payload.config)) throw new Error('Invalid Slack settings response from backend.')
-  return { config: payload.config, status: payload.status ?? null }
-}
-
-export async function testSlackConnection(wsUrl: string, managerId: string, patch?: Record<string, unknown>): Promise<{ teamName?: string; teamId?: string; botUserId?: string }> {
-  const endpoint = resolveManagerIntegrationEndpoint(wsUrl, managerId, 'slack', '/test')
-  const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch ?? {}) })
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { result?: { teamName?: string; teamId?: string; botUserId?: string } }
-  return payload.result ?? {}
-}
-
-export async function fetchSlackChannels(wsUrl: string, managerId: string, includePrivateChannels: boolean): Promise<SlackChannelDescriptor[]> {
-  const endpoint = new URL(resolveManagerIntegrationEndpoint(wsUrl, managerId, 'slack', '/channels'))
-  endpoint.searchParams.set('includePrivateChannels', includePrivateChannels ? 'true' : 'false')
-  const response = await fetch(endpoint.toString())
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { channels?: unknown }
-  if (!Array.isArray(payload.channels)) return []
-  return payload.channels.filter(isSlackChannelDescriptor)
-}
-
-/* ------------------------------------------------------------------ */
-/*  Telegram API                                                      */
-/* ------------------------------------------------------------------ */
-
-export async function fetchTelegramSettings(wsUrl: string, managerId: string): Promise<{ config: TelegramSettingsConfig; status: TelegramStatusEvent | null }> {
-  const endpoint = resolveManagerIntegrationEndpoint(wsUrl, managerId, 'telegram')
-  const response = await fetch(endpoint)
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { config?: unknown; status?: TelegramStatusEvent }
-  if (!isTelegramSettingsConfig(payload.config)) throw new Error('Invalid Telegram settings response from backend.')
-  return { config: payload.config, status: payload.status ?? null }
-}
-
-export async function updateTelegramSettings(wsUrl: string, managerId: string, patch: Record<string, unknown>): Promise<{ config: TelegramSettingsConfig; status: TelegramStatusEvent | null }> {
-  const endpoint = resolveManagerIntegrationEndpoint(wsUrl, managerId, 'telegram')
-  const response = await fetch(endpoint, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) })
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { config?: unknown; status?: TelegramStatusEvent }
-  if (!isTelegramSettingsConfig(payload.config)) throw new Error('Invalid Telegram settings response from backend.')
-  return { config: payload.config, status: payload.status ?? null }
-}
-
-export async function disableTelegramSettings(wsUrl: string, managerId: string): Promise<{ config: TelegramSettingsConfig; status: TelegramStatusEvent | null }> {
-  const endpoint = resolveManagerIntegrationEndpoint(wsUrl, managerId, 'telegram')
-  const response = await fetch(endpoint, { method: 'DELETE' })
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { config?: unknown; status?: TelegramStatusEvent }
-  if (!isTelegramSettingsConfig(payload.config)) throw new Error('Invalid Telegram settings response from backend.')
-  return { config: payload.config, status: payload.status ?? null }
-}
-
-export async function testTelegramConnection(wsUrl: string, managerId: string, patch?: Record<string, unknown>): Promise<{ botId?: string; botUsername?: string; botDisplayName?: string }> {
-  const endpoint = resolveManagerIntegrationEndpoint(wsUrl, managerId, 'telegram', '/test')
-  const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch ?? {}) })
-  if (!response.ok) throw new Error(await readApiError(response))
-  const payload = (await response.json()) as { result?: { botId?: string; botUsername?: string; botDisplayName?: string } }
-  return payload.result ?? {}
 }

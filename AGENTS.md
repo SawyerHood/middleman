@@ -26,7 +26,6 @@ For dashboard/chat/settings work, preserve existing behavior and interaction pat
 
 - HTTP + WebSocket server in `apps/backend/src/ws/server.ts`.
 - Agent orchestration and runtime logic in `apps/backend/src/swarm/*`.
-- Integrations in `apps/backend/src/integrations/*`.
 - Scheduler in `apps/backend/src/scheduler/*`.
 
 ### Contracts

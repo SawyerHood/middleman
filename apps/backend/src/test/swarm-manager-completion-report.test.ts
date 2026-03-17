@@ -10,7 +10,6 @@ import { SwarmManager } from "../swarm/swarm-manager.js";
 import {
   MIDDLEMAN_STORE_MIGRATIONS,
   MiddlemanAgentRepo,
-  MiddlemanIntegrationProfileRepo,
   MiddlemanManagerOrderRepo,
   MiddlemanScheduleRepo,
   MiddlemanSettingsRepo,
@@ -119,7 +118,6 @@ async function createHarness(): Promise<Harness> {
 
   const agentRepo = new MiddlemanAgentRepo(db);
   const managerOrderRepo = new MiddlemanManagerOrderRepo(db);
-  const integrationProfileRepo = new MiddlemanIntegrationProfileRepo(db);
   const scheduleRepo = new MiddlemanScheduleRepo(db);
   const settingsRepo = new MiddlemanSettingsRepo(db);
   const sessionRepo = new SessionRepo(db);
@@ -173,7 +171,6 @@ async function createHarness(): Promise<Harness> {
   Object.assign(manager as object, {
     core,
     agentRepo,
-    integrationProfileRepo,
     managerOrderRepo,
     scheduleRepo,
     settingsRepo,

@@ -22,7 +22,7 @@ Send a warm welcome via speak_to_user and explain that you orchestrate worker ag
 Then run a short onboarding interview. Ask:
 1. What kinds of projects/tasks they expect to work on most.
 2. Whether they prefer delegation-heavy execution or hands-on collaboration.
-3. Which tools/integrations matter most (Slack, Telegram, cron scheduling, web search, etc.).
+3. Which tools matter most (cron scheduling, web search, browser automation, etc.).
 4. Any coding/process preferences (style conventions, testing expectations, branching/PR habits).
 5. Communication style preferences (concise vs detailed, formal vs casual, update cadence).
 

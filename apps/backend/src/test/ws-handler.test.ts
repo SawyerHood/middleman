@@ -262,7 +262,6 @@ describe("WsHandler", () => {
   it("sends ready, agents snapshot, and transcript bootstrap on subscribe", async () => {
     const handler = new WsHandler({
       swarmManager: createManagerStub() as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const { events, socket } = createSocket();
@@ -295,7 +294,6 @@ describe("WsHandler", () => {
   it("broadcasts conversation events only to matching subscriptions", () => {
     const handler = new WsHandler({
       swarmManager: createManagerStub() as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const primary = createSocket();
@@ -327,7 +325,6 @@ describe("WsHandler", () => {
   it("bootstraps subscriptions against persisted stopped managers", async () => {
     const handler = new WsHandler({
       swarmManager: createManagerStub("stopped") as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const { events, socket } = createSocket();
@@ -355,7 +352,6 @@ describe("WsHandler", () => {
   it("bootstraps fresh sessions against the synthetic bootstrap manager", async () => {
     const handler = new WsHandler({
       swarmManager: createEmptyManagerStub() as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const { events, socket } = createSocket();
@@ -385,7 +381,6 @@ describe("WsHandler", () => {
     const swarmManager = createRichManagerStub();
     const handler = new WsHandler({
       swarmManager: swarmManager as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const { events, socket } = createSocket();
@@ -491,7 +486,6 @@ describe("WsHandler", () => {
     };
     const handler = new WsHandler({
       swarmManager: swarmManager as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const { events, socket } = createSocket();
@@ -526,7 +520,6 @@ describe("WsHandler", () => {
     const swarmManager = createRichManagerStub();
     const handler = new WsHandler({
       swarmManager: swarmManager as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const { events, socket } = createSocket();
@@ -561,7 +554,6 @@ describe("WsHandler", () => {
     const swarmManager = createRichManagerStub();
     const handler = new WsHandler({
       swarmManager: swarmManager as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const { events, socket } = createSocket();
@@ -620,7 +612,6 @@ describe("WsHandler", () => {
   it("returns invalid-command and not-subscribed errors for bad websocket commands", async () => {
     const handler = new WsHandler({
       swarmManager: createRichManagerStub() as never,
-      integrationRegistry: null,
       allowNonManagerSubscriptions: true,
     });
     const { events, socket } = createSocket();

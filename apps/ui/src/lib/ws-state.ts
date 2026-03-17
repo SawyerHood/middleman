@@ -3,8 +3,6 @@ import type {
   AgentDescriptor,
   AgentStatus,
   ConversationEntry,
-  SlackStatusEvent,
-  TelegramStatusEvent,
 } from "@middleman/protocol";
 
 export type ConversationHistoryEntry = Extract<
@@ -38,8 +36,6 @@ export interface ManagerWsState {
     }
   >;
   lastError: string | null;
-  slackStatus: SlackStatusEvent | null;
-  telegramStatus: TelegramStatusEvent | null;
 }
 
 export function createInitialManagerWsState(
@@ -60,7 +56,5 @@ export function createInitialManagerWsState(
     managerOrder: [],
     statuses: {},
     lastError: null,
-    slackStatus: null,
-    telegramStatus: null,
   };
 }

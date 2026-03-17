@@ -178,7 +178,6 @@ describe("SwarmManager.handleHostCall", () => {
       "manager-1",
       "Review complete",
       "speak_to_user",
-      undefined,
     );
     expect(speakResult).toMatchObject({
       details: {

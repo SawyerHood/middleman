@@ -68,11 +68,9 @@ import { buildSwarmTools, type SwarmToolHost } from "./swarm-tools.js";
 import {
   MIDDLEMAN_STORE_MIGRATIONS,
   MiddlemanAgentRepo,
-  MiddlemanIntegrationProfileRepo,
   MiddlemanManagerOrderRepo,
   MiddlemanScheduleRepo,
   MiddlemanSettingsRepo,
-  type IntegrationProfileRecord,
 } from "./swarm-sql.js";
 import type {
   AgentContextUsage,
@@ -151,7 +149,6 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private core: SwarmdCoreHandle | null = null;
   private agentRepo: MiddlemanAgentRepo | null = null;
   private managerOrderRepo: MiddlemanManagerOrderRepo | null = null;
-  private integrationProfileRepo: MiddlemanIntegrationProfileRepo | null = null;
   private scheduleRepo: MiddlemanScheduleRepo | null = null;
   private settingsRepo: MiddlemanSettingsRepo | null = null;
   private readonly skillMetadataService: SkillMetadataService;
@@ -232,7 +229,6 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     const db = this.core.db;
     this.agentRepo = new MiddlemanAgentRepo(db);
     this.managerOrderRepo = new MiddlemanManagerOrderRepo(db);
-    this.integrationProfileRepo = new MiddlemanIntegrationProfileRepo(db);
     this.scheduleRepo = new MiddlemanScheduleRepo(db);
     this.settingsRepo = new MiddlemanSettingsRepo(db);
     this.secretsEnvService = new SecretsEnvService({
@@ -268,7 +264,6 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.core = null;
     this.agentRepo = null;
     this.managerOrderRepo = null;
-    this.integrationProfileRepo = null;
     this.scheduleRepo = null;
     this.settingsRepo = null;
     this.secretsEnvService = null;
@@ -811,26 +806,6 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     return removed;
   }
 
-  listIntegrationProfiles(
-    provider: "slack" | "telegram",
-  ): IntegrationProfileRecord[] {
-    return this.integrationProfileRepoOrThrow().listByProvider(provider);
-  }
-
-  getIntegrationProfile(
-    managerId: string,
-    provider: "slack" | "telegram",
-  ): IntegrationProfileRecord | null {
-    return this.integrationProfileRepoOrThrow().get(managerId, provider);
-  }
-
-  upsertIntegrationProfile(
-    profile: IntegrationProfileRecord,
-  ): IntegrationProfileRecord {
-    this.lifecycle.assertManager(profile.managerId, "manage integrations");
-    return this.integrationProfileRepoOrThrow().upsert(profile);
-  }
-
   async listSettingsEnv(): Promise<SkillEnvRequirement[]> {
     return await this.secretsEnvServiceOrThrow().listSettingsEnv();
   }
@@ -1351,13 +1326,6 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       throw new Error("Manager order repo is not initialized.");
     }
     return this.managerOrderRepo;
-  }
-
-  private integrationProfileRepoOrThrow(): MiddlemanIntegrationProfileRepo {
-    if (!this.integrationProfileRepo) {
-      throw new Error("Integration profile repo is not initialized.");
-    }
-    return this.integrationProfileRepo;
   }
 
   private scheduleRepoOrThrow(): MiddlemanScheduleRepo {

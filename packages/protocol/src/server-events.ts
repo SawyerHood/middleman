@@ -130,44 +130,6 @@ export interface DirectoryPickedEvent {
   requestId?: string;
 }
 
-export type SlackConnectionState =
-  | "disabled"
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "error";
-
-export interface SlackStatusEvent {
-  type: "slack_status";
-  managerId?: string;
-  integrationProfileId?: string;
-  state: SlackConnectionState;
-  enabled: boolean;
-  updatedAt: string;
-  message?: string;
-  teamId?: string;
-  botUserId?: string;
-}
-
-export type TelegramConnectionState =
-  | "disabled"
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "error";
-
-export interface TelegramStatusEvent {
-  type: "telegram_status";
-  managerId?: string;
-  integrationProfileId?: string;
-  state: TelegramConnectionState;
-  enabled: boolean;
-  updatedAt: string;
-  message?: string;
-  botId?: string;
-  botUsername?: string;
-}
-
 export type ConversationEntry =
   | ConversationMessageEvent
   | ConversationLogEvent
@@ -221,6 +183,4 @@ export type ServerEvent =
   | DirectoriesListedEvent
   | DirectoryValidatedEvent
   | DirectoryPickedEvent
-  | SlackStatusEvent
-  | TelegramStatusEvent
   | { type: "error"; code: string; message: string; requestId?: string };

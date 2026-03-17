@@ -4,7 +4,6 @@ import { parseSwarmModelPreset } from "./model-presets.js";
 import {
   type AgentDescriptor,
   type AgentStatus,
-  type MessageChannel,
   type MessageSourceContext,
   type MessageTargetContext,
   type RequestedDeliveryMode,
@@ -42,24 +41,6 @@ const spawnModelPresetSchema = Type.Union([
   Type.Literal("codex-app"),
   Type.Literal("claude-code")
 ]);
-
-const messageChannelSchema = Type.Union([
-  Type.Literal("web"),
-  Type.Literal("slack"),
-  Type.Literal("telegram")
-]);
-
-const speakToUserTargetSchema = Type.Object({
-  channel: messageChannelSchema,
-  channelId: Type.Optional(
-    Type.String({ description: "Required when channel is 'slack' or 'telegram'." })
-  ),
-  userId: Type.Optional(Type.String()),
-  threadTs: Type.Optional(Type.String()),
-  integrationProfileId: Type.Optional(
-    Type.String({ description: "Optional integration profile id for provider-targeted delivery." })
-  )
-});
 
 type ListAgentsEntry = Pick<
   AgentDescriptor,
@@ -300,28 +281,17 @@ export function buildSwarmTools(host: SwarmToolHost, descriptor: AgentDescriptor
       name: "speak_to_user",
       label: "Speak To User",
       description:
-        "Publish a user-visible manager message into the websocket conversation feed. If target is omitted, delivery defaults to web. For Slack/Telegram delivery, set target.channel and target.channelId explicitly.",
+        "Publish a user-visible manager message into the websocket conversation feed.",
       parameters: Type.Object({
-        text: Type.String({ description: "Message content to show to the user." }),
-        target: Type.Optional(speakToUserTargetSchema)
+        text: Type.String({ description: "Message content to show to the user." })
       }),
       async execute(_toolCallId, params) {
-        const parsed = params as {
-          text: string;
-          target?: {
-            channel: MessageChannel;
-            channelId?: string;
-            userId?: string;
-            threadTs?: string;
-            integrationProfileId?: string;
-          };
-        };
+        const parsed = params as { text: string };
 
         const published = await host.publishToUser(
           descriptor.agentId,
           parsed.text,
-          "speak_to_user",
-          parsed.target
+          "speak_to_user"
         );
 
         return {

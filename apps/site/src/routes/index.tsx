@@ -133,7 +133,7 @@ function LandingPage() {
               {(
                 [
                   ['Runtimes', 'Claude, Codex, Codex\u00a0App'],
-                  ['Channels', 'Web, Slack, Telegram'],
+                  ['Channels', 'Web'],
                   ['License', 'Apache\u00a02.0'],
                 ] as const
               ).map(([label, value]) => (

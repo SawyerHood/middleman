@@ -5,7 +5,6 @@ import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { createConfig, type CreateConfigOptions } from "./config.js";
-import { IntegrationRegistryService } from "./integrations/registry.js";
 import {
   DAEMONIZED_ENV_VAR,
   getControlPidFilePath,
@@ -88,27 +87,6 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
 
   await queueSchedulerSync(collectManagerIds(swarmManager.listAgents(), config.managerId));
 
-  const integrationRegistry = new IntegrationRegistryService({
-    swarmManager,
-    defaultManagerId: config.managerId
-  });
-  await integrationRegistry.start();
-
-  let integrationLifecycle: Promise<void> = Promise.resolve();
-  const queueIntegrationSync = (managerIds: Set<string>): Promise<void> => {
-    const next = integrationLifecycle.then(
-      () => integrationRegistry.syncManagers(managerIds),
-      () => integrationRegistry.syncManagers(managerIds)
-    );
-    integrationLifecycle = next.then(
-      () => undefined,
-      () => undefined
-    );
-    return next;
-  };
-
-  await queueIntegrationSync(collectManagerIds(swarmManager.listAgents(), config.managerId));
-
   const handleAgentsSnapshot = (event: unknown): void => {
     if (!event || typeof event !== "object") {
       return;
@@ -123,10 +101,6 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     void queueSchedulerSync(managerIds).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[scheduler] Failed to sync scheduler instances: ${message}`);
-    });
-    void queueIntegrationSync(managerIds).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`[integrations] Failed to sync manager integrations: ${message}`);
     });
   };
 
@@ -151,7 +125,6 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     host: config.host,
     port: config.port,
     allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
-    integrationRegistry,
     uiDir: config.paths.uiDir
   });
   await wsServer.start();
@@ -180,7 +153,6 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     swarmManager.off("schedule_changed", handleScheduleChanged);
     await Promise.allSettled([
       queueSchedulerSync(new Set<string>()),
-      integrationRegistry.stop(),
       wsServer.stop(),
       swarmManager.shutdown(),
     ]);

@@ -59,41 +59,7 @@ export function isMessageSourceContext(value: unknown): value is MessageSourceCo
 
   const maybe = value as Partial<MessageSourceContext>;
 
-  if (maybe.channel !== "web" && maybe.channel !== "slack" && maybe.channel !== "telegram") {
-    return false;
-  }
-
-  if (maybe.channelId !== undefined && typeof maybe.channelId !== "string") {
-    return false;
-  }
-
-  if (maybe.userId !== undefined && typeof maybe.userId !== "string") {
-    return false;
-  }
-
-  if (maybe.messageId !== undefined && typeof maybe.messageId !== "string") {
-    return false;
-  }
-
-  if (maybe.threadTs !== undefined && typeof maybe.threadTs !== "string") {
-    return false;
-  }
-
-  if (maybe.integrationProfileId !== undefined && typeof maybe.integrationProfileId !== "string") {
-    return false;
-  }
-
-  if (
-    maybe.channelType !== undefined &&
-    maybe.channelType !== "dm" &&
-    maybe.channelType !== "channel" &&
-    maybe.channelType !== "group" &&
-    maybe.channelType !== "mpim"
-  ) {
-    return false;
-  }
-
-  if (maybe.teamId !== undefined && typeof maybe.teamId !== "string") {
+  if (maybe.channel !== "web") {
     return false;
   }
 

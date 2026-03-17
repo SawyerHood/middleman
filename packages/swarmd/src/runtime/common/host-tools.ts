@@ -52,7 +52,6 @@ export interface PiHostToolDefinition {
   }>;
 }
 
-const MESSAGE_CHANNEL_VALUES = ["web", "slack", "telegram"] as const;
 const DELIVERY_MODE_VALUES = ["auto", "followUp", "steer"] as const;
 const SPAWN_MODEL_PRESET_VALUES = ["pi-codex", "pi-opus", "codex-app", "claude-code"] as const;
 const CLAUDE_SERVER_NAME = "middleman-swarm";
@@ -87,13 +86,6 @@ function toolSchemaForName(name: string): Record<string, unknown> {
     case "speak_to_user":
       return objectSchema({
         text: { type: "string" },
-        target: objectSchema({
-          channel: { enum: [...MESSAGE_CHANNEL_VALUES] },
-          channelId: { type: "string" },
-          userId: { type: "string" },
-          threadTs: { type: "string" },
-          integrationProfileId: { type: "string" },
-        }, ["channel"]),
       }, ["text"]);
     default:
       return objectSchema({});
@@ -142,15 +134,6 @@ function zodShapeForToolName(name: string): z.ZodRawShape {
     case "speak_to_user":
       return {
         text: z.string(),
-        target: z
-          .object({
-            channel: z.enum(MESSAGE_CHANNEL_VALUES),
-            channelId: z.string().optional(),
-            userId: z.string().optional(),
-            threadTs: z.string().optional(),
-            integrationProfileId: z.string().optional(),
-          })
-          .optional(),
       };
     default:
       return {};

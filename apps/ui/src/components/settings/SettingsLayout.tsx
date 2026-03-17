@@ -1,8 +1,8 @@
-import { Settings, KeyRound, Blocks, Wrench } from 'lucide-react'
+import { Settings, KeyRound, Wrench } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { cn } from '@/lib/utils'
 
-export type SettingsTab = 'general' | 'auth' | 'integrations' | 'skills'
+export type SettingsTab = 'general' | 'auth' | 'skills'
 
 interface NavItem {
   id: SettingsTab
@@ -13,7 +13,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: <Settings className="size-4" /> },
   { id: 'auth', label: 'Authentication', icon: <KeyRound className="size-4" /> },
-  { id: 'integrations', label: 'Integrations', icon: <Blocks className="size-4" /> },
   { id: 'skills', label: 'Skills', icon: <Wrench className="size-4" /> },
 ]
 

@@ -11,7 +11,6 @@ import { SwarmManager } from "../swarm/swarm-manager.js";
 import {
   MIDDLEMAN_STORE_MIGRATIONS,
   MiddlemanAgentRepo,
-  MiddlemanIntegrationProfileRepo,
   MiddlemanManagerOrderRepo,
   MiddlemanSettingsRepo,
 } from "../swarm/swarm-sql.js";
@@ -53,7 +52,6 @@ async function createHarness(): Promise<Harness> {
 
   const agentRepo = new MiddlemanAgentRepo(db);
   const managerOrderRepo = new MiddlemanManagerOrderRepo(db);
-  const integrationProfileRepo = new MiddlemanIntegrationProfileRepo(db);
   const settingsRepo = new MiddlemanSettingsRepo(db);
   const sessionRepo = new SessionRepo(db);
   const sessions = new Map<string, SessionRecord>();
@@ -241,7 +239,6 @@ async function createHarness(): Promise<Harness> {
     core,
     agentRepo,
     managerOrderRepo,
-    integrationProfileRepo,
     settingsRepo,
   });
 
@@ -480,7 +477,7 @@ describe("SwarmManager lifecycle", () => {
     expect(harness.sessions.size).toBe(0);
   });
 
-  it("defaults speak_to_user delivery to web unless a target is explicitly provided", async () => {
+  it("defaults speak_to_user delivery to web and preserves explicit web targets", async () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
@@ -490,11 +487,10 @@ describe("SwarmManager lifecycle", () => {
       model: "codex-app",
     });
 
-    await harness.manager.handleUserMessage("hello from slack", {
+    await harness.manager.handleUserMessage("hello from the web", {
       targetAgentId: managerDescriptor.agentId,
       sourceContext: {
-        channel: "slack",
-        channelId: "C12345",
+        channel: "web",
       },
     });
 
@@ -502,21 +498,18 @@ describe("SwarmManager lifecycle", () => {
 
     const explicitReply = await harness.manager.publishToUser(
       managerDescriptor.agentId,
-      "Reply in Slack",
+      "Reply on the web",
       "speak_to_user",
       {
-        channel: "slack",
-        channelId: "C12345",
+        channel: "web",
       },
     );
 
     expect(explicitReply.targetContext).toEqual({
-      channel: "slack",
-      channelId: "C12345",
+      channel: "web",
     });
     expect(harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget).toEqual({
-      channel: "slack",
-      channelId: "C12345",
+      channel: "web",
     });
 
     const defaultReply = await harness.manager.publishToUser(
@@ -528,8 +521,7 @@ describe("SwarmManager lifecycle", () => {
       channel: "web",
     });
     expect(harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget).toEqual({
-      channel: "slack",
-      channelId: "C12345",
+      channel: "web",
     });
   });
 });

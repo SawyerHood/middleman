@@ -4,7 +4,7 @@ import { extname, join } from "node:path";
 import type { ConversationAttachment } from "../swarm/types.js";
 
 export async function parseMultipartFormData(rawBody: Buffer, contentType: string): Promise<FormData> {
-  const request = new Request("http://127.0.0.1/api/transcribe", {
+  const request = new Request("http://127.0.0.1/api/uploads", {
     method: "POST",
     headers: {
       "content-type": contentType
@@ -21,7 +21,7 @@ export async function parseMultipartFormData(rawBody: Buffer, contentType: strin
 
 export function resolveUploadFileName(file: File): string {
   const trimmed = file.name.trim();
-  return trimmed.length > 0 ? trimmed : "voice-input.webm";
+  return trimmed.length > 0 ? trimmed : "upload.bin";
 }
 
 export function normalizeMimeType(value: string): string {

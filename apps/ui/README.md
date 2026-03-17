@@ -6,8 +6,8 @@
 
 - Dashboard and agent sidebar
 - Chat thread UI with streaming updates
-- Composer with file attachments and voice transcription hooks
-- Settings surfaces (auth, skills, environment variables, integrations)
+- Composer with file attachments
+- Settings surfaces (auth, skills, environment variables)
 
 ## Scripts
 

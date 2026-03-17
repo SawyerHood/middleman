@@ -16,7 +16,7 @@ export const Route = createRootRoute({
       {
         property: 'og:description',
         content:
-          'Run manager + worker AI agents locally with streaming chat, artifacts, schedules, and channel integrations.',
+          'Run manager + worker AI agents locally with streaming chat, artifacts, and schedules.',
       },
       { property: 'og:type', content: 'website' },
       { name: 'theme-color', content: '#F8F7F3' },

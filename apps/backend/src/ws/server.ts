@@ -2,7 +2,6 @@ import { createServer, type IncomingMessage, type Server as HttpServer, type Ser
 import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { WebSocketServer } from "ws";
-import type { IntegrationRegistryService } from "../integrations/registry.js";
 import type { ServerEvent } from "@middleman/protocol";
 import { getControlPidFileCandidates } from "../reboot/control-pid.js";
 import type { SwarmManager } from "../swarm/swarm-manager.js";
@@ -10,18 +9,15 @@ import { applyCorsHeaders, resolveReadFileContentType, resolveRequestUrl, sendJs
 import { createFileRoutes } from "./routes/file-routes.js";
 import { createHealthRoutes } from "./routes/health-routes.js";
 import type { HttpRoute } from "./routes/http-route.js";
-import { createIntegrationRoutes } from "./routes/integration-routes.js";
 import { createSchedulerRoutes } from "./routes/scheduler-routes.js";
 import { createSettingsRoutes, type SettingsRouteBundle } from "./routes/settings-routes.js";
 import { createNotesHttpRoutes } from "./routes/notes-routes.js";
-import { createTranscriptionRoutes } from "./routes/transcription-routes.js";
 import { WsHandler } from "./ws-handler.js";
 
 export class SwarmWebSocketServer {
   private readonly swarmManager: SwarmManager;
   private readonly host: string;
   private readonly port: number;
-  private readonly integrationRegistry: IntegrationRegistryService | null;
   private readonly uiDir: string;
   private uiDirAvailable = false;
 
@@ -67,33 +63,20 @@ export class SwarmWebSocketServer {
     this.wsHandler.broadcastToSubscribed(event);
   };
 
-  private readonly onSlackStatus = (event: ServerEvent): void => {
-    if (event.type !== "slack_status") return;
-    this.wsHandler.broadcastToSubscribed(event);
-  };
-
-  private readonly onTelegramStatus = (event: ServerEvent): void => {
-    if (event.type !== "telegram_status") return;
-    this.wsHandler.broadcastToSubscribed(event);
-  };
-
   constructor(options: {
     swarmManager: SwarmManager;
     host: string;
     port: number;
     allowNonManagerSubscriptions: boolean;
-    integrationRegistry?: IntegrationRegistryService;
     uiDir?: string;
   }) {
     this.swarmManager = options.swarmManager;
     this.host = options.host;
     this.port = options.port;
-    this.integrationRegistry = options.integrationRegistry ?? null;
     this.uiDir = options.uiDir ?? this.swarmManager.getConfig().paths.uiDir;
 
     this.wsHandler = new WsHandler({
       swarmManager: this.swarmManager,
-      integrationRegistry: this.integrationRegistry,
       allowNonManagerSubscriptions: options.allowNonManagerSubscriptions
     });
 
@@ -106,14 +89,9 @@ export class SwarmWebSocketServer {
         }
       }),
       ...createFileRoutes({ swarmManager: this.swarmManager }),
-      ...createTranscriptionRoutes({ swarmManager: this.swarmManager }),
       ...createSchedulerRoutes({ swarmManager: this.swarmManager }),
       ...createNotesHttpRoutes({ swarmManager: this.swarmManager }),
-      ...this.settingsRoutes.routes,
-      ...createIntegrationRoutes({
-        swarmManager: this.swarmManager,
-        integrationRegistry: this.integrationRegistry
-      })
+      ...this.settingsRoutes.routes
     ];
   }
 
@@ -164,8 +142,6 @@ export class SwarmWebSocketServer {
     this.swarmManager.on("conversation_reset", this.onConversationReset);
     this.swarmManager.on("agent_status", this.onAgentStatus);
     this.swarmManager.on("agents_snapshot", this.onAgentsSnapshot);
-    this.integrationRegistry?.on("slack_status", this.onSlackStatus);
-    this.integrationRegistry?.on("telegram_status", this.onTelegramStatus);
   }
 
   async stop(): Promise<void> {
@@ -176,8 +152,6 @@ export class SwarmWebSocketServer {
     this.swarmManager.off("conversation_reset", this.onConversationReset);
     this.swarmManager.off("agent_status", this.onAgentStatus);
     this.swarmManager.off("agents_snapshot", this.onAgentsSnapshot);
-    this.integrationRegistry?.off("slack_status", this.onSlackStatus);
-    this.integrationRegistry?.off("telegram_status", this.onTelegramStatus);
 
     const currentWss = this.wss;
     const currentHttpServer = this.httpServer;

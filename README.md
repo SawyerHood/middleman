@@ -39,9 +39,9 @@ pnpm dev
 
 - **Persistent managers.** Onboard once, work for days. Managers remember your preferences, workflow, and project context across sessions via compacting memory.
 - **Worker dispatch.** The manager spawns workers (Codex, Pi/Opus, etc.) and routes messages between them. You describe work at a high level; it handles the breakdown.
-- **Parallel execution.** Dump a list of tasks and the manager figures out what can run concurrently. Stream-of-thought voice dumps welcome.
+- **Parallel execution.** Dump a list of tasks and the manager figures out what can run concurrently.
 - **Dashboard.** A Conductor-style UI for watching agents work, chatting with your manager, and managing settings.
-- **Skills & integrations.** Built-in skills for web search, image generation, browser automation, cron scheduling, and more. Extensible via the pi skill system.
+- **Skills & automation.** Built-in skills for web search, image generation, browser automation, cron scheduling, and more. Extensible via the pi skill system.
 
 ## Architecture
 
@@ -66,7 +66,7 @@ Middleman is three things running on your machine:
 └─────────────────────────────────────────────┘
 ```
 
-- **`apps/backend`** is the daemon. HTTP + WebSocket server, swarm orchestration runtime, integrations, and scheduler.
+- **`apps/backend`** is the daemon. HTTP + WebSocket server, swarm orchestration runtime, persistence, and scheduler.
 - **`apps/ui`** is the dashboard. Real-time agent monitoring, chat interface, and settings management.
 - The **manager agent** is built on [pi](https://github.com/badlogic/pi-mono), is event-driven, and never blocks. Always ready for the next message.
 
@@ -74,7 +74,7 @@ Middleman is three things running on your machine:
 
 1. **Create a manager** for your project from the dashboard.
 2. **Onboard it** by chatting. Tell it your preferred workflow, what tools to use, how you want work sequenced.
-3. **Dump tasks** on it. A feature spec, a list of bugs, a vague idea. Voice or text.
+3. **Dump tasks** on it. A feature spec, a list of bugs, a vague idea.
 4. The manager **spawns workers**, assigns tasks, and orchestrates execution in parallel where possible.
 5. You **review** when you want, or let it roll.
 

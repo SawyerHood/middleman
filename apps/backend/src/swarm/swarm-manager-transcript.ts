@@ -463,10 +463,6 @@ export function toTargetContext(
 ): MessageTargetContext {
   return {
     channel: sourceContext.channel,
-    channelId: sourceContext.channelId,
-    userId: sourceContext.userId,
-    threadTs: sourceContext.threadTs,
-    integrationProfileId: sourceContext.integrationProfileId,
   };
 }
 

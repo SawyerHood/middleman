@@ -166,70 +166,6 @@ describe("ManagerWsClient", () => {
     client.destroy();
   });
 
-  it("stores slack_status events from the backend", () => {
-    const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
-
-    client.start();
-    vi.advanceTimersByTime(60);
-
-    const socket = FakeWebSocket.instances[0];
-    socket.emit("open");
-
-    emitServerEvent(socket, {
-      type: "ready",
-      serverTime: new Date().toISOString(),
-      buildHash: TEST_BUILD_HASH,
-      subscribedAgentId: "manager",
-    });
-
-    emitServerEvent(socket, {
-      type: "slack_status",
-      state: "connected",
-      enabled: true,
-      updatedAt: new Date().toISOString(),
-      message: "Slack connected",
-      teamId: "T123",
-      botUserId: "U123",
-    });
-
-    expect(client.getState().slackStatus?.state).toBe("connected");
-    expect(client.getState().slackStatus?.enabled).toBe(true);
-
-    client.destroy();
-  });
-
-  it("stores telegram_status events from the backend", () => {
-    const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
-
-    client.start();
-    vi.advanceTimersByTime(60);
-
-    const socket = FakeWebSocket.instances[0];
-    socket.emit("open");
-
-    emitServerEvent(socket, {
-      type: "ready",
-      serverTime: new Date().toISOString(),
-      buildHash: TEST_BUILD_HASH,
-      subscribedAgentId: "manager",
-    });
-
-    emitServerEvent(socket, {
-      type: "telegram_status",
-      state: "connected",
-      enabled: true,
-      updatedAt: new Date().toISOString(),
-      message: "Telegram connected",
-      botId: "123456789",
-      botUsername: "swarm_bot",
-    });
-
-    expect(client.getState().telegramStatus?.state).toBe("connected");
-    expect(client.getState().telegramStatus?.enabled).toBe(true);
-
-    client.destroy();
-  });
-
   it("does not reload after reconnect when the backend build matches", () => {
     const reload = vi.fn();
     (globalThis as any).window = {
@@ -774,7 +710,7 @@ describe("ManagerWsClient", () => {
   });
 
   it("preserves conversation messages when history includes many tool-call events", () => {
-    const client = new ManagerWsClient("ws://127.0.0.1:8787", "voice");
+    const client = new ManagerWsClient("ws://127.0.0.1:8787", "history-manager");
 
     client.start();
     vi.advanceTimersByTime(60);
@@ -786,13 +722,13 @@ describe("ManagerWsClient", () => {
       type: "ready",
       serverTime: new Date().toISOString(),
       buildHash: TEST_BUILD_HASH,
-      subscribedAgentId: "voice",
+      subscribedAgentId: "history-manager",
     });
 
     const baseTime = Date.now();
     const conversationMessages = Array.from({ length: 120 }, (_, index) => ({
       type: "conversation_message" as const,
-      agentId: "voice",
+      agentId: "history-manager",
       role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
       text: `message-${index}`,
       timestamp: new Date(baseTime + index).toISOString(),
@@ -802,8 +738,8 @@ describe("ManagerWsClient", () => {
 
     const toolMessages = Array.from({ length: 480 }, (_, index) => ({
       type: "agent_tool_call" as const,
-      agentId: "voice",
-      actorAgentId: "voice-worker",
+      agentId: "history-manager",
+      actorAgentId: "history-worker",
       timestamp: new Date(baseTime + 120 + index).toISOString(),
       kind: "tool_execution_update" as const,
       toolName: "bash",
@@ -813,7 +749,7 @@ describe("ManagerWsClient", () => {
 
     emitServerEvent(socket, {
       type: "conversation_history",
-      agentId: "voice",
+      agentId: "history-manager",
       messages: [...conversationMessages, ...toolMessages],
     });
 

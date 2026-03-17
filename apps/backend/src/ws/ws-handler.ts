@@ -1,5 +1,4 @@
 import type { ClientCommand, ServerEvent } from "@middleman/protocol";
-import type { IntegrationRegistryService } from "../integrations/registry.js";
 import type { SwarmManager } from "../swarm/swarm-manager.js";
 import { WebSocketServer, type RawData, WebSocket } from "ws";
 import { BUILD_HASH } from "../build-hash.js";
@@ -17,7 +16,6 @@ const MAX_WS_BUFFERED_AMOUNT_BYTES = 5 * 1024 * 1024;
 
 export class WsHandler {
   private readonly swarmManager: SwarmManager;
-  private readonly integrationRegistry: IntegrationRegistryService | null;
   private readonly allowNonManagerSubscriptions: boolean;
 
   private wss: WebSocketServer | null = null;
@@ -26,11 +24,9 @@ export class WsHandler {
 
   constructor(options: {
     swarmManager: SwarmManager;
-    integrationRegistry: IntegrationRegistryService | null;
     allowNonManagerSubscriptions: boolean;
   }) {
     this.swarmManager = options.swarmManager;
-    this.integrationRegistry = options.integrationRegistry;
     this.allowNonManagerSubscriptions = options.allowNonManagerSubscriptions;
   }
 
@@ -88,16 +84,6 @@ export class WsHandler {
           detailSubscribedAgent !== event.agentId
         ) {
           continue;
-        }
-      }
-
-      if (event.type === "slack_status" || event.type === "telegram_status") {
-        if (event.managerId) {
-          const subscribedManagerId =
-            this.resolveManagerContextAgentId(subscribedAgent);
-          if (subscribedManagerId !== event.managerId) {
-            continue;
-          }
         }
       }
 
@@ -394,18 +380,6 @@ export class WsHandler {
       agents: this.swarmManager.listAgents(),
     });
     this.sendBootstrapConversationHistory(socket, targetAgentId);
-
-    const managerContextId = this.resolveManagerContextAgentId(targetAgentId);
-    if (this.integrationRegistry && managerContextId) {
-      this.send(
-        socket,
-        this.integrationRegistry.getStatus(managerContextId, "slack"),
-      );
-      this.send(
-        socket,
-        this.integrationRegistry.getStatus(managerContextId, "telegram"),
-      );
-    }
   }
 
   private sendBootstrapConversationHistory(
