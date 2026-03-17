@@ -393,6 +393,38 @@ describe("SwarmManager worker completion reports", () => {
     ).toBe(false);
   });
 
+  it("reports worker runtime errors to the manager", async () => {
+    const harness = await createHarness();
+    harnesses.push(harness);
+
+    await harness.addAgent({
+      agentId: "manager-1",
+      managerId: "manager-1",
+      role: "manager",
+      status: "idle",
+    });
+    await harness.addAgent({
+      agentId: "worker-1",
+      managerId: "manager-1",
+      role: "worker",
+      status: "busy",
+    });
+
+    harness.sessionService.reportRuntimeError("worker-1", {
+      code: "WORKER_ERROR",
+      message: "Missing authentication for anthropic. Configure credentials in Settings.",
+      retryable: false,
+    });
+
+    await waitForCondition(
+      () => managerReportTexts(harness.manager, "manager-1").length === 1,
+    );
+
+    expect(managerReportTexts(harness.manager, "manager-1")).toEqual([
+      "SYSTEM: Worker worker-1 errored: Missing authentication for anthropic. Configure credentials in Settings.",
+    ]);
+  });
+
   it("does not repeat the last summary content after a worker restarts without new output", async () => {
     const harness = await createHarness();
     harnesses.push(harness);
