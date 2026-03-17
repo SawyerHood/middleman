@@ -10,11 +10,17 @@ import {
 } from "./manager-order";
 import { WsRequestTracker } from "./ws-request-tracker";
 import {
+  applyManagerWsStatePatchToStore,
   createInitialManagerWsState,
+  getManagerWsState,
+  managerWsStateSnapshotAtom,
+  replaceManagerWsStateInStore,
   type AgentActivityEntry,
   type ConversationHistoryEntry,
   type ManagerWsState,
 } from "./ws-state";
+import { createStore } from "jotai/vanilla";
+import type { Store } from "jotai/vanilla/store";
 import {
   MANAGER_MODEL_PRESETS,
   type AgentContextUsage,
@@ -94,6 +100,7 @@ const WS_REQUEST_ERROR_HINTS: Array<{
 
 export class ManagerWsClient {
   private readonly url: string;
+  private readonly store: Store;
   private desiredAgentId: string | null;
   private desiredDetailAgentId: string | null = null;
 
@@ -104,12 +111,11 @@ export class ManagerWsClient {
   private hasConnectedOnce = false;
   private shouldReloadOnReconnect = false;
 
-  private state: ManagerWsState;
-  private readonly listeners = new Set<Listener>();
   private pendingServerEvents: ServerEvent[] = [];
   private pendingServerEventFlushFrame: number | null = null;
+  private batchedState: ManagerWsState | null = null;
+  private batchedStateBase: ManagerWsState | null = null;
   private stateNotificationBatchDepth = 0;
-  private hasPendingStateNotification = false;
 
   private requestCounter = 0;
   private readonly requestTracker = new WsRequestTracker<WsRequestResultMap>(
@@ -117,11 +123,23 @@ export class ManagerWsClient {
     REQUEST_TIMEOUT_MS,
   );
 
-  constructor(url: string, initialAgentId?: string | null) {
+  constructor(
+    url: string,
+    initialAgentId?: string | null,
+    store?: Store,
+  ) {
     const normalizedInitialAgentId = normalizeAgentId(initialAgentId);
     this.url = url;
+    this.store = store ?? createStore();
     this.desiredAgentId = normalizedInitialAgentId;
-    this.state = createInitialManagerWsState(normalizedInitialAgentId);
+    replaceManagerWsStateInStore(
+      this.store,
+      createInitialManagerWsState(normalizedInitialAgentId),
+    );
+  }
+
+  private get state(): ManagerWsState {
+    return this.batchedState ?? getManagerWsState(this.store);
   }
 
   getState(): ManagerWsState {
@@ -129,12 +147,10 @@ export class ManagerWsClient {
   }
 
   subscribe(listener: Listener): () => void {
-    this.listeners.add(listener);
     listener(this.state);
-
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.store.sub(managerWsStateSnapshotAtom, () => {
+      listener(this.state);
+    });
   }
 
   start(): void {
@@ -1108,34 +1124,36 @@ export class ManagerWsClient {
       return;
     }
 
-    this.state = { ...this.state, ...patch };
     if (this.stateNotificationBatchDepth > 0) {
-      this.hasPendingStateNotification = true;
+      this.batchedState = { ...this.state, ...patch };
       return;
     }
 
-    this.notifyListeners();
+    applyManagerWsStatePatchToStore(this.store, patch);
   }
 
   private withBatchedStateNotifications(callback: () => void): void {
+    if (this.stateNotificationBatchDepth === 0) {
+      const currentState = getManagerWsState(this.store);
+      this.batchedState = currentState;
+      this.batchedStateBase = currentState;
+    }
+
     this.stateNotificationBatchDepth += 1;
     try {
       callback();
     } finally {
       this.stateNotificationBatchDepth -= 1;
-      if (
-        this.stateNotificationBatchDepth === 0 &&
-        this.hasPendingStateNotification
-      ) {
-        this.hasPendingStateNotification = false;
-        this.notifyListeners();
-      }
-    }
-  }
+      if (this.stateNotificationBatchDepth === 0) {
+        const nextState = this.batchedState;
+        const previousState = this.batchedStateBase;
+        this.batchedState = null;
+        this.batchedStateBase = null;
 
-  private notifyListeners(): void {
-    for (const listener of this.listeners) {
-      listener(this.state);
+        if (nextState && previousState && nextState !== previousState) {
+          replaceManagerWsStateInStore(this.store, nextState);
+        }
+      }
     }
   }
 
