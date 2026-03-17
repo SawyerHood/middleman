@@ -17,6 +17,7 @@ import {
 } from "./ws-state";
 import {
   MANAGER_MODEL_PRESETS,
+  type AgentContextUsage,
   type AgentDescriptor,
   type ClientCommand,
   type ConversationAttachment,
@@ -105,6 +106,10 @@ export class ManagerWsClient {
 
   private state: ManagerWsState;
   private readonly listeners = new Set<Listener>();
+  private pendingServerEvents: ServerEvent[] = [];
+  private pendingServerEventFlushFrame: number | null = null;
+  private stateNotificationBatchDepth = 0;
+  private hasPendingStateNotification = false;
 
   private requestCounter = 0;
   private readonly requestTracker = new WsRequestTracker<WsRequestResultMap>(
@@ -144,6 +149,7 @@ export class ManagerWsClient {
   destroy(): void {
     this.destroyed = true;
     this.started = false;
+    this.clearBufferedServerEvents();
 
     if (this.connectTimer) {
       clearTimeout(this.connectTimer);
@@ -162,6 +168,7 @@ export class ManagerWsClient {
     const trimmed = agentId.trim();
     if (!trimmed) return;
 
+    this.flushBufferedServerEvents();
     this.desiredAgentId = trimmed;
     this.updateState({
       targetAgentId: trimmed,
@@ -543,10 +550,12 @@ export class ManagerWsClient {
     });
 
     socket.addEventListener("message", (event) => {
-      this.handleServerEvent(event.data);
+      this.handleSocketMessage(event.data);
     });
 
     socket.addEventListener("close", () => {
+      this.flushBufferedServerEvents();
+
       if (!this.destroyed && this.hasConnectedOnce) {
         this.shouldReloadOnReconnect = true;
       }
@@ -564,6 +573,7 @@ export class ManagerWsClient {
     });
 
     socket.addEventListener("error", () => {
+      this.flushBufferedServerEvents();
       this.updateState({
         connected: false,
         lastError: "WebSocket connection error",
@@ -585,7 +595,7 @@ export class ManagerWsClient {
     }, delayMs);
   }
 
-  private handleServerEvent(raw: unknown): void {
+  private handleSocketMessage(raw: unknown): void {
     let event: ServerEvent;
     try {
       event = JSON.parse(String(raw)) as ServerEvent;
@@ -594,6 +604,80 @@ export class ManagerWsClient {
       return;
     }
 
+    if (event.type === "ready" || event.type === "conversation_history") {
+      this.flushBufferedServerEvents();
+      this.handleServerEvent(event);
+      return;
+    }
+
+    this.pendingServerEvents.push(event);
+    this.scheduleBufferedServerEventFlush();
+  }
+
+  private scheduleBufferedServerEventFlush(): void {
+    if (this.pendingServerEventFlushFrame !== null) {
+      return;
+    }
+
+    const requestAnimationFrame =
+      typeof window !== "undefined" &&
+      typeof window.requestAnimationFrame === "function"
+        ? window.requestAnimationFrame.bind(window)
+        : typeof globalThis.requestAnimationFrame === "function"
+          ? globalThis.requestAnimationFrame.bind(globalThis)
+          : null;
+
+    if (!requestAnimationFrame) {
+      this.flushBufferedServerEvents();
+      return;
+    }
+
+    this.pendingServerEventFlushFrame = requestAnimationFrame(() => {
+      this.pendingServerEventFlushFrame = null;
+      this.flushBufferedServerEvents();
+    });
+  }
+
+  private flushBufferedServerEvents(): void {
+    this.cancelBufferedServerEventFlush();
+
+    if (this.pendingServerEvents.length === 0) {
+      return;
+    }
+
+    const events = this.pendingServerEvents;
+    this.pendingServerEvents = [];
+
+    this.withBatchedStateNotifications(() => {
+      for (const event of events) {
+        this.handleServerEvent(event);
+      }
+    });
+  }
+
+  private clearBufferedServerEvents(): void {
+    this.cancelBufferedServerEventFlush();
+    this.pendingServerEvents = [];
+  }
+
+  private cancelBufferedServerEventFlush(): void {
+    if (this.pendingServerEventFlushFrame === null) {
+      return;
+    }
+
+    const cancelAnimationFrame =
+      typeof window !== "undefined" &&
+      typeof window.cancelAnimationFrame === "function"
+        ? window.cancelAnimationFrame.bind(window)
+        : typeof globalThis.cancelAnimationFrame === "function"
+          ? globalThis.cancelAnimationFrame.bind(globalThis)
+          : null;
+
+    cancelAnimationFrame?.(this.pendingServerEventFlushFrame);
+    this.pendingServerEventFlushFrame = null;
+  }
+
+  private handleServerEvent(event: ServerEvent): void {
     switch (event.type) {
       case "ready": {
         const shouldReload =
@@ -705,21 +789,7 @@ export class ManagerWsClient {
         break;
 
       case "agent_status": {
-        const statuses = {
-          ...this.state.statuses,
-          [event.agentId]: {
-            status: event.status,
-            pendingCount: event.pendingCount,
-            contextUsage: event.contextUsage ?? undefined,
-          },
-        };
-        this.updateState({
-          statuses,
-          ...(event.agentId === this.state.targetAgentId &&
-          (event.status === "busy" || event.status === "idle")
-            ? { lastError: null }
-            : {}),
-        });
+        this.applyAgentStatus(event);
         break;
       }
 
@@ -960,8 +1030,114 @@ export class ManagerWsClient {
     return true;
   }
 
+  private applyAgentStatus(
+    event: Extract<ServerEvent, { type: "agent_status" }>,
+  ): void {
+    const patch: Partial<ManagerWsState> = {};
+    const hasContextUsage = Object.prototype.hasOwnProperty.call(
+      event,
+      "contextUsage",
+    );
+
+    const previousStatus = this.state.statuses[event.agentId];
+    const nextStatusContextUsage = hasContextUsage
+      ? (event.contextUsage ?? undefined)
+      : previousStatus?.contextUsage;
+    const nextStatusEntry = {
+      status: event.status,
+      pendingCount: event.pendingCount,
+      contextUsage: nextStatusContextUsage,
+    };
+
+    if (
+      !previousStatus ||
+      previousStatus.status !== nextStatusEntry.status ||
+      previousStatus.pendingCount !== nextStatusEntry.pendingCount ||
+      !areAgentContextUsagesEqual(
+        previousStatus.contextUsage,
+        nextStatusEntry.contextUsage,
+      )
+    ) {
+      patch.statuses = {
+        ...this.state.statuses,
+        [event.agentId]: nextStatusEntry,
+      };
+    }
+
+    const agentIndex = this.state.agents.findIndex(
+      (agent) => agent.agentId === event.agentId,
+    );
+    if (agentIndex >= 0) {
+      const previousAgent = this.state.agents[agentIndex];
+      const nextAgentContextUsage = hasContextUsage
+        ? (event.contextUsage ?? undefined)
+        : previousAgent.contextUsage;
+
+      if (
+        previousAgent.status !== event.status ||
+        !areAgentContextUsagesEqual(
+          previousAgent.contextUsage,
+          nextAgentContextUsage,
+        )
+      ) {
+        const nextAgents = [...this.state.agents];
+        nextAgents[agentIndex] = {
+          ...previousAgent,
+          status: event.status,
+          contextUsage: nextAgentContextUsage,
+        };
+        patch.agents = nextAgents;
+      }
+    }
+
+    if (
+      event.agentId === this.state.targetAgentId &&
+      (event.status === "busy" || event.status === "idle") &&
+      this.state.lastError !== null
+    ) {
+      patch.lastError = null;
+    }
+
+    this.updateState(patch);
+  }
+
   private updateState(patch: Partial<ManagerWsState>): void {
+    const entries = Object.entries(patch) as Array<
+      [keyof ManagerWsState, ManagerWsState[keyof ManagerWsState]]
+    >;
+    if (
+      entries.length === 0 ||
+      entries.every(([key, value]) => Object.is(this.state[key], value))
+    ) {
+      return;
+    }
+
     this.state = { ...this.state, ...patch };
+    if (this.stateNotificationBatchDepth > 0) {
+      this.hasPendingStateNotification = true;
+      return;
+    }
+
+    this.notifyListeners();
+  }
+
+  private withBatchedStateNotifications(callback: () => void): void {
+    this.stateNotificationBatchDepth += 1;
+    try {
+      callback();
+    } finally {
+      this.stateNotificationBatchDepth -= 1;
+      if (
+        this.stateNotificationBatchDepth === 0 &&
+        this.hasPendingStateNotification
+      ) {
+        this.hasPendingStateNotification = false;
+        this.notifyListeners();
+      }
+    }
+  }
+
+  private notifyListeners(): void {
     for (const listener of this.listeners) {
       listener(this.state);
     }
@@ -1213,4 +1389,21 @@ function shouldClearLastErrorFromTranscriptEntry(
 function normalizeAgentId(agentId: string | null | undefined): string | null {
   const trimmed = agentId?.trim();
   return trimmed ? trimmed : null;
+}
+
+function areAgentContextUsagesEqual(
+  left?: AgentContextUsage,
+  right?: AgentContextUsage,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return (
+    left.tokens === right.tokens &&
+    left.contextWindow === right.contextWindow &&
+    left.percent === right.percent
+  );
 }

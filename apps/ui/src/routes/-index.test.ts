@@ -166,6 +166,8 @@ const originalWindowScrollTo = window.scrollTo
 const originalCanvasGetContext = HTMLCanvasElement.prototype.getContext
 const originalCanvasToDataURL = HTMLCanvasElement.prototype.toDataURL
 const originalMatchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+const originalRequestAnimationFrame = window.requestAnimationFrame
+const originalCancelAnimationFrame = window.cancelAnimationFrame
 
 beforeEach(() => {
   FakeWebSocket.instances = []
@@ -211,6 +213,17 @@ beforeEach(() => {
     configurable: true,
     writable: true,
     value: windowScrollToMock,
+  })
+  Object.defineProperty(window, 'requestAnimationFrame', {
+    configurable: true,
+    writable: true,
+    value: (callback: FrameRequestCallback) =>
+      window.setTimeout(() => callback(performance.now()), 0),
+  })
+  Object.defineProperty(window, 'cancelAnimationFrame', {
+    configurable: true,
+    writable: true,
+    value: (handle: number) => window.clearTimeout(handle),
   })
   Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
@@ -283,6 +296,16 @@ afterEach(() => {
     writable: true,
     value: originalWindowScrollTo,
   })
+  Object.defineProperty(window, 'requestAnimationFrame', {
+    configurable: true,
+    writable: true,
+    value: originalRequestAnimationFrame,
+  })
+  Object.defineProperty(window, 'cancelAnimationFrame', {
+    configurable: true,
+    writable: true,
+    value: originalCancelAnimationFrame,
+  })
   Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
     writable: true,
@@ -354,6 +377,12 @@ function getSidebar(): HTMLElement {
 
 function getFaviconHref(): string | null {
   return document.head.querySelector('link[rel="icon"]')?.getAttribute('href') ?? null
+}
+
+async function flushWsUiUpdates(turns = 3): Promise<void> {
+  for (let index = 0; index < turns; index += 1) {
+    await vi.advanceTimersByTimeAsync(0)
+  }
 }
 
 function setPointerType(pointerType: 'coarse' | 'fine'): void {
@@ -544,7 +573,7 @@ describe('IndexPage create manager model selection', () => {
       ],
     })
 
-    await vi.advanceTimersByTimeAsync(0)
+    await flushWsUiUpdates()
 
     expect(queryByText(container, 'manager reply')).not.toBeNull()
     expect(queryByText(container, 'user asks manager')).not.toBeNull()
@@ -581,7 +610,7 @@ describe('IndexPage create manager model selection', () => {
       pendingCount: 1,
     })
 
-    await vi.advanceTimersByTimeAsync(0)
+    await flushWsUiUpdates()
 
     expect(getFaviconHref()).toBe(`data:image/png;base64,${encodeURIComponent('👨‍💻')}`)
 
@@ -592,7 +621,7 @@ describe('IndexPage create manager model selection', () => {
       pendingCount: 0,
     })
 
-    await vi.advanceTimersByTimeAsync(0)
+    await flushWsUiUpdates()
 
     expect(getFaviconHref()).toBe(`data:image/png;base64,${encodeURIComponent('👔')}`)
   })
@@ -624,8 +653,7 @@ describe('IndexPage create manager model selection', () => {
       ],
     })
 
-    await vi.advanceTimersByTimeAsync(0)
-    await vi.advanceTimersByTimeAsync(0)
+    await flushWsUiUpdates()
 
     const payloadsAfterSelection = socket.sentPayloads.map((payload) => JSON.parse(payload))
     expect(
@@ -646,8 +674,7 @@ describe('IndexPage create manager model selection', () => {
       agents: [buildManager('manager', '/tmp/manager')],
     })
 
-    await vi.advanceTimersByTimeAsync(0)
-    await vi.advanceTimersByTimeAsync(0)
+    await flushWsUiUpdates()
 
     expect(window.location.pathname).toBe('/')
     expect(window.location.search).toBe('')
@@ -665,7 +692,7 @@ describe('IndexPage create manager model selection', () => {
       ],
     })
 
-    await vi.advanceTimersByTimeAsync(0)
+    await flushWsUiUpdates()
 
     const sidebar = getSidebar()
 
@@ -704,8 +731,7 @@ describe('IndexPage create manager model selection', () => {
       ],
     })
 
-    await vi.advanceTimersByTimeAsync(0)
-    await vi.advanceTimersByTimeAsync(0)
+    await flushWsUiUpdates()
 
     const refreshedSidebar = getSidebar()
 
@@ -741,8 +767,7 @@ describe('IndexPage create manager model selection', () => {
       ],
     })
 
-    await vi.advanceTimersByTimeAsync(0)
-    await vi.advanceTimersByTimeAsync(0)
+    await flushWsUiUpdates()
 
     expect(readDraftStorage()).toEqual({})
   })

@@ -917,6 +917,154 @@ describe("ManagerWsClient", () => {
     client.destroy();
   });
 
+  it("batches buffered websocket events into a single listener notification per frame", () => {
+    const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
+    const snapshots: ReturnType<typeof client.getState>[] = [];
+    const pendingFrameCallbacks = new Map<number, FrameRequestCallback>();
+    let nextFrameHandle = 1;
+    (globalThis as any).window.requestAnimationFrame = (
+      callback: FrameRequestCallback,
+    ) => {
+      const handle = nextFrameHandle++;
+      pendingFrameCallbacks.set(handle, callback);
+      return handle;
+    };
+    (globalThis as any).window.cancelAnimationFrame = (handle: number) => {
+      pendingFrameCallbacks.delete(handle);
+    };
+
+    client.subscribe((state) => {
+      snapshots.push(state);
+    });
+
+    client.start();
+    vi.advanceTimersByTime(60);
+
+    const socket = FakeWebSocket.instances[0];
+    socket.emit("open");
+
+    emitServerEvent(socket, {
+      type: "ready",
+      serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
+      subscribedAgentId: "manager",
+    });
+
+    const snapshotsAfterReady = snapshots.length;
+    const contextUsage = {
+      tokens: 12_000,
+      contextWindow: 200_000,
+      percent: 6,
+    };
+
+    emitServerEvent(socket, {
+      type: "agents_snapshot",
+      agents: [managerDescriptor("manager", "2026-01-01T00:00:00.000Z")],
+    });
+    emitServerEvent(socket, {
+      type: "agent_status",
+      agentId: "manager",
+      status: "busy",
+      pendingCount: 2,
+      contextUsage,
+    });
+    emitServerEvent(socket, {
+      type: "conversation_message",
+      agentId: "manager",
+      role: "assistant",
+      text: "batched update",
+      timestamp: new Date().toISOString(),
+      source: "speak_to_user",
+    });
+
+    expect(client.getState().hasReceivedAgentsSnapshot).toBe(false);
+    expect(snapshots).toHaveLength(snapshotsAfterReady);
+    expect(pendingFrameCallbacks.size).toBe(1);
+
+    const frameCallbacks = [...pendingFrameCallbacks.values()];
+    pendingFrameCallbacks.clear();
+    for (const callback of frameCallbacks) {
+      callback(16);
+    }
+
+    expect(snapshots).toHaveLength(snapshotsAfterReady + 1);
+    expect(client.getState().hasReceivedAgentsSnapshot).toBe(true);
+    expect(client.getState().messages.at(-1)).toMatchObject({
+      type: "conversation_message",
+      text: "batched update",
+    });
+    expect(client.getState().statuses.manager).toEqual({
+      status: "busy",
+      pendingCount: 2,
+      contextUsage,
+    });
+    expect(client.getState().agents[0]).toMatchObject({
+      agentId: "manager",
+      status: "busy",
+      contextUsage,
+    });
+
+    client.destroy();
+  });
+
+  it("flushes buffered events before processing immediate conversation history", () => {
+    const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
+    const pendingFrameCallbacks = new Map<number, FrameRequestCallback>();
+    let nextFrameHandle = 1;
+    (globalThis as any).window.requestAnimationFrame = (
+      callback: FrameRequestCallback,
+    ) => {
+      const handle = nextFrameHandle++;
+      pendingFrameCallbacks.set(handle, callback);
+      return handle;
+    };
+    (globalThis as any).window.cancelAnimationFrame = (handle: number) => {
+      pendingFrameCallbacks.delete(handle);
+    };
+
+    client.start();
+    vi.advanceTimersByTime(60);
+
+    const socket = FakeWebSocket.instances[0];
+    socket.emit("open");
+
+    emitServerEvent(socket, {
+      type: "ready",
+      serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
+      subscribedAgentId: "manager",
+    });
+
+    emitServerEvent(socket, {
+      type: "agents_snapshot",
+      agents: [managerDescriptor("manager", "2026-01-01T00:00:00.000Z")],
+    });
+
+    expect(client.getState().hasReceivedAgentsSnapshot).toBe(false);
+    expect(pendingFrameCallbacks.size).toBe(1);
+
+    emitServerEvent(socket, {
+      type: "conversation_history",
+      agentId: "manager",
+      messages: [
+        {
+          type: "conversation_message",
+          agentId: "manager",
+          role: "assistant",
+          text: "history",
+          timestamp: new Date().toISOString(),
+          source: "speak_to_user",
+        },
+      ],
+    });
+
+    expect(client.getState().hasReceivedAgentsSnapshot).toBe(true);
+    expect(client.getState().messages).toHaveLength(1);
+    expect(pendingFrameCallbacks.size).toBe(0);
+
+    client.destroy();
+  });
+
   it("stores agent activity events for the selected agent and ignores other threads", () => {
     const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
 

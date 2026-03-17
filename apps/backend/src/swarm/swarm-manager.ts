@@ -746,7 +746,6 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       reason: "user_new_command" | "api_reset";
     });
     this.emitStatus(recreated.agentId, recreated.status, 0);
-    this.emitAgentsSnapshot();
   }
 
   async listSchedulesForManager(managerId: string): Promise<ScheduledTask[]> {
@@ -898,8 +897,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
         readObject(event.payload)?.contextUsage,
       );
       if (isAgentStatus(status)) {
+        // Live status/context usage changes do not require rebuilding the full
+        // agent snapshot for every subscribed client.
         this.emitStatus(descriptor.agentId, status, 0, contextUsage);
-        this.emitAgentsSnapshot();
         if (descriptor.role === "worker" && status === "idle") {
           void this.maybeEmitWorkerCompletionSummary(descriptor.agentId);
         }

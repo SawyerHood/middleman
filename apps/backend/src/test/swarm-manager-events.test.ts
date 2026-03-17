@@ -86,7 +86,7 @@ function createManagerHarness(descriptor: AgentDescriptor) {
 }
 
 describe("SwarmManager core event projection", () => {
-  it("maps session.status.changed into agent_status and agents_snapshot with context usage", () => {
+  it("maps session.status.changed into agent_status with context usage", () => {
     const descriptor = makeDescriptor({
       agentId: "worker-1",
       managerId: "manager-1",
@@ -126,21 +126,7 @@ describe("SwarmManager core event projection", () => {
         },
       },
     ]);
-    expect(harness.snapshots).toEqual([
-      {
-        type: "agents_snapshot",
-        agents: [
-          expect.objectContaining({
-            agentId: "worker-1",
-            contextUsage: {
-              tokens: 120_000,
-              contextWindow: 200_000,
-              percent: 60,
-            },
-          }),
-        ],
-      },
-    ]);
+    expect(harness.snapshots).toEqual([]);
   });
 
   it("projects runtime errors using the real error message", () => {
