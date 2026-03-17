@@ -10,7 +10,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { ArrowUp, Paperclip } from 'lucide-react'
 import { AttachedFiles } from '@/components/chat/AttachedFiles'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,12 @@ import {
   type PendingAttachment,
 } from '@/lib/file-attachments'
 import { messageDraftsAtom } from '@/lib/message-drafts'
+import {
+  activeAgentIdAtom,
+  activeAgentLabelAtom,
+  connectedAtom,
+  isLoadingAtom,
+} from '@/lib/ws-state'
 import { cn } from '@/lib/utils'
 import type { ConversationAttachment } from '@middleman/protocol'
 
@@ -27,10 +33,10 @@ const COARSE_POINTER_MEDIA_QUERY = '(pointer: coarse)'
 const MOBILE_VIEWPORT_RESET_DELAY_MS = 320
 
 interface MessageInputProps {
-  agentId: string | null
+  agentId?: string | null
   onSend: (message: string, attachments?: ConversationAttachment[]) => void
   onSubmitted?: () => void
-  isLoading: boolean
+  isLoading?: boolean
   disabled?: boolean
   agentLabel?: string
   allowWhileLoading?: boolean
@@ -66,12 +72,16 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     onSend,
     onSubmitted,
     isLoading,
-    disabled = false,
-    agentLabel = 'agent',
+    disabled,
+    agentLabel,
     allowWhileLoading = false,
   },
   ref,
 ) {
+  const activeAgentId = useAtomValue(activeAgentIdAtom)
+  const activeAgentLabel = useAtomValue(activeAgentLabelAtom)
+  const connected = useAtomValue(connectedAtom)
+  const isLoadingFromAtom = useAtomValue(isLoadingAtom)
   const [drafts, setDrafts] = useAtom(messageDraftsAtom)
   const [attachedFiles, setAttachedFiles] = useState<PendingAttachment[]>([])
 
@@ -81,7 +91,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const mobileViewportResetTimeoutRef = useRef<number | null>(null)
   const mobileViewportResetCleanupRef = useRef<(() => void) | null>(null)
 
-  const input = agentId ? drafts[agentId] ?? '' : ''
+  const resolvedAgentId = agentId ?? activeAgentId
+  const resolvedAgentLabel = agentLabel ?? activeAgentLabel ?? 'agent'
+  const resolvedIsLoading = isLoading ?? isLoadingFromAtom
+  const resolvedDisabled = disabled ?? (!connected || !resolvedAgentId)
+
+  const input = resolvedAgentId ? drafts[resolvedAgentId] ?? '' : ''
 
   const resizeTextarea = useCallback(() => {
     const textarea = textareaRef.current
@@ -96,21 +111,22 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const updateDraft = useCallback(
     (nextValue: string | ((previousValue: string) => string)) => {
-      if (!agentId) {
+      if (!resolvedAgentId) {
         return
       }
 
       setDrafts((previousDrafts) => {
-        const previousValue = previousDrafts[agentId] ?? ''
+        const previousValue = previousDrafts[resolvedAgentId] ?? ''
         const resolvedValue =
           typeof nextValue === 'function' ? nextValue(previousValue) : nextValue
 
         if (resolvedValue.length === 0) {
-          if (!(agentId in previousDrafts)) {
+          if (!(resolvedAgentId in previousDrafts)) {
             return previousDrafts
           }
 
-          const { [agentId]: _removedDraft, ...remainingDrafts } = previousDrafts
+          const { [resolvedAgentId]: _removedDraft, ...remainingDrafts } =
+            previousDrafts
           return remainingDrafts
         }
 
@@ -120,14 +136,14 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
         return {
           ...previousDrafts,
-          [agentId]: resolvedValue,
+          [resolvedAgentId]: resolvedValue,
         }
       })
     },
-    [agentId, setDrafts],
+    [resolvedAgentId, setDrafts],
   )
 
-  const blockedByLoading = isLoading && !allowWhileLoading
+  const blockedByLoading = resolvedIsLoading && !allowWhileLoading
 
   const cancelMobileViewportReset = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -153,7 +169,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }, [input, resizeTextarea])
 
   useEffect(() => {
-    if (disabled || blockedByLoading) {
+    if (resolvedDisabled || blockedByLoading) {
       return
     }
 
@@ -162,13 +178,13 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     }
 
     textareaRef.current?.focus()
-  }, [blockedByLoading, disabled])
+  }, [blockedByLoading, resolvedDisabled])
 
   useEffect(() => cancelMobileViewportReset, [cancelMobileViewportReset])
 
   const addFiles = useCallback(
     async (files: File[]) => {
-      if (disabled || files.length === 0) return
+      if (resolvedDisabled || files.length === 0) return
 
       const uploaded = await Promise.all(files.map(fileToPendingAttachment))
       const nextAttachments = uploaded.filter((attachment): attachment is PendingAttachment => attachment !== null)
@@ -179,7 +195,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
       setAttachedFiles((previous) => [...previous, ...nextAttachments])
     },
-    [disabled],
+    [resolvedDisabled],
   )
 
   useImperativeHandle(
@@ -261,7 +277,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const submitMessage = useCallback(() => {
     const trimmed = input.trim()
     const hasContent = trimmed.length > 0 || attachedFiles.length > 0
-    if (!hasContent || disabled || blockedByLoading) {
+    if (!hasContent || resolvedDisabled || blockedByLoading) {
       return
     }
 
@@ -305,7 +321,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }, [
     attachedFiles,
     blockedByLoading,
-    disabled,
+    resolvedDisabled,
     input,
     onSend,
     onSubmitted,
@@ -329,12 +345,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }
 
   const hasContent = input.trim().length > 0 || attachedFiles.length > 0
-  const canSubmit = hasContent && !disabled && !blockedByLoading
-  const placeholder = disabled
+  const canSubmit = hasContent && !resolvedDisabled && !blockedByLoading
+  const placeholder = resolvedDisabled
     ? 'Waiting for connection...'
-    : allowWhileLoading && isLoading
-      ? `Send another message to ${agentLabel}...`
-      : `Message ${agentLabel}...`
+    : allowWhileLoading && resolvedIsLoading
+      ? `Send another message to ${resolvedAgentLabel}...`
+      : `Message ${resolvedAgentLabel}...`
 
   return (
     <form
@@ -353,7 +369,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={placeholder}
-            disabled={disabled}
+            disabled={resolvedDisabled}
             rows={1}
             className={cn(
               'w-full resize-none border-0 bg-transparent text-sm leading-normal text-foreground shadow-none focus:outline-none',
@@ -384,7 +400,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 size="icon"
                 className="size-7 rounded-full text-muted-foreground/60 hover:text-foreground"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={disabled}
+                disabled={resolvedDisabled}
                 aria-label="Attach files"
               >
                 <Paperclip className="size-3.5" />

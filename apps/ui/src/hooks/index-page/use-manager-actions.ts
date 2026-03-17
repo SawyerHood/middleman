@@ -1,13 +1,17 @@
 import {
   useCallback,
   useState,
-  type Dispatch,
   type FormEvent,
   type MutableRefObject,
-  type SetStateAction,
 } from 'react'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { ManagerWsClient } from '@/lib/ws-client'
-import type { ManagerWsState } from '@/lib/ws-state'
+import {
+  activeAgentAtom,
+  agentsAtom,
+  clearPendingResponseForAgentAtom,
+  lastErrorAtom,
+} from '@/lib/ws-state'
 import type {
   AgentDescriptor,
   ManagerModelPreset,
@@ -16,22 +20,14 @@ import type { AppRouteState } from './use-route-state'
 
 interface UseManagerActionsOptions {
   clientRef: MutableRefObject<ManagerWsClient | null>
-  agents: AgentDescriptor[]
-  activeAgent: AgentDescriptor | null
   defaultManagerModel: ManagerModelPreset
   navigateToRoute: (nextRouteState: AppRouteState, replace?: boolean) => void
-  setState: Dispatch<SetStateAction<ManagerWsState>>
-  clearPendingResponseForAgent: (agentId: string) => void
 }
 
 export function useManagerActions({
   clientRef,
-  agents,
-  activeAgent,
   defaultManagerModel,
   navigateToRoute,
-  setState,
-  clearPendingResponseForAgent,
 }: UseManagerActionsOptions): {
   isCreateManagerDialogOpen: boolean
   newManagerName: string
@@ -74,6 +70,10 @@ export function useManagerActions({
   const [isDeletingManager, setIsDeletingManager] = useState(false)
 
   const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false)
+  const agents = useAtomValue(agentsAtom)
+  const activeAgent = useAtomValue(activeAgentAtom)
+  const setLastError = useSetAtom(lastErrorAtom)
+  const clearPendingResponseForAgent = useSetAtom(clearPendingResponseForAgentAtom)
 
   const handleNewManagerNameChange = useCallback((value: string) => {
     setNewManagerName(value)
@@ -100,19 +100,13 @@ export function useManagerActions({
     try {
       await client.stopAllAgents(activeAgent.agentId)
       clearPendingResponseForAgent(activeAgent.agentId)
-      setState((previous) => ({
-        ...previous,
-        lastError: null,
-      }))
+      setLastError(null)
     } catch (error) {
-      setState((previous) => ({
-        ...previous,
-        lastError: `Failed to stop manager and workers: ${toErrorMessage(error)}`,
-      }))
+      setLastError(`Failed to stop manager and workers: ${toErrorMessage(error)}`)
     } finally {
       setIsStoppingAllAgents(false)
     }
-  }, [activeAgent, clearPendingResponseForAgent, clientRef, setState])
+  }, [activeAgent, clearPendingResponseForAgent, clientRef, setLastError])
 
   const handleOpenCreateManagerDialog = useCallback(() => {
     const defaultCwd =

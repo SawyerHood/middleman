@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Provider as JotaiProvider } from 'jotai'
+import { createStore } from 'jotai/vanilla'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
@@ -47,6 +48,8 @@ export const Route = createRootRoute({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const [jotaiStore] = useState(() => createStore())
+
   useEffect(() => {
     initializeThemePreference()
   }, [])
@@ -58,7 +61,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="overflow-hidden overscroll-none bg-background">
-        <JotaiProvider>
+        <JotaiProvider store={jotaiStore}>
           <TooltipProvider>
             {children}
             <ReactGrabBootstrap />

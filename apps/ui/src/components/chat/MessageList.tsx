@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useAtomValue } from "jotai";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,16 @@ import {
 } from "@/lib/agent-message-utils";
 import type { ArtifactReference } from "@/lib/artifacts";
 import { getConversationEntryStableId } from "@/lib/conversation-history";
+import {
+  activeAgentIdAtom,
+  activeAgentRoleAtom,
+  agentsAtom,
+  hasOlderHistoryAtom,
+  isLoadingAtom,
+  isLoadingHistoryAtom,
+  isLoadingOlderHistoryAtom,
+  visibleMessagesAtom,
+} from "@/lib/ws-state";
 import { cn } from "@/lib/utils";
 import type { AgentDescriptor, ConversationEntry } from "@middleman/protocol";
 import { AgentMessageRow } from "./message-list/AgentMessageRow";
@@ -33,9 +44,9 @@ import type {
 } from "./message-list/types";
 
 interface MessageListProps {
-  messages: ConversationEntry[];
-  agents: AgentDescriptor[];
-  isLoading: boolean;
+  messages?: ConversationEntry[];
+  agents?: AgentDescriptor[];
+  isLoading?: boolean;
   isLoadingHistory?: boolean;
   canLoadOlderHistory?: boolean;
   isLoadingOlderHistory?: boolean;
@@ -594,11 +605,11 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
       messages,
       agents,
       isLoading,
-      isLoadingHistory = false,
-      canLoadOlderHistory = false,
-      isLoadingOlderHistory = false,
+      isLoadingHistory,
+      canLoadOlderHistory,
+      isLoadingOlderHistory,
       activeAgentId,
-      isWorkerDetailView = false,
+      isWorkerDetailView,
       onLoadOlderHistory,
       onSuggestionClick,
       onArtifactClick,
@@ -606,6 +617,16 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
     },
     ref,
   ) {
+    const messagesFromAtom = useAtomValue(visibleMessagesAtom);
+    const agentsFromAtom = useAtomValue(agentsAtom);
+    const isLoadingFromAtom = useAtomValue(isLoadingAtom);
+    const isLoadingHistoryFromAtom = useAtomValue(isLoadingHistoryAtom);
+    const canLoadOlderHistoryFromAtom = useAtomValue(hasOlderHistoryAtom);
+    const isLoadingOlderHistoryFromAtom = useAtomValue(
+      isLoadingOlderHistoryAtom,
+    );
+    const activeAgentIdFromAtom = useAtomValue(activeAgentIdAtom);
+    const activeAgentRole = useAtomValue(activeAgentRoleAtom);
     const virtuosoRef = useRef<VirtuosoHandle | null>(null);
     const scrollContainerRef = useRef<HTMLElement | null>(null);
     const previousAgentIdRef = useRef<string | null>(null);
@@ -622,12 +643,27 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
     const [firstItemIndex, setFirstItemIndex] = useState(
       MESSAGE_LIST_FIRST_ITEM_INDEX,
     );
+    const resolvedMessages = messages ?? messagesFromAtom;
+    const resolvedAgents = agents ?? agentsFromAtom;
+    const resolvedIsLoading = isLoading ?? isLoadingFromAtom;
+    const resolvedIsLoadingHistory =
+      isLoadingHistory ?? isLoadingHistoryFromAtom;
+    const resolvedCanLoadOlderHistory =
+      canLoadOlderHistory ?? canLoadOlderHistoryFromAtom;
+    const resolvedIsLoadingOlderHistory =
+      isLoadingOlderHistory ?? isLoadingOlderHistoryFromAtom;
+    const resolvedActiveAgentId = activeAgentId ?? activeAgentIdFromAtom;
+    const resolvedIsWorkerDetailView =
+      isWorkerDetailView ?? activeAgentRole === "worker";
 
     const displayEntries = useMemo(
-      () => buildDisplayEntries(messages),
-      [messages],
+      () => buildDisplayEntries(resolvedMessages),
+      [resolvedMessages],
     );
-    const agentLookup = useMemo(() => buildAgentLookup(agents), [agents]);
+    const agentLookup = useMemo(
+      () => buildAgentLookup(resolvedAgents),
+      [resolvedAgents],
+    );
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
       const scrollBehavior = behavior === "smooth" ? "smooth" : "auto";
@@ -654,8 +690,8 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
     const requestOlderHistory = useCallback(() => {
       if (
         !onLoadOlderHistory ||
-        !canLoadOlderHistory ||
-        isLoadingOlderHistory ||
+        !resolvedCanLoadOlderHistory ||
+        resolvedIsLoadingOlderHistory ||
         pendingOlderHistoryScrollRef.current
       ) {
         return;
@@ -673,9 +709,9 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
 
       onLoadOlderHistory();
     }, [
-      canLoadOlderHistory,
+      resolvedCanLoadOlderHistory,
       displayEntries,
-      isLoadingOlderHistory,
+      resolvedIsLoadingOlderHistory,
       onLoadOlderHistory,
     ]);
 
@@ -701,13 +737,13 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
         didPrependHistoryRef.current = true;
       }
 
-      if (didPrependHistory || !isLoadingOlderHistory) {
+      if (didPrependHistory || !resolvedIsLoadingOlderHistory) {
         pendingOlderHistoryScrollRef.current = null;
       }
-    }, [displayEntries, isLoadingOlderHistory]);
+    }, [displayEntries, resolvedIsLoadingOlderHistory]);
 
     useEffect(() => {
-      const nextAgentId = activeAgentId ?? null;
+      const nextAgentId = resolvedActiveAgentId ?? null;
       const nextFirstEntryId = displayEntries[0]?.id ?? null;
       const nextEntryCount = displayEntries.length;
       const didPrependHistory = didPrependHistoryRef.current;
@@ -753,14 +789,14 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
       previousAgentIdRef.current = nextAgentId;
       previousFirstEntryIdRef.current = nextFirstEntryId;
       previousEntryCountRef.current = nextEntryCount;
-    }, [activeAgentId, displayEntries, isLoading, scrollToBottom]);
+    }, [displayEntries, resolvedActiveAgentId, resolvedIsLoading, scrollToBottom]);
 
     useEffect(() => {
       const container = scrollContainerRef.current;
       if (
         !container ||
-        !canLoadOlderHistory ||
-        isLoadingOlderHistory ||
+        !resolvedCanLoadOlderHistory ||
+        resolvedIsLoadingOlderHistory ||
         displayEntries.length === 0
       ) {
         return;
@@ -772,9 +808,9 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
 
       requestOlderHistory();
     }, [
-      canLoadOlderHistory,
+      resolvedCanLoadOlderHistory,
       displayEntries.length,
-      isLoadingOlderHistory,
+      resolvedIsLoadingOlderHistory,
       requestOlderHistory,
     ]);
 
@@ -812,12 +848,12 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
 
     const virtuosoComponents = useMemo(
       () => ({
-        Footer: isLoading
+        Footer: resolvedIsLoading
           ? function VirtuosoFooter() {
               return <LoadingIndicatorFooter />;
             }
           : undefined,
-        Header: isLoadingOlderHistory
+        Header: resolvedIsLoadingOlderHistory
           ? function VirtuosoHeader() {
               return <OlderHistoryLoadingIndicator />;
             }
@@ -825,7 +861,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
         List: VirtualizedMessageListBody,
         Scroller: VirtualizedMessageScroller,
       }),
-      [isLoading, isLoadingOlderHistory],
+      [resolvedIsLoading, resolvedIsLoadingOlderHistory],
     );
 
     const renderMessageRow = useCallback(
@@ -836,7 +872,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
         const rowSpacingClass = getDisplayEntrySpacingClass(
           entry,
           previousEntry,
-          isWorkerDetailView,
+          resolvedIsWorkerDetailView,
         );
 
         return (
@@ -853,7 +889,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
         agentLookup,
         displayEntries,
         firstItemIndex,
-        isWorkerDetailView,
+        resolvedIsWorkerDetailView,
         onArtifactClick,
         wsUrl,
       ],
@@ -861,14 +897,14 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
 
     return (
       <div className="relative min-h-0 flex flex-1 flex-col overflow-hidden">
-        {displayEntries.length === 0 && isLoadingHistory ? (
+        {displayEntries.length === 0 && resolvedIsLoadingHistory ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <HistoryLoadingState />
           </div>
-        ) : displayEntries.length === 0 && !isLoading ? (
+        ) : displayEntries.length === 0 && !resolvedIsLoading ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <EmptyState
-              activeAgentId={activeAgentId}
+              activeAgentId={resolvedActiveAgentId}
               onSuggestionClick={onSuggestionClick}
             />
           </div>

@@ -2,11 +2,10 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import {
   createFileRoute,
   useLocation,
@@ -38,22 +37,28 @@ import {
 import { SettingsPanel } from "@/components/chat/SettingsDialog";
 import { NotesView } from "@/components/notes/NotesView";
 import { chooseFallbackAgentId } from "@/lib/agent-hierarchy";
-import { isActiveAgentStatus, isWorkingAgentStatus } from "@/lib/agent-status";
 import type { ArtifactReference } from "@/lib/artifacts";
-import {
-  readStoredShowInternalChatter,
-  writeStoredShowInternalChatter,
-} from "@/lib/chat-view-preferences";
-import { collectArtifactsFromMessages } from "@/lib/collect-artifacts";
 import { pruneMessageDraftsAtom } from "@/lib/message-drafts";
+import {
+  activeAgentIdAtom,
+  activeManagerIdAtom,
+  agentsAtom,
+  artifactsAtom,
+  hasReceivedAgentsSnapshotAtom,
+  isActiveManagerAtom,
+  isLoadingAtom,
+  isWorkerDetailViewAtom,
+  managerOrderAtom,
+  statusBannerTextAtom,
+  subscribedAgentIdAtom,
+  targetAgentIdAtom,
+} from "@/lib/ws-state";
 import {
   DEFAULT_MANAGER_AGENT_ID,
   useRouteState,
 } from "@/hooks/index-page/use-route-state";
 import { useWsConnection } from "@/hooks/index-page/use-ws-connection";
 import { useManagerActions } from "@/hooks/index-page/use-manager-actions";
-import { useVisibleMessages } from "@/hooks/index-page/use-visible-messages";
-import { useContextWindow } from "@/hooks/index-page/use-context-window";
 import { usePendingResponse } from "@/hooks/index-page/use-pending-response";
 import { useFileDrop } from "@/hooks/index-page/use-file-drop";
 import { useDynamicFavicon } from "@/hooks/index-page/use-dynamic-favicon";
@@ -220,8 +225,22 @@ export function IndexPage() {
   const location = useOptionalLocation();
   const pruneMessageDrafts = useSetAtom(pruneMessageDraftsAtom);
   const isDesktopSidebarLayout = useDesktopSidebarLayout();
+  const agents = useAtomValue(agentsAtom);
+  const managerOrder = useAtomValue(managerOrderAtom);
+  const hasReceivedAgentsSnapshot = useAtomValue(
+    hasReceivedAgentsSnapshotAtom,
+  );
+  const targetAgentId = useAtomValue(targetAgentIdAtom);
+  const subscribedAgentId = useAtomValue(subscribedAgentIdAtom);
+  const activeAgentId = useAtomValue(activeAgentIdAtom);
+  const isActiveManager = useAtomValue(isActiveManagerAtom);
+  const isWorkerDetailView = useAtomValue(isWorkerDetailViewAtom);
+  const activeManagerId = useAtomValue(activeManagerIdAtom);
+  const isLoading = useAtomValue(isLoadingAtom);
+  const collectedArtifacts = useAtomValue(artifactsAtom);
+  const statusBannerText = useAtomValue(statusBannerTextAtom);
 
-  const { clientRef, state, setState } = useWsConnection(wsUrl);
+  const { clientRef } = useWsConnection(wsUrl);
   const { routeState, activeView, hasExplicitAgentSelection, navigateToRoute } =
     useRouteState({
       pathname: location.pathname,
@@ -233,109 +252,9 @@ export function IndexPage() {
     useState<ArtifactPanelSelection | null>(null);
   const [isArtifactsPanelOpen, setIsArtifactsPanelOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [showInternalChatter, setShowInternalChatter] = useState(
-    readStoredShowInternalChatter,
-  );
+  useDynamicFavicon();
 
-  const activeAgentId = useMemo(() => {
-    return (
-      state.targetAgentId ??
-      state.subscribedAgentId ??
-      chooseFallbackAgentId(state.agents, state.managerOrder)
-    );
-  }, [
-    state.agents,
-    state.managerOrder,
-    state.subscribedAgentId,
-    state.targetAgentId,
-  ]);
-
-  const activeAgent = useMemo(() => {
-    if (!activeAgentId) {
-      return null;
-    }
-
-    return (
-      state.agents.find((agent) => agent.agentId === activeAgentId) ?? null
-    );
-  }, [activeAgentId, state.agents]);
-
-  const activeAgentLabel =
-    activeAgent?.displayName ?? activeAgentId ?? "No active agent";
-  const isActiveManager = activeAgent?.role === "manager";
-
-  const activeManagerId = useMemo(() => {
-    if (activeAgent?.role === "manager") {
-      return activeAgent.agentId;
-    }
-
-    if (activeAgent?.managerId) {
-      return activeAgent.managerId;
-    }
-
-    return (
-      state.agents.find((agent) => agent.role === "manager")?.agentId ??
-      DEFAULT_MANAGER_AGENT_ID
-    );
-  }, [activeAgent, state.agents]);
-
-  const activeAgentStatus = useMemo(() => {
-    if (!activeAgentId) {
-      return null;
-    }
-
-    const fromStatuses = state.statuses[activeAgentId]?.status;
-    if (fromStatuses) {
-      return fromStatuses;
-    }
-
-    return (
-      state.agents.find((agent) => agent.agentId === activeAgentId)?.status ??
-      null
-    );
-  }, [activeAgentId, state.agents, state.statuses]);
-
-  useDynamicFavicon({
-    managerId: activeManagerId,
-    agents: state.agents,
-    statuses: state.statuses,
-  });
-  const { contextWindowUsage } = useContextWindow({
-    activeAgent,
-    activeAgentId,
-    messages: state.messages,
-    statuses: state.statuses,
-  });
-
-  const {
-    markPendingResponse,
-    clearPendingResponseForAgent,
-    isAwaitingResponseStart,
-  } = usePendingResponse({
-    activeAgentId,
-    activeAgentStatus,
-    messages: state.messages,
-  });
-
-  const isLoading =
-    (activeAgentStatus ? isWorkingAgentStatus(activeAgentStatus) : false) ||
-    isAwaitingResponseStart;
-  const canStopAllAgents =
-    isActiveManager &&
-    (activeAgentStatus ? isActiveAgentStatus(activeAgentStatus) : false);
-
-  const { allMessages, visibleMessages } = useVisibleMessages({
-    messages: state.messages,
-    activityMessages: state.activityMessages,
-    agents: state.agents,
-    activeAgent,
-    showInternalChatter,
-  });
-
-  const collectedArtifacts = useMemo(
-    () => collectArtifactsFromMessages(allMessages),
-    [allMessages],
-  );
+  const { markPendingResponse } = usePendingResponse();
 
   const {
     isCreateManagerDialogOpen,
@@ -364,12 +283,8 @@ export function IndexPage() {
     handleStopAllAgents,
   } = useManagerActions({
     clientRef,
-    agents: state.agents,
-    activeAgent,
     defaultManagerModel: DEFAULT_MANAGER_MODEL,
     navigateToRoute,
-    setState,
-    clearPendingResponseForAgent,
   });
 
   const {
@@ -390,33 +305,29 @@ export function IndexPage() {
   }, [activeAgentId]);
 
   useEffect(() => {
-    writeStoredShowInternalChatter(showInternalChatter);
-  }, [showInternalChatter]);
-
-  useEffect(() => {
-    if (!state.hasReceivedAgentsSnapshot) {
+    if (!hasReceivedAgentsSnapshot) {
       return;
     }
 
-    pruneMessageDrafts(state.agents.map((agent) => agent.agentId));
-  }, [pruneMessageDrafts, state.agents, state.hasReceivedAgentsSnapshot]);
+    pruneMessageDrafts(agents.map((agent) => agent.agentId));
+  }, [agents, hasReceivedAgentsSnapshot, pruneMessageDrafts]);
 
   useEffect(() => {
     if (routeState.view !== "chat") {
       return;
     }
 
-    const currentAgentId = state.targetAgentId ?? state.subscribedAgentId;
+    const currentAgentId = targetAgentId ?? subscribedAgentId;
     const currentAgentExists =
       currentAgentId !== null &&
-      state.agents.some((agent) => agent.agentId === currentAgentId);
-    const routeAgentExists = state.agents.some(
+      agents.some((agent) => agent.agentId === currentAgentId);
+    const routeAgentExists = agents.some(
       (agent) => agent.agentId === routeState.agentId,
     );
 
     if (hasExplicitAgentSelection) {
       if (!routeAgentExists) {
-        if (!state.hasReceivedAgentsSnapshot) {
+        if (!hasReceivedAgentsSnapshot) {
           return;
         }
 
@@ -439,8 +350,8 @@ export function IndexPage() {
     }
 
     const fallbackAgentId = chooseFallbackAgentId(
-      state.agents,
-      state.managerOrder,
+      agents,
+      managerOrder,
     );
     if (!fallbackAgentId || fallbackAgentId === currentAgentId) {
       return;
@@ -449,14 +360,14 @@ export function IndexPage() {
     clientRef.current?.subscribeToAgent(fallbackAgentId);
   }, [
     clientRef,
+    agents,
+    hasReceivedAgentsSnapshot,
     hasExplicitAgentSelection,
+    managerOrder,
     navigateToRoute,
     routeState,
-    state.agents,
-    state.managerOrder,
-    state.hasReceivedAgentsSnapshot,
-    state.subscribedAgentId,
-    state.targetAgentId,
+    subscribedAgentId,
+    targetAgentId,
   ]);
 
   useEffect(() => {
@@ -465,13 +376,13 @@ export function IndexPage() {
       return;
     }
 
-    if (activeView !== "chat" || activeAgent?.role !== "worker") {
+    if (activeView !== "chat" || !isWorkerDetailView || !activeAgentId) {
       client.unsubscribeFromAgentDetail();
       return;
     }
 
-    client.subscribeToAgentDetail(activeAgent.agentId);
-  }, [activeAgent?.agentId, activeAgent?.role, activeView, clientRef]);
+    client.subscribeToAgentDetail(activeAgentId);
+  }, [activeAgentId, activeView, clientRef, isWorkerDetailView]);
 
   useEffect(() => {
     if (isDesktopSidebarLayout) {
@@ -550,7 +461,7 @@ export function IndexPage() {
       return;
     }
 
-    markPendingResponse(activeAgentId, state.messages.length);
+    markPendingResponse(activeAgentId);
 
     clientRef.current?.sendUserMessage(text, {
       agentId: activeAgentId,
@@ -584,7 +495,7 @@ export function IndexPage() {
   };
 
   const handleDeleteAgent = (agentId: string) => {
-    const agent = state.agents.find((entry) => entry.agentId === agentId);
+    const agent = agents.find((entry) => entry.agentId === agentId);
     if (!agent || agent.role !== "worker") {
       return;
     }
@@ -619,9 +530,9 @@ export function IndexPage() {
     setPanelSelection(null);
   }, []);
 
-  const statusBanner = state.lastError ? (
+  const statusBanner = statusBannerText ? (
     <div className="border-b border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-      {state.lastError}
+      {statusBannerText}
     </div>
   ) : null;
 
@@ -687,20 +598,9 @@ export function IndexPage() {
         ) : (
           <>
             <ChatHeader
-              connected={state.connected}
-              activeAgentId={activeAgentId}
-              activeAgentLabel={activeAgentLabel}
-              activeAgentArchetypeId={activeAgent?.archetypeId}
-              activeAgentStatus={activeAgentStatus}
-              contextWindowUsage={contextWindowUsage}
-              showStopAll={isActiveManager}
               stopAllInProgress={isStoppingAllAgents}
-              stopAllDisabled={!state.connected || !canStopAllAgents}
               onStopAll={() => void handleStopAllAgents()}
-              showNewChat={isActiveManager}
               onNewChat={handleNewChat}
-              showInternalChatter={showInternalChatter}
-              onShowInternalChatterChange={setShowInternalChatter}
               isArtifactsPanelOpen={isArtifactsPanelOpen}
               onToggleArtifactsPanel={handleToggleArtifactsPanel}
               onToggleMobileSidebar={() =>
@@ -711,14 +611,6 @@ export function IndexPage() {
 
             <MessageList
               ref={messageListRef}
-              messages={visibleMessages}
-              agents={state.agents}
-              isLoading={isLoading}
-              isLoadingHistory={state.isLoadingHistory}
-              canLoadOlderHistory={state.hasOlderHistory}
-              isLoadingOlderHistory={state.isLoadingOlderHistory}
-              activeAgentId={activeAgentId}
-              isWorkerDetailView={activeAgent?.role === "worker"}
               onLoadOlderHistory={handleLoadOlderHistory}
               onSuggestionClick={handleSuggestionClick}
               onArtifactClick={handleOpenArtifact}
@@ -727,13 +619,9 @@ export function IndexPage() {
 
             <MessageInput
               ref={messageInputRef}
-              agentId={activeAgentId}
               onSend={handleSend}
               onSubmitted={handleMessageInputSubmitted}
-              isLoading={isLoading}
-              disabled={!state.connected || !activeAgentId}
               allowWhileLoading
-              agentLabel={activeAgentLabel}
             />
           </>
         )}
@@ -742,7 +630,7 @@ export function IndexPage() {
       {activeView === "chat" && isDesktopSidebarLayout ? (
         <ArtifactsSidebar
           wsUrl={wsUrl}
-          managerId={activeManagerId}
+          managerId={activeManagerId ?? DEFAULT_MANAGER_AGENT_ID}
           artifacts={collectedArtifacts}
           isOpen={isArtifactsPanelOpen}
           onClose={() => setIsArtifactsPanelOpen(false)}
@@ -772,11 +660,6 @@ export function IndexPage() {
             style={{ overflow: "visible" }}
           >
             <AgentSidebar
-              connected={state.connected}
-              agents={state.agents}
-              managerOrder={state.managerOrder}
-              statuses={state.statuses}
-              selectedAgentId={activeAgentId}
               isSettingsActive={activeView === "settings"}
               isNotesActive={activeView === "notes"}
               isMobileOpen={isMobileSidebarOpen}
@@ -813,7 +696,7 @@ export function IndexPage() {
       {activeView === "chat" && !isDesktopSidebarLayout ? (
         <ArtifactsSidebar
           wsUrl={wsUrl}
-          managerId={activeManagerId}
+          managerId={activeManagerId ?? DEFAULT_MANAGER_AGENT_ID}
           artifacts={collectedArtifacts}
           isOpen={isArtifactsPanelOpen}
           onClose={() => setIsArtifactsPanelOpen(false)}

@@ -13,6 +13,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import { useAtomValue } from 'jotai'
 import { ChevronDown, ChevronRight, CircleDashed, FileText, Settings, SquarePen, UserStar, X } from 'lucide-react'
 import { ViewHeader } from '@/components/ViewHeader'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
@@ -22,6 +23,15 @@ import { buildManagerTreeRows } from '@/lib/agent-hierarchy'
 import { isWorkingAgentStatus } from '@/lib/agent-status'
 import { moveVisibleManagersWithinOrder, normalizeManagerOrder } from '@/lib/manager-order'
 import { inferModelPreset } from '@/lib/model-preset'
+import {
+  activeAgentIdAtom,
+  activeWorkerCountByManagerAtomFamily,
+  agentsAtom,
+  connectedAtom,
+  managerOrderAtom,
+  managerTreeAtom,
+  statusEntryAtomFamily,
+} from '@/lib/ws-state'
 import { cn } from '@/lib/utils'
 import type {
   AgentDescriptor,
@@ -30,11 +40,11 @@ import type {
 } from '@middleman/protocol'
 
 interface AgentSidebarProps {
-  connected: boolean
-  agents: AgentDescriptor[]
-  managerOrder: string[]
-  statuses: Record<string, { status: AgentStatus; pendingCount: number }>
-  selectedAgentId: string | null
+  connected?: boolean
+  agents?: AgentDescriptor[]
+  managerOrder?: string[]
+  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>
+  selectedAgentId?: string | null
   isSettingsActive: boolean
   isNotesActive: boolean
   isMobileOpen?: boolean
@@ -64,12 +74,30 @@ function ClaudeCodeIconPair({ className }: { className?: string }) {
 
 function getAgentLiveStatus(
   agent: AgentDescriptor,
-  statuses: Record<string, { status: AgentStatus; pendingCount: number }>,
+  statuses: Record<string, { status: AgentStatus; pendingCount: number }> | undefined,
 ): AgentLiveStatus {
-  const live = statuses[agent.agentId]
+  const live = statuses?.[agent.agentId]
   return {
     status: live?.status ?? agent.status,
     pendingCount: live?.pendingCount ?? 0,
+  }
+}
+
+function useAgentLiveStatus(
+  agent: AgentDescriptor,
+  statusesOverride?: Record<string, { status: AgentStatus; pendingCount: number }>,
+): AgentLiveStatus {
+  const liveStatusFromAtom = useAtomValue(statusEntryAtomFamily(agent.agentId))
+
+  return {
+    status:
+      statusesOverride?.[agent.agentId]?.status ??
+      liveStatusFromAtom?.status ??
+      agent.status,
+    pendingCount:
+      statusesOverride?.[agent.agentId]?.pendingCount ??
+      liveStatusFromAtom?.pendingCount ??
+      0,
   }
 }
 
@@ -283,6 +311,34 @@ function AgentRow({
   )
 }
 
+function WorkerAgentRow({
+  agent,
+  statuses,
+  isSelected,
+  onSelect,
+  onDelete,
+}: {
+  agent: AgentDescriptor
+  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>
+  isSelected: boolean
+  onSelect: () => void
+  onDelete: () => void
+}) {
+  const liveStatus = useAgentLiveStatus(agent, statuses)
+
+  return (
+    <AgentRow
+      agent={agent}
+      liveStatus={liveStatus}
+      isSelected={isSelected}
+      onSelect={onSelect}
+      onDelete={onDelete}
+      nameClassName="font-normal"
+      className="py-1.5 pl-7 pr-1.5"
+    />
+  )
+}
+
 function toDragTransform(transform: { x: number; y: number } | null): string | undefined {
   if (!transform) {
     return undefined
@@ -307,7 +363,7 @@ function SortableManagerRow({
 }: {
   manager: AgentDescriptor
   workers: AgentDescriptor[]
-  statuses: Record<string, { status: AgentStatus; pendingCount: number }>
+  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>
   selectedAgentId: string | null
   isSelectionSuppressed: boolean
   isCollapsed: boolean
@@ -329,10 +385,17 @@ function SortableManagerRow({
     id: manager.agentId,
     disabled: isDragDisabled,
   })
-  const managerLiveStatus = getAgentLiveStatus(manager, statuses)
+  const managerLiveStatus = useAgentLiveStatus(manager, statuses)
   const managerIsSelected = !isSelectionSuppressed && selectedAgentId === manager.agentId
+  const streamingWorkerCountFromAtom = useAtomValue(
+    activeWorkerCountByManagerAtomFamily(manager.agentId),
+  )
   const streamingWorkerCount = isCollapsed
-    ? workers.filter((worker) => isWorkingAgentStatus(getAgentLiveStatus(worker, statuses).status)).length
+    ? statuses
+      ? workers.filter((worker) =>
+          isWorkingAgentStatus(getAgentLiveStatus(worker, statuses).status),
+        ).length
+      : streamingWorkerCountFromAtom
     : 0
 
   return (
@@ -410,19 +473,16 @@ function SortableManagerRow({
             <div className="absolute bottom-1 left-3.5 top-0 w-px bg-sidebar-border/40" />
             <ul className="space-y-0.5">
               {workers.map((worker) => {
-                const workerLiveStatus = getAgentLiveStatus(worker, statuses)
                 const workerIsSelected = !isSelectionSuppressed && selectedAgentId === worker.agentId
 
                 return (
                   <li key={worker.agentId}>
-                    <AgentRow
+                    <WorkerAgentRow
                       agent={worker}
-                      liveStatus={workerLiveStatus}
+                      statuses={statuses}
                       isSelected={workerIsSelected}
                       onSelect={() => onSelectWorker(worker.agentId)}
                       onDelete={() => onDeleteWorker(worker.agentId)}
-                      nameClassName="font-normal"
-                      className="py-1.5 pl-7 pr-1.5"
                     />
                   </li>
                 )
@@ -453,8 +513,23 @@ export function AgentSidebar({
   onOpenNotes,
   onOpenSettings,
 }: AgentSidebarProps) {
-  const normalizedManagerOrder = normalizeManagerOrder(managerOrder, agents)
-  const { managerRows, orphanWorkers } = buildManagerTreeRows(agents, normalizedManagerOrder)
+  const connectedFromAtom = useAtomValue(connectedAtom)
+  const agentsFromAtom = useAtomValue(agentsAtom)
+  const managerOrderFromAtom = useAtomValue(managerOrderAtom)
+  const selectedAgentIdFromAtom = useAtomValue(activeAgentIdAtom)
+  const managerTreeFromAtom = useAtomValue(managerTreeAtom)
+  const resolvedConnected = connected ?? connectedFromAtom
+  const resolvedAgents = agents ?? agentsFromAtom
+  const resolvedManagerOrder = managerOrder ?? managerOrderFromAtom
+  const resolvedSelectedAgentId = selectedAgentId ?? selectedAgentIdFromAtom
+  const normalizedManagerOrder = normalizeManagerOrder(
+    resolvedManagerOrder,
+    resolvedAgents,
+  )
+  const { managerRows, orphanWorkers } =
+    agents !== undefined || managerOrder !== undefined
+      ? buildManagerTreeRows(resolvedAgents, normalizedManagerOrder)
+      : managerTreeFromAtom
   const [expandedManagerIds, setExpandedManagerIds] = useState<Set<string>>(() => new Set())
   const visibleManagerIds = managerRows.map(({ manager }) => manager.agentId)
   const canDragManagers = visibleManagerIds.length > 1
@@ -509,7 +584,7 @@ export function AgentSidebar({
     }
 
     const nextManagerOrder = moveVisibleManagersWithinOrder({
-      agents,
+      agents: resolvedAgents,
       managerOrder: normalizedManagerOrder,
       visibleManagerIds,
       activeId,
@@ -549,11 +624,13 @@ export function AgentSidebar({
               <span
                 className={cn(
                   'inline-block size-1.5 rounded-full',
-                  connected ? 'bg-emerald-500' : 'bg-amber-500',
+                  resolvedConnected ? 'bg-emerald-500' : 'bg-amber-500',
                 )}
-                title={connected ? 'Connected' : 'Reconnecting'}
+                title={resolvedConnected ? 'Connected' : 'Reconnecting'}
               />
-              <span className="hidden xl:inline">{connected ? 'Live' : 'Retrying'}</span>
+              <span className="hidden xl:inline">
+                {resolvedConnected ? 'Live' : 'Retrying'}
+              </span>
             </div>
             {onMobileClose ? (
               <button
@@ -594,7 +671,7 @@ export function AgentSidebar({
                     manager={manager}
                     workers={workers}
                     statuses={statuses}
-                    selectedAgentId={selectedAgentId}
+                    selectedAgentId={resolvedSelectedAgentId}
                     isSelectionSuppressed={isSelectionSuppressed}
                     isCollapsed={!expandedManagerIds.has(manager.agentId)}
                     isDragDisabled={!canDragManagers}
@@ -613,19 +690,18 @@ export function AgentSidebar({
                     </p>
                     <ul className="space-y-0.5">
                       {orphanWorkers.map((worker) => {
-                        const workerLiveStatus = getAgentLiveStatus(worker, statuses)
-                        const workerIsSelected = !isSelectionSuppressed && selectedAgentId === worker.agentId
+                        const workerIsSelected =
+                          !isSelectionSuppressed &&
+                          resolvedSelectedAgentId === worker.agentId
 
                         return (
                           <li key={worker.agentId}>
-                            <AgentRow
+                            <WorkerAgentRow
                               agent={worker}
-                              liveStatus={workerLiveStatus}
+                              statuses={statuses}
                               isSelected={workerIsSelected}
                               onSelect={() => handleSelectAgent(worker.agentId)}
                               onDelete={() => onDeleteAgent(worker.agentId)}
-                              nameClassName="font-normal"
-                              className="py-1.5 pl-7 pr-1.5"
                             />
                           </li>
                         )
