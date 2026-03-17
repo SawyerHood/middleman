@@ -1,4 +1,5 @@
 import { atom } from "jotai";
+import { selectAtom } from "jotai/utils";
 import { atomFamily } from "jotai-family";
 import type { Store } from "jotai/vanilla/store";
 import { buildManagerTreeRows, chooseFallbackAgentId } from "./agent-hierarchy";
@@ -312,6 +313,56 @@ export const isWorkerDetailViewAtom = atom(
   (get) => get(activeAgentRoleAtom) === "worker",
 );
 
+function areConversationEntryArraysEqual(
+  previousEntries: ConversationEntry[],
+  nextEntries: ConversationEntry[],
+): boolean {
+  if (previousEntries === nextEntries) {
+    return true;
+  }
+
+  if (previousEntries.length !== nextEntries.length) {
+    return false;
+  }
+
+  for (let index = 0; index < previousEntries.length; index += 1) {
+    if (previousEntries[index] !== nextEntries[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function areArtifactReferencesEqual(
+  previousArtifacts: ArtifactReference[],
+  nextArtifacts: ArtifactReference[],
+): boolean {
+  if (previousArtifacts === nextArtifacts) {
+    return true;
+  }
+
+  if (previousArtifacts.length !== nextArtifacts.length) {
+    return false;
+  }
+
+  for (let index = 0; index < previousArtifacts.length; index += 1) {
+    const previousArtifact = previousArtifacts[index];
+    const nextArtifact = nextArtifacts[index];
+
+    if (
+      previousArtifact.path !== nextArtifact.path ||
+      previousArtifact.fileName !== nextArtifact.fileName ||
+      previousArtifact.href !== nextArtifact.href ||
+      previousArtifact.title !== nextArtifact.title
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 const visibleMessageStateAtom = atom((get) =>
   deriveVisibleMessages({
     messages: get(messagesAtom),
@@ -322,9 +373,15 @@ const visibleMessageStateAtom = atom((get) =>
   }),
 );
 
-export const allMessagesAtom = atom((get) => get(visibleMessageStateAtom).allMessages);
-export const visibleMessagesAtom = atom(
-  (get) => get(visibleMessageStateAtom).visibleMessages,
+export const allMessagesAtom = selectAtom(
+  visibleMessageStateAtom,
+  (state) => state.allMessages,
+  areConversationEntryArraysEqual,
+);
+export const visibleMessagesAtom = selectAtom(
+  visibleMessageStateAtom,
+  (state) => state.visibleMessages,
+  areConversationEntryArraysEqual,
 );
 
 export const contextUsageByAgentIdAtomFamily = atomFamily((agentId: string) =>
@@ -467,8 +524,10 @@ export const activeWorkerCountByManagerAtomFamily = atomFamily(
     }),
 );
 
-export const artifactsAtom = atom<ArtifactReference[]>((get) =>
-  collectArtifactsFromMessages(get(allMessagesAtom)),
+export const artifactsAtom = selectAtom(
+  allMessagesAtom,
+  collectArtifactsFromMessages,
+  areArtifactReferencesEqual,
 );
 
 export const statusBannerTextAtom = atom((get) => get(lastErrorAtom));

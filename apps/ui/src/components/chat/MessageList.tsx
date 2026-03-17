@@ -599,7 +599,7 @@ function areMessageListRowPropsEqual(
   return false;
 }
 
-export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
+const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
   function MessageList(
     {
       messages,
@@ -973,3 +973,8 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(
     );
   },
 );
+
+MessageListBase.displayName = "MessageList";
+
+export const MessageList = memo(MessageListBase);
+MessageList.displayName = "MessageList";

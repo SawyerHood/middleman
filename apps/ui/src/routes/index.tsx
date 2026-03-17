@@ -511,9 +511,9 @@ export function IndexPage() {
     navigateToRoute({ view: "notes" });
   };
 
-  const handleSuggestionClick = (prompt: string) => {
+  const handleSuggestionClick = useCallback((prompt: string) => {
     messageInputRef.current?.setInput(prompt);
-  };
+  }, []);
 
   const handleToggleArtifactsPanel = useCallback(() => {
     setIsArtifactsPanelOpen((previous) => !previous);
