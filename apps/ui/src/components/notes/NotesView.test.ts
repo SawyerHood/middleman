@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotesView } from './NotesView'
 
 const NOTES_EXPLORER_COLLAPSED_STORAGE_KEY = 'middleman:notes:explorer-collapsed'
+const NOTES_EXPANDED_FOLDERS_STORAGE_KEY = 'middleman:notes:expanded-folders'
 const NOTES_LAST_OPEN_STORAGE_KEY = 'middleman:notes:last-open'
 
 const notesApiMocks = vi.hoisted(() => ({
@@ -301,6 +302,53 @@ describe('NotesView', () => {
     expect(explorerScrollArea).toBeTruthy()
     expect(explorerScrollArea?.className).toContain('min-h-0')
     expect(explorerScrollArea?.className).toContain('flex-1')
+  })
+
+  it('persists collapsed folders across sessions', async () => {
+    notesApiMocks.fetchNoteTree.mockResolvedValue([
+      {
+        kind: 'folder',
+        path: 'projects',
+        name: 'projects',
+        children: [
+          {
+            kind: 'file',
+            ...createNoteSummary('projects/roadmap.md'),
+          },
+        ],
+      },
+    ])
+    notesApiMocks.fetchNote.mockResolvedValue(createNoteDocument('projects/roadmap.md', '# Roadmap\n'))
+
+    renderNotesView()
+
+    await waitFor(() => {
+      expect(getByText(container, 'projects')).toBeTruthy()
+      expect(getByText(container, 'roadmap.md')).toBeTruthy()
+    })
+
+    const folderToggle = container.querySelector('button[title="projects"]')
+    expect(folderToggle).toBeTruthy()
+
+    click(folderToggle as HTMLButtonElement)
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(NOTES_EXPANDED_FOLDERS_STORAGE_KEY)).toBe('[]')
+      expect(queryByText(container, 'roadmap.md')).toBeNull()
+    })
+
+    flushSync(() => {
+      root?.unmount()
+      root = null
+    })
+
+    renderNotesView()
+
+    await waitFor(() => {
+      expect(getByText(container, 'projects')).toBeTruthy()
+    })
+
+    expect(queryByText(container, 'roadmap.md')).toBeNull()
   })
 
   it('defaults to a hidden overlay explorer on mobile and closes it after note selection', async () => {

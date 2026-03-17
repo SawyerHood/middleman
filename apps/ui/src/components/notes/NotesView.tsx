@@ -52,6 +52,7 @@ const NOTES_HOME_LABEL = '~/.middleman/notes'
 const ROOT_FOLDER_VALUE = '__root__'
 const NOTES_DESKTOP_MEDIA_QUERY = '(min-width: 768px)'
 const NOTES_EXPLORER_COLLAPSED_STORAGE_KEY = 'middleman:notes:explorer-collapsed'
+const NOTES_EXPANDED_FOLDERS_STORAGE_KEY = 'middleman:notes:expanded-folders'
 const NOTES_LAST_OPEN_STORAGE_KEY = 'middleman:notes:last-open'
 const NOTE_SEARCH_SHORTCUT_LABEL = 'Cmd/Ctrl+P'
 const NotesMarkdownEditor = lazy(async () => {
@@ -73,6 +74,7 @@ export function NotesView({
   onToggleMobileSidebar,
 }: NotesViewProps) {
   const isDesktopExplorerLayout = useDesktopExplorerLayout()
+  const [storedExpandedFolders] = useState(readStoredExpandedFolderPaths)
   const [tree, setTree] = useState<NoteTreeNode[]>([])
   const [selectedNotePath, setSelectedNotePath] = useState<string | null>(null)
   const [selectedNote, setSelectedNote] = useState<NoteDocument | null>(null)
@@ -82,7 +84,7 @@ export function NotesView({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const [isLoadingTree, setIsLoadingTree] = useState(true)
   const [isLoadingNote, setIsLoadingNote] = useState(false)
-  const [expandedFolderPaths, setExpandedFolderPaths] = useState<string[]>([])
+  const [expandedFolderPaths, setExpandedFolderPaths] = useState<string[]>(storedExpandedFolders.paths)
   const [activeFolderPath, setActiveFolderPath] = useState<string | null>(null)
   const [isDesktopExplorerCollapsed, setIsDesktopExplorerCollapsed] = useState(readStoredExplorerCollapsed)
   const [isMobileExplorerOpen, setIsMobileExplorerOpen] = useState(false)
@@ -116,6 +118,7 @@ export function NotesView({
   const loadedNotePathRef = useRef<string | null>(null)
   const renameSubmittingRef = useRef(false)
   const hasInitializedExpansionRef = useRef(false)
+  const hasStoredExpandedFolderPathsRef = useRef(storedExpandedFolders.hasStoredValue)
   const lastOpenNotePathRef = useRef(readStoredLastOpenNotePath())
   const hasResolvedInitialLastOpenNoteRef = useRef(false)
 
@@ -201,12 +204,17 @@ export function NotesView({
         nextNotes,
         storedLastOpenNotePath !== null,
       )
+      const shouldExpandAllOnFirstLoad =
+        !hasInitializedExpansionRef.current && !hasStoredExpandedFolderPathsRef.current
+      const shouldRevealSelectedNotePath =
+        hasInitializedExpansionRef.current || !hasStoredExpandedFolderPathsRef.current
       const nextExpandedFolders = mergeExpandedFolderPaths(
         expandedFolderPathsRef.current,
         nextTree,
         nextSelectedPath,
         options?.revealPaths ?? [],
-        !hasInitializedExpansionRef.current,
+        shouldExpandAllOnFirstLoad,
+        shouldRevealSelectedNotePath,
       )
 
       if (!hasResolvedInitialLastOpenNoteRef.current) {
@@ -441,6 +449,19 @@ export function NotesView({
   useEffect(() => {
     writeStoredExplorerCollapsed(isDesktopExplorerCollapsed)
   }, [isDesktopExplorerCollapsed])
+
+  useEffect(() => {
+    if (!hasInitializedExpansionRef.current) {
+      return
+    }
+
+    if (!hasStoredExpandedFolderPathsRef.current && folderList.length === 0) {
+      return
+    }
+
+    writeStoredExpandedFolderPaths(expandedFolderPaths)
+    hasStoredExpandedFolderPathsRef.current = true
+  }, [expandedFolderPaths, folderList.length])
 
   useEffect(() => {
     if (isDesktopExplorerLayout) {
@@ -1315,6 +1336,39 @@ function readStoredExplorerCollapsed(): boolean {
   }
 }
 
+function readStoredExpandedFolderPaths(): {
+  paths: string[]
+  hasStoredValue: boolean
+} {
+  if (typeof window === 'undefined') {
+    return { paths: [], hasStoredValue: false }
+  }
+
+  try {
+    const storedPaths = window.localStorage.getItem(NOTES_EXPANDED_FOLDERS_STORAGE_KEY)
+    if (storedPaths === null) {
+      return { paths: [], hasStoredValue: false }
+    }
+
+    const parsed = JSON.parse(storedPaths)
+    if (!Array.isArray(parsed)) {
+      return { paths: [], hasStoredValue: false }
+    }
+
+    const paths = parsed
+      .filter((path): path is string => typeof path === 'string')
+      .map((path) => path.trim())
+      .filter((path) => path.length > 0)
+
+    return {
+      paths: [...new Set(paths)],
+      hasStoredValue: true,
+    }
+  } catch {
+    return { paths: [], hasStoredValue: false }
+  }
+}
+
 function readStoredLastOpenNotePath(): string | null {
   if (typeof window === 'undefined') {
     return null
@@ -1340,6 +1394,18 @@ function writeStoredLastOpenNotePath(path: string | null): void {
     }
 
     window.localStorage.removeItem(NOTES_LAST_OPEN_STORAGE_KEY)
+  } catch {
+    // Ignore localStorage write failures in restricted environments.
+  }
+}
+
+function writeStoredExpandedFolderPaths(paths: string[]): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(NOTES_EXPANDED_FOLDERS_STORAGE_KEY, JSON.stringify(paths))
   } catch {
     // Ignore localStorage write failures in restricted environments.
   }
@@ -1508,13 +1574,16 @@ function mergeExpandedFolderPaths(
   selectedNotePath: string | null,
   revealPaths: string[],
   expandAllOnFirstLoad: boolean,
+  revealSelectedNotePath = true,
 ): string[] {
   const folderPaths = new Set(flattenFolderTree(tree).map((folder) => folder.path))
   const next = expandAllOnFirstLoad ? new Set(folderPaths) : new Set(currentPaths.filter((path) => folderPaths.has(path)))
 
-  for (const path of selectedNotePath ? ancestorFolderPaths(selectedNotePath) : []) {
-    if (folderPaths.has(path)) {
-      next.add(path)
+  if (revealSelectedNotePath) {
+    for (const path of selectedNotePath ? ancestorFolderPaths(selectedNotePath) : []) {
+      if (folderPaths.has(path)) {
+        next.add(path)
+      }
     }
   }
 
