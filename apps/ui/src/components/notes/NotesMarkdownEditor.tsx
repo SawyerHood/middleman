@@ -7,9 +7,11 @@ import {
   $isNodeSelection,
   $isRangeSelection,
   $isRootOrShadowRoot,
+  COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
   KEY_SPACE_COMMAND,
+  KEY_TAB_COMMAND,
   SELECTION_CHANGE_COMMAND,
   type EditorThemeClasses,
   type LexicalEditor,
@@ -43,6 +45,7 @@ import {
   $createListItemNode,
   $createListNode,
   $insertList,
+  $isListItemNode,
   $isListNode,
   $removeList,
   ListItemNode,
@@ -59,6 +62,7 @@ import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { EditorRefPlugin } from '@lexical/react/LexicalEditorRefPlugin'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
+import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { ListPlugin } from '@lexical/react/LexicalListPlugin'
 import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin'
@@ -95,6 +99,7 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { $handleIndentAndOutdent } from '@lexical/utils'
 import { cn } from '@/lib/utils'
 
 import { $createImageNode, $isImageNode, ImageNode, NotesImageContext } from './ImageNode'
@@ -265,12 +270,14 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
           setUploadCount={setUploadCount}
           wsUrl={wsUrl}
         />
+        <HistoryPlugin />
         <ListPlugin />
         <CheckListPlugin />
         <LinkPlugin />
         <ClickableLinkPlugin newTab />
         <NotesChecklistMarkdownShortcutPlugin />
         <MarkdownShortcutPlugin transformers={NOTES_EDITOR_TRANSFORMERS} />
+        <NotesListTabIndentationPlugin />
 
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
           {statusText ? (
@@ -471,6 +478,49 @@ function NotesChecklistMarkdownShortcutPlugin() {
           return true
         },
         COMMAND_PRIORITY_LOW,
+      ),
+    [editor],
+  )
+
+  return null
+}
+
+function NotesListTabIndentationPlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_TAB_COMMAND,
+        (event) => {
+          if (!event) {
+            return false
+          }
+
+          const selection = $getSelection()
+          if (!$isRangeSelection(selection) || !selectionIncludesListItem(selection)) {
+            return false
+          }
+
+          event.preventDefault()
+
+          return $handleIndentAndOutdent((block) => {
+            if (!$isListItemNode(block)) {
+              return
+            }
+
+            const currentIndent = block.getIndent()
+            if (event.shiftKey) {
+              if (currentIndent > 0) {
+                block.setIndent(currentIndent - 1)
+              }
+              return
+            }
+
+            block.setIndent(currentIndent + 1)
+          })
+        },
+        COMMAND_PRIORITY_EDITOR,
       ),
     [editor],
   )
@@ -840,6 +890,19 @@ function getSelectionAnchorNode(selection: NodeSelection | RangeSelection) {
   }
 
   return selection.getNodes()[0] ?? $getRoot()
+}
+
+function selectionIncludesListItem(selection: RangeSelection): boolean {
+  const selectedNodes = [selection.anchor.getNode(), selection.focus.getNode(), ...selection.getNodes()]
+
+  return selectedNodes.some((node) => {
+    if ($isListItemNode(node)) {
+      return true
+    }
+
+    const listItem = $findMatchingParent(node, $isListItemNode)
+    return $isListItemNode(listItem)
+  })
 }
 
 function unwrapListIfNeeded(selection: RangeSelection): void {

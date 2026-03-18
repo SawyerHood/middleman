@@ -3,11 +3,22 @@
 import { $convertFromMarkdownString, $convertToMarkdownString } from '@lexical/markdown'
 import { DRAG_DROP_PASTE } from '@lexical/rich-text'
 import { getByRole, waitFor } from '@testing-library/dom'
-import { $createParagraphNode, $createTextNode, $getRoot, KEY_SPACE_COMMAND, type LexicalEditor } from 'lexical'
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  $isTextNode,
+  $nodesOfType,
+  KEY_SPACE_COMMAND,
+  KEY_TAB_COMMAND,
+  UNDO_COMMAND,
+  type LexicalEditor,
+} from 'lexical'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ListItemNode } from '@lexical/list'
 
 const mocks = vi.hoisted(() => ({
   resolveNoteImageUrl: vi.fn((_wsUrl: string, src: string) => `resolved:${src}`),
@@ -150,6 +161,70 @@ describe('NotesMarkdownEditor', () => {
     const image = container.querySelector('img')
     expect(image?.getAttribute('src')).toBe('resolved:attachments/cat.png')
   })
+
+  it('indents list items with Tab and outdents them with Shift+Tab', async () => {
+    const editorRef = createEditorRef()
+    const onChange = vi.fn()
+
+    await mountEditor({
+      editorId: 'note-1',
+      editorRef,
+      markdown: '- first\n- second\n',
+      onChange,
+      wsUrl: 'ws://127.0.0.1:47187',
+    })
+
+    const editor = await waitForEditor(editorRef)
+
+    selectListItemText(editor, 'second')
+
+    const indentEvent = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' })
+    editor.dispatchCommand(KEY_TAB_COMMAND, indentEvent)
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenLastCalledWith('- first\n    - second\n')
+    })
+    expect(indentEvent.defaultPrevented).toBe(true)
+
+    selectListItemText(editor, 'second')
+
+    const outdentEvent = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab', shiftKey: true })
+    editor.dispatchCommand(KEY_TAB_COMMAND, outdentEvent)
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenLastCalledWith('- first\n- second\n')
+    })
+    expect(outdentEvent.defaultPrevented).toBe(true)
+  })
+
+  it('registers undo history so undo restores the previous markdown state', async () => {
+    const editorRef = createEditorRef()
+    const onChange = vi.fn()
+
+    await mountEditor({
+      editorId: 'note-1',
+      editorRef,
+      markdown: 'Initial\n',
+      onChange,
+      wsUrl: 'ws://127.0.0.1:47187',
+    })
+
+    const editor = await waitForEditor(editorRef)
+
+    editor.update(() => {
+      $convertFromMarkdownString('Updated', NOTES_EDITOR_TRANSFORMERS)
+    })
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenLastCalledWith('Updated\n')
+    })
+
+    editor.dispatchCommand(UNDO_COMMAND, undefined)
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenLastCalledWith('Initial\n')
+    })
+  })
 })
 
 async function mountEditor(props: Parameters<typeof NotesMarkdownEditor>[0]) {
@@ -176,6 +251,22 @@ async function waitForEditor(editorRef: { current: LexicalEditor | null }) {
   })
 
   return editorRef.current as LexicalEditor
+}
+
+function selectListItemText(editor: LexicalEditor, itemText: string) {
+  editor.update(() => {
+    const listItem = $nodesOfType(ListItemNode).find((node) => node.getTextContent() === itemText)
+    if (!listItem) {
+      throw new Error(`Unable to find list item "${itemText}"`)
+    }
+
+    const textNode = listItem.getChildren().find($isTextNode)
+    if (!$isTextNode(textNode)) {
+      throw new Error(`List item "${itemText}" does not contain a text node`)
+    }
+
+    textNode.selectEnd()
+  })
 }
 
 async function flushMicrotasks(count = 4) {
