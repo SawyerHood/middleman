@@ -303,11 +303,15 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Product Manager",
         cwd: REPO_ROOT,
-        model: "codex-app",
       },
     );
 
     expect(created.agentId).toBe("product-manager");
+    expect(created.model).toEqual({
+      provider: "openai-codex",
+      modelId: "gpt-5.4",
+      thinkingLevel: "xhigh",
+    });
     expect(harness.sessions.get(created.agentId)).toMatchObject({
       id: "product-manager",
       status: "idle",
@@ -326,6 +330,19 @@ describe("SwarmManager lifecycle", () => {
     expect(harness.createdMessages[0].text).toContain("The Delegator");
   });
 
+  it("rejects non-Pi manager creation presets", async () => {
+    const harness = await createHarness();
+    harnesses.push(harness);
+
+    await expect(
+      harness.manager.createManager("__bootstrap_manager__", {
+        name: "Product Manager",
+        cwd: REPO_ROOT,
+        model: "codex-app",
+      }),
+    ).rejects.toThrow("create_manager.model must be one of pi-codex|pi-opus");
+  });
+
   it("resets and deletes manager state through swarmd session APIs", async () => {
     const harness = await createHarness();
     harnesses.push(harness);
@@ -335,7 +352,7 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Manager",
         cwd: REPO_ROOT,
-        model: "codex-app",
+        model: "pi-codex",
       },
     );
     const workerDescriptor = await harness.manager.spawnAgent(
@@ -390,7 +407,7 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Manager",
         cwd: REPO_ROOT,
-        model: "codex-app",
+        model: "pi-codex",
       },
     );
     const workerDescriptor = await harness.manager.spawnAgent(
@@ -427,7 +444,7 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Sender",
         cwd: REPO_ROOT,
-        model: "codex-app",
+        model: "pi-codex",
       },
     );
     const recipientManager = await harness.manager.createManager(
@@ -435,7 +452,7 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Recipient",
         cwd: REPO_ROOT,
-        model: "codex-app",
+        model: "pi-codex",
       },
     );
 
@@ -489,7 +506,7 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Manager",
         cwd: REPO_ROOT,
-        model: "codex-app",
+        model: "pi-codex",
       },
     );
     const workerDescriptor = await harness.manager.spawnAgent(
@@ -550,7 +567,7 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Manager",
         cwd: REPO_ROOT,
-        model: "codex-app",
+        model: "pi-codex",
       },
     );
     const workerDescriptor = await harness.manager.spawnAgent(
@@ -593,7 +610,7 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Manager",
         cwd: REPO_ROOT,
-        model: "codex-app",
+        model: "pi-codex",
       },
     );
     const workerDescriptor = await harness.manager.spawnAgent(
@@ -642,7 +659,7 @@ describe("SwarmManager lifecycle", () => {
       {
         name: "Manager",
         cwd: REPO_ROOT,
-        model: "codex-app",
+        model: "pi-codex",
       },
     );
 

@@ -2,6 +2,14 @@ import type { AgentModelDescriptor, SwarmModelPreset } from "./types.js";
 import { SWARM_MODEL_PRESETS } from "./types.js";
 
 export const DEFAULT_SWARM_MODEL_PRESET: SwarmModelPreset = "pi-codex";
+export const CREATE_MANAGER_MODEL_PRESETS = [
+  "pi-codex",
+  "pi-opus",
+] as const satisfies readonly SwarmModelPreset[];
+export type CreateManagerSwarmModelPreset =
+  (typeof CREATE_MANAGER_MODEL_PRESETS)[number];
+export const DEFAULT_CREATE_MANAGER_MODEL_PRESET: CreateManagerSwarmModelPreset =
+  "pi-codex";
 const PI_CODEX_MODEL_ID = "gpt-5.4";
 const LEGACY_PI_CODEX_MODEL_ID = "gpt-5.3-codex";
 const CODEX_APP_MODEL_ID = "gpt-5.4";
@@ -33,13 +41,29 @@ const MODEL_PRESET_DESCRIPTORS: Record<SwarmModelPreset, AgentModelDescriptor> =
 };
 
 const VALID_SWARM_MODEL_PRESET_VALUES = new Set<string>(SWARM_MODEL_PRESETS);
+const VALID_CREATE_MANAGER_MODEL_PRESET_VALUES = new Set<string>(
+  CREATE_MANAGER_MODEL_PRESETS,
+);
 
 export function describeSwarmModelPresets(): string {
   return SWARM_MODEL_PRESETS.join("|");
 }
 
+export function describeCreateManagerModelPresets(): string {
+  return CREATE_MANAGER_MODEL_PRESETS.join("|");
+}
+
 export function isSwarmModelPreset(value: unknown): value is SwarmModelPreset {
   return typeof value === "string" && VALID_SWARM_MODEL_PRESET_VALUES.has(value);
+}
+
+export function isCreateManagerModelPreset(
+  value: unknown,
+): value is CreateManagerSwarmModelPreset {
+  return (
+    typeof value === "string" &&
+    VALID_CREATE_MANAGER_MODEL_PRESET_VALUES.has(value)
+  );
 }
 
 export function parseSwarmModelPreset(value: unknown, fieldName: string): SwarmModelPreset | undefined {
@@ -52,6 +76,33 @@ export function parseSwarmModelPreset(value: unknown, fieldName: string): SwarmM
   }
 
   return value;
+}
+
+export function parseCreateManagerModelPreset(
+  value: unknown,
+  fieldName: string,
+): CreateManagerSwarmModelPreset | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isCreateManagerModelPreset(value)) {
+    throw new Error(
+      `${fieldName} must be one of ${describeCreateManagerModelPresets()}`,
+    );
+  }
+
+  return value;
+}
+
+export function resolveCreateManagerModelPreset(
+  value: unknown,
+  fieldName: string,
+): CreateManagerSwarmModelPreset {
+  return (
+    parseCreateManagerModelPreset(value, fieldName) ??
+    DEFAULT_CREATE_MANAGER_MODEL_PRESET
+  );
 }
 
 export function resolveModelDescriptorFromPreset(preset: SwarmModelPreset): AgentModelDescriptor {

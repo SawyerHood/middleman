@@ -11,6 +11,8 @@ export type AgentStatus =
 
 export const MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus', 'codex-app', 'claude-code'] as const
 export type ManagerModelPreset = (typeof MANAGER_MODEL_PRESETS)[number]
+export const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus'] as const satisfies readonly ManagerModelPreset[]
+export type CreateManagerModelPreset = (typeof CREATE_MANAGER_MODEL_PRESETS)[number]
 
 export interface AgentModelDescriptor {
   provider: string

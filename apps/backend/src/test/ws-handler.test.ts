@@ -778,7 +778,7 @@ describe("WsHandler", () => {
     expect(swarmManager.createManager).toHaveBeenCalledWith("manager-1", {
       name: "Ops",
       cwd: "/tmp/project",
-      model: undefined,
+      model: "pi-codex",
     });
     expect(swarmManager.deleteManager).toHaveBeenCalledWith(
       "manager-1",

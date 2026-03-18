@@ -1409,6 +1409,57 @@ describe("ManagerWsClient", () => {
     client.destroy();
   });
 
+  it("defaults create_manager model to pi-codex when omitted", async () => {
+    const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
+
+    client.start();
+    vi.advanceTimersByTime(60);
+
+    const socket = FakeWebSocket.instances[0];
+    socket.emit("open");
+
+    emitServerEvent(socket, {
+      type: "ready",
+      serverTime: new Date().toISOString(),
+      buildHash: TEST_BUILD_HASH,
+      subscribedAgentId: "manager",
+    });
+
+    const creationPromise = client.createManager({
+      name: "release-manager",
+      cwd: "/tmp/release",
+    });
+
+    const sentCreatePayload = JSON.parse(socket.sentPayloads.at(-1) ?? "{}");
+    expect(sentCreatePayload.model).toBe("pi-codex");
+
+    emitServerEvent(socket, {
+      type: "manager_created",
+      requestId: sentCreatePayload.requestId,
+      manager: {
+        agentId: "release-manager",
+        managerId: "manager",
+        displayName: "Release Manager",
+        role: "manager",
+        status: "idle",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        cwd: "/tmp/release",
+        model: {
+          provider: "openai-codex",
+          modelId: "gpt-5.4",
+          thinkingLevel: "xhigh",
+        },
+      },
+    });
+
+    await expect(creationPromise).resolves.toMatchObject({
+      agentId: "release-manager",
+    });
+
+    client.destroy();
+  });
+
   it("stores manager order from snapshots and applies manager_order_updated events", () => {
     const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
 

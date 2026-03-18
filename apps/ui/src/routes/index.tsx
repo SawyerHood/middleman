@@ -64,14 +64,14 @@ import { useFileDrop } from "@/hooks/index-page/use-file-drop";
 import { useDynamicFavicon } from "@/hooks/index-page/use-dynamic-favicon";
 import type {
   ConversationAttachment,
-  ManagerModelPreset,
+  CreateManagerModelPreset,
 } from "@middleman/protocol";
 
 export const Route = createFileRoute("/")({
   component: IndexPage,
 });
 
-const DEFAULT_MANAGER_MODEL: ManagerModelPreset = "codex-app";
+const DEFAULT_MANAGER_MODEL: CreateManagerModelPreset = "pi-codex";
 const DEFAULT_DEV_WS_URL = "ws://127.0.0.1:47187";
 const DESKTOP_SIDEBAR_MEDIA_QUERY = "(min-width: 768px)";
 const SIDEBAR_WIDTH_STORAGE_KEY = "middleman:sidebar-width";

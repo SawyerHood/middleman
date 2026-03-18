@@ -17,13 +17,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  MANAGER_MODEL_PRESETS,
-  type ManagerModelPreset,
+  CREATE_MANAGER_MODEL_PRESETS,
+  type CreateManagerModelPreset,
 } from '@middleman/protocol'
-
-const CREATE_MANAGER_MODEL_PRESETS = MANAGER_MODEL_PRESETS.filter(
-  (modelPreset) => modelPreset !== 'claude-code',
-)
 
 interface CreateManagerDialogProps {
   open: boolean
@@ -32,13 +28,13 @@ interface CreateManagerDialogProps {
   isPickingDirectory: boolean
   newManagerName: string
   newManagerCwd: string
-  newManagerModel: ManagerModelPreset
+  newManagerModel: CreateManagerModelPreset
   createManagerError: string | null
   browseError: string | null
   onOpenChange: (open: boolean) => void
   onNameChange: (value: string) => void
   onCwdChange: (value: string) => void
-  onModelChange: (value: ManagerModelPreset) => void
+  onModelChange: (value: CreateManagerModelPreset) => void
   onBrowseDirectory: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }
@@ -123,7 +119,7 @@ export function CreateManagerDialog({
               value={newManagerModel}
               onValueChange={(value) => {
                 if (value) {
-                  onModelChange(value as ManagerModelPreset)
+                  onModelChange(value as CreateManagerModelPreset)
                 }
               }}
               disabled={isCreatingManager || isPickingDirectory}
