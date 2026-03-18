@@ -43,12 +43,6 @@ export function isManagerInvolvedAgentMessage(
   )
 }
 
-export function isManagerToManagerAgentMessage(
-  message: AgentMessageEntry,
-  agentLookup: AgentLookup,
-): boolean {
-  const fromAgent = resolveAgentDescriptor(message.fromAgentId, agentLookup)
-  const toAgent = resolveAgentDescriptor(message.toAgentId, agentLookup)
-
-  return fromAgent?.role === 'manager' && toAgent?.role === 'manager'
+export function isInternalAgentMessage(message: AgentMessageEntry): boolean {
+  return message.source === 'agent_to_agent'
 }
