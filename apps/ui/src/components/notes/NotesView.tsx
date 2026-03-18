@@ -1149,7 +1149,6 @@ export function NotesView({
         selectedNotePath={selectedNotePath}
         onOpenChange={handleSetSearchPaletteOpen}
         onSelectNote={handleSelectNote}
-        shortcutLabel={NOTE_SEARCH_SHORTCUT_LABEL}
       />
 
       <Dialog open={createFolderDialogOpen} onOpenChange={setCreateFolderDialogOpen}>
