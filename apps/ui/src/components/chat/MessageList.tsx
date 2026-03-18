@@ -958,7 +958,7 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
               computeItemKey={(_index, entry) => entry.id}
               itemContent={renderMessageRow}
               className="min-h-0 flex-1"
-              style={{ height: "100%" }}
+              style={{ height: "100%", paddingTop: 16 }}
             />
 
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
