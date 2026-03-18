@@ -1,150 +1,24 @@
 /** @vitest-environment jsdom */
 
+import { createElement } from "react";
 import {
-  createElement,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef,
-} from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { AgentDescriptor, ConversationEntry } from "@middleman/protocol";
-
-const virtuosoMocks = vi.hoisted(() => ({
-  isAtBottom: true,
-  scrollTo: vi.fn(),
-  scrollToIndex: vi.fn(),
-}));
-
-let nextAnimationFrameId = 0;
-const pendingAnimationFrames = new Map<number, FrameRequestCallback>();
-
-vi.mock("react-virtuoso", async () => {
-  const React = await import("react");
-
-  const MockVirtuoso = React.forwardRef(function MockVirtuoso(
-    {
-      data = [],
-      components,
-      itemContent,
-      computeItemKey,
-      firstItemIndex = 0,
-      scrollerRef,
-      atBottomStateChange,
-      followOutput,
-      className,
-      style,
-    }: {
-      data?: unknown[];
-      components?: {
-        Header?: React.ComponentType;
-        Footer?: React.ComponentType;
-        List?: React.ComponentType<React.ComponentPropsWithoutRef<"div">>;
-        Scroller?: React.ComponentType<React.ComponentPropsWithoutRef<"div">>;
-      };
-      itemContent: (index: number, item: unknown) => React.ReactNode;
-      computeItemKey?: (index: number, item: unknown) => React.Key;
-      firstItemIndex?: number;
-      scrollerRef?: (node: HTMLElement | null) => void;
-      atBottomStateChange?: (atBottom: boolean) => void;
-      followOutput?:
-        | ((isAtBottom: boolean) => "auto" | "smooth" | boolean)
-        | "auto"
-        | "smooth"
-        | boolean;
-      className?: string;
-      style?: React.CSSProperties;
-    },
-    ref: React.ForwardedRef<{
-      scrollTo: typeof virtuosoMocks.scrollTo;
-      scrollToIndex: typeof virtuosoMocks.scrollToIndex;
-    }>,
-  ) {
-    const Scroller = components?.Scroller ?? "div";
-    const List = components?.List ?? "div";
-    const Header = components?.Header;
-    const Footer = components?.Footer;
-    const ScrollerElement = Scroller as unknown as React.ElementType;
-    const ListElement = List as unknown as React.ElementType;
-    const scrollerElementRef = useRef<HTMLDivElement | null>(null);
-    const previousDataLengthRef = useRef<number | null>(null);
-
-    useImperativeHandle(ref, () => ({
-      scrollTo: virtuosoMocks.scrollTo,
-      scrollToIndex: virtuosoMocks.scrollToIndex,
-    }));
-
-    useLayoutEffect(() => {
-      scrollerRef?.(scrollerElementRef.current);
-      atBottomStateChange?.(virtuosoMocks.isAtBottom);
-
-      return () => {
-        scrollerRef?.(null);
-      };
-    }, [atBottomStateChange, scrollerRef]);
-
-    useLayoutEffect(() => {
-      atBottomStateChange?.(virtuosoMocks.isAtBottom);
-
-      const previousDataLength = previousDataLengthRef.current;
-      previousDataLengthRef.current = data.length;
-
-      if (
-        previousDataLength === null ||
-        previousDataLength === data.length ||
-        typeof followOutput === "undefined"
-      ) {
-        return;
-      }
-
-      const followDecision =
-        typeof followOutput === "function"
-          ? followOutput(virtuosoMocks.isAtBottom)
-          : followOutput;
-
-      if (followDecision === false) {
-        return;
-      }
-
-      virtuosoMocks.scrollToIndex({
-        index: "LAST",
-        align: "end",
-        behavior: followDecision === true ? "auto" : followDecision,
-      });
-    }, [atBottomStateChange, data.length, followOutput]);
-
-    return createElement(
-      ScrollerElement,
-      {
-        ref: scrollerElementRef,
-        className,
-        style,
-        "data-testid": "virtuoso-scroller",
-      } as Record<string, unknown>,
-      Header ? createElement(Header) : null,
-      createElement(
-        ListElement,
-        null,
-        ...data.map((entry, index) =>
-          createElement(
-            "div",
-            { key: computeItemKey?.(index, entry) ?? index },
-            itemContent(index + firstItemIndex, entry),
-          ),
-        ),
-      ),
-      Footer ? createElement(Footer) : null,
-    );
-  });
-
-  MockVirtuoso.displayName = "MockVirtuoso";
-
-  return {
-    Virtuoso: MockVirtuoso,
-    VirtuosoMockContext: React.createContext(undefined),
-  };
-});
-
 import { MessageList } from "./MessageList";
 
 const manager: AgentDescriptor = {
@@ -169,6 +43,63 @@ const worker: AgentDescriptor = {
   displayName: "Worker 1",
   role: "worker",
 };
+
+const originalRequestAnimationFrame = window.requestAnimationFrame;
+const originalCancelAnimationFrame = window.cancelAnimationFrame;
+const originalScrollTo = HTMLElement.prototype.scrollTo;
+const originalScrollTopDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollTop",
+);
+const originalScrollHeightDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollHeight",
+);
+const originalClientHeightDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "clientHeight",
+);
+
+const scrollMetrics = {
+  scrollHeight: 400,
+  clientHeight: 200,
+  scrollTop: 0,
+};
+
+let nextAnimationFrameId = 0;
+const pendingAnimationFrames = new Map<number, FrameRequestCallback>();
+
+function isMessageListScroller(element: unknown): element is HTMLElement {
+  return (
+    element instanceof HTMLElement &&
+    element.getAttribute("data-testid") === "message-list-scroller"
+  );
+}
+
+function getMaxScrollTop(): number {
+  return Math.max(0, scrollMetrics.scrollHeight - scrollMetrics.clientHeight);
+}
+
+function clampScrollTop(nextScrollTop: number): number {
+  return Math.max(0, Math.min(nextScrollTop, getMaxScrollTop()));
+}
+
+function setScrollMetrics(nextMetrics: Partial<typeof scrollMetrics>) {
+  if (typeof nextMetrics.scrollHeight === "number") {
+    scrollMetrics.scrollHeight = nextMetrics.scrollHeight;
+  }
+
+  if (typeof nextMetrics.clientHeight === "number") {
+    scrollMetrics.clientHeight = nextMetrics.clientHeight;
+  }
+
+  if (typeof nextMetrics.scrollTop === "number") {
+    scrollMetrics.scrollTop = clampScrollTop(nextMetrics.scrollTop);
+    return;
+  }
+
+  scrollMetrics.scrollTop = clampScrollTop(scrollMetrics.scrollTop);
+}
 
 function buildConversationMessages(
   agentId: string,
@@ -199,7 +130,18 @@ function renderMessageList(props: {
   canLoadOlderHistory?: boolean;
   onLoadOlderHistory?: () => void;
 }) {
-  return render(createElement(MessageList, props));
+  return render(
+    createElement(
+      "div",
+      {
+        style: {
+          display: "flex",
+          height: `${scrollMetrics.clientHeight}px`,
+        },
+      },
+      createElement(MessageList, props),
+    ),
+  );
 }
 
 function flushAnimationFrames(times = 1) {
@@ -210,10 +152,64 @@ function flushAnimationFrames(times = 1) {
   }
 }
 
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, "scrollTop", {
+    configurable: true,
+    get() {
+      return isMessageListScroller(this) ? scrollMetrics.scrollTop : 0;
+    },
+    set(value: number) {
+      if (!isMessageListScroller(this)) {
+        return;
+      }
+
+      scrollMetrics.scrollTop = clampScrollTop(Number(value));
+    },
+  });
+
+  Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+    configurable: true,
+    get() {
+      return isMessageListScroller(this) ? scrollMetrics.scrollHeight : 0;
+    },
+  });
+
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get() {
+      return isMessageListScroller(this) ? scrollMetrics.clientHeight : 0;
+    },
+  });
+});
+
 beforeEach(() => {
-  virtuosoMocks.isAtBottom = true;
-  virtuosoMocks.scrollTo.mockReset();
-  virtuosoMocks.scrollToIndex.mockReset();
+  setScrollMetrics({
+    scrollHeight: 400,
+    clientHeight: 200,
+    scrollTop: 0,
+  });
+
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+    configurable: true,
+    writable: true,
+    value: vi.fn(function scrollTo(
+      this: HTMLElement,
+      topOrOptions?: number | ScrollToOptions,
+      maybeTop?: number,
+    ) {
+      if (!isMessageListScroller(this)) {
+        return;
+      }
+
+      const nextScrollTop =
+        typeof topOrOptions === "object"
+          ? (topOrOptions.top ?? 0)
+          : (maybeTop ?? topOrOptions ?? 0);
+
+      scrollMetrics.scrollTop = clampScrollTop(Number(nextScrollTop));
+    }),
+  });
+
   nextAnimationFrameId = 0;
   pendingAnimationFrames.clear();
   window.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
@@ -231,6 +227,41 @@ afterEach(() => {
   pendingAnimationFrames.clear();
 });
 
+afterAll(() => {
+  window.requestAnimationFrame = originalRequestAnimationFrame;
+  window.cancelAnimationFrame = originalCancelAnimationFrame;
+
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+    configurable: true,
+    writable: true,
+    value: originalScrollTo,
+  });
+
+  if (originalScrollTopDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "scrollTop",
+      originalScrollTopDescriptor,
+    );
+  }
+
+  if (originalScrollHeightDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "scrollHeight",
+      originalScrollHeightDescriptor,
+    );
+  }
+
+  if (originalClientHeightDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "clientHeight",
+      originalClientHeightDescriptor,
+    );
+  }
+});
+
 describe("MessageList scroll behavior", () => {
   it("keeps the transcript hidden until the initial scroll settles", async () => {
     renderMessageList({
@@ -239,7 +270,7 @@ describe("MessageList scroll behavior", () => {
       activeAgentId: "manager",
     });
 
-    const scroller = screen.getByTestId("virtuoso-scroller");
+    const scroller = screen.getByTestId("message-list-scroller");
     expect((scroller as HTMLElement).style.opacity).toBe("0");
 
     flushAnimationFrames(2);
@@ -249,8 +280,14 @@ describe("MessageList scroll behavior", () => {
     });
   });
 
-  it("scrolls to the last item when replacement history renders after an agent switch", async () => {
+  it("scrolls to the bottom when replacement history renders after an agent switch", async () => {
     const managerMessages = buildConversationMessages("manager", 3);
+
+    setScrollMetrics({
+      scrollHeight: 400,
+      clientHeight: 200,
+      scrollTop: 0,
+    });
 
     const { rerender } = renderMessageList({
       messages: managerMessages,
@@ -258,61 +295,81 @@ describe("MessageList scroll behavior", () => {
       activeAgentId: "manager",
     });
 
-    await waitFor(() => {
-      expect(virtuosoMocks.scrollToIndex).toHaveBeenCalledWith({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      });
-    });
+    const scroller = screen.getByTestId("message-list-scroller");
+    expect(scroller.scrollTop).toBe(200);
+
     flushAnimationFrames(2);
 
-    virtuosoMocks.scrollToIndex.mockClear();
+    setScrollMetrics({
+      scrollHeight: 400,
+      clientHeight: 200,
+      scrollTop: scroller.scrollTop,
+    });
 
     rerender(
-      createElement(MessageList, {
-        messages: managerMessages,
-        agents: [manager, worker],
-        activeAgentId: "worker-1",
-        isLoadingHistory: true,
-      }),
+      createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            height: `${scrollMetrics.clientHeight}px`,
+          },
+        },
+        createElement(MessageList, {
+          messages: managerMessages,
+          agents: [manager, worker],
+          activeAgentId: "worker-1",
+          isLoadingHistory: true,
+        }),
+      ),
     );
 
     expect(screen.getByText("message 0")).toBeTruthy();
     expect(screen.queryByText("Loading conversation")).toBeNull();
-    expect(virtuosoMocks.scrollToIndex).not.toHaveBeenCalled();
-    expect(
-      (screen.getByTestId("virtuoso-scroller") as HTMLElement).style.opacity,
-    ).toBe("1");
+    expect(scroller.style.opacity).toBe("1");
+    expect(scroller.scrollTop).toBe(200);
 
-    rerender(
-      createElement(MessageList, {
-        messages: buildConversationMessages("worker-1", 4, 10),
-        agents: [manager, worker],
-        activeAgentId: "worker-1",
-      }),
-    );
-
-    await waitFor(() => {
-      expect(virtuosoMocks.scrollToIndex).toHaveBeenCalledWith({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      });
+    setScrollMetrics({
+      scrollHeight: 600,
+      clientHeight: 200,
+      scrollTop: scroller.scrollTop,
     });
 
-    const scroller = screen.getByTestId("virtuoso-scroller");
-    expect((scroller as HTMLElement).style.opacity).toBe("0");
+    rerender(
+      createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            height: `${scrollMetrics.clientHeight}px`,
+          },
+        },
+        createElement(MessageList, {
+          messages: buildConversationMessages("worker-1", 4, 10),
+          agents: [manager, worker],
+          activeAgentId: "worker-1",
+        }),
+      ),
+    );
+
+    expect(scroller.scrollTop).toBe(400);
+    expect(scroller.style.opacity).toBe("0");
 
     flushAnimationFrames(2);
 
     await waitFor(() => {
-      expect((scroller as HTMLElement).style.opacity).toBe("1");
+      expect(scroller.style.opacity).toBe("1");
     });
   });
 
-  it("does not scroll to the bottom when older history is prepended", async () => {
+  it("preserves scroll position when older history is prepended", async () => {
     const onLoadOlderHistory = vi.fn();
+
+    setScrollMetrics({
+      scrollHeight: 400,
+      clientHeight: 200,
+      scrollTop: 0,
+    });
 
     const { rerender } = renderMessageList({
       messages: buildConversationMessages("manager", 2, 10),
@@ -322,67 +379,135 @@ describe("MessageList scroll behavior", () => {
       onLoadOlderHistory,
     });
 
+    flushAnimationFrames(2);
+
+    const scroller = screen.getByTestId("message-list-scroller");
+    setScrollMetrics({
+      scrollHeight: 400,
+      clientHeight: 200,
+      scrollTop: 0,
+    });
+
+    const scrollToMock = vi.mocked(HTMLElement.prototype.scrollTo);
+    scrollToMock.mockClear();
+
+    fireEvent.scroll(scroller);
+
     await waitFor(() => {
       expect(onLoadOlderHistory).toHaveBeenCalledTimes(1);
     });
 
-    virtuosoMocks.scrollToIndex.mockClear();
+    setScrollMetrics({
+      scrollHeight: 600,
+      clientHeight: 200,
+      scrollTop: 0,
+    });
 
     rerender(
-      createElement(MessageList, {
-        messages: buildConversationMessages("manager", 4, 8),
-        agents: [manager],
-        activeAgentId: "manager",
-        canLoadOlderHistory: true,
-        onLoadOlderHistory,
-      }),
+      createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            height: `${scrollMetrics.clientHeight}px`,
+          },
+        },
+        createElement(MessageList, {
+          messages: buildConversationMessages("manager", 4, 8),
+          agents: [manager],
+          activeAgentId: "manager",
+          canLoadOlderHistory: true,
+          onLoadOlderHistory,
+        }),
+      ),
     );
 
-    expect(virtuosoMocks.scrollToIndex).not.toHaveBeenCalled();
+    expect(scrollToMock).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(200);
   });
 
   it("sticks to the bottom for live updates only when the user is already at the bottom", async () => {
+    setScrollMetrics({
+      scrollHeight: 400,
+      clientHeight: 200,
+      scrollTop: 0,
+    });
+
     const { rerender } = renderMessageList({
       messages: buildConversationMessages("manager", 2, 20),
       agents: [manager],
       activeAgentId: "manager",
     });
 
-    await waitFor(() => {
-      expect(virtuosoMocks.scrollToIndex).toHaveBeenCalledWith({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      });
+    flushAnimationFrames(2);
+
+    const scroller = screen.getByTestId("message-list-scroller");
+    const scrollToMock = vi.mocked(HTMLElement.prototype.scrollTo);
+
+    expect(scroller.scrollTop).toBe(200);
+
+    scrollToMock.mockClear();
+    setScrollMetrics({
+      scrollHeight: 500,
+      clientHeight: 200,
+      scrollTop: scroller.scrollTop,
     });
 
-    virtuosoMocks.scrollToIndex.mockClear();
-
     rerender(
-      createElement(MessageList, {
-        messages: buildConversationMessages("manager", 3, 20),
-        agents: [manager],
-        activeAgentId: "manager",
-      }),
+      createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            height: `${scrollMetrics.clientHeight}px`,
+          },
+        },
+        createElement(MessageList, {
+          messages: buildConversationMessages("manager", 3, 20),
+          agents: [manager],
+          activeAgentId: "manager",
+        }),
+      ),
     );
 
-    expect(virtuosoMocks.scrollToIndex).toHaveBeenCalledWith({
-      index: "LAST",
-      align: "end",
+    expect(scrollToMock).toHaveBeenCalledWith({
+      top: 500,
       behavior: "smooth",
     });
+    expect(scroller.scrollTop).toBe(300);
 
-    virtuosoMocks.scrollToIndex.mockClear();
-    virtuosoMocks.isAtBottom = false;
+    scrollToMock.mockClear();
+    setScrollMetrics({
+      scrollHeight: 500,
+      clientHeight: 200,
+      scrollTop: 40,
+    });
+    fireEvent.scroll(scroller);
+
+    setScrollMetrics({
+      scrollHeight: 600,
+      clientHeight: 200,
+      scrollTop: 40,
+    });
 
     rerender(
-      createElement(MessageList, {
-        messages: buildConversationMessages("manager", 4, 20),
-        agents: [manager],
-        activeAgentId: "manager",
-      }),
+      createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            height: `${scrollMetrics.clientHeight}px`,
+          },
+        },
+        createElement(MessageList, {
+          messages: buildConversationMessages("manager", 4, 20),
+          agents: [manager],
+          activeAgentId: "manager",
+        }),
+      ),
     );
 
-    expect(virtuosoMocks.scrollToIndex).not.toHaveBeenCalled();
+    expect(scrollToMock).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(40);
   });
 });

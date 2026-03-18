@@ -1,5 +1,4 @@
 import {
-  type ComponentPropsWithoutRef,
   forwardRef,
   memo,
   useCallback,
@@ -12,12 +11,8 @@ import {
 } from "react";
 import { useAtomValue } from "jotai";
 import { ChevronDown, Loader2 } from "lucide-react";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { Button } from "@/components/ui/button";
-import {
-  buildAgentLookup,
-  type AgentLookup,
-} from "@/lib/agent-message-utils";
+import { buildAgentLookup, type AgentLookup } from "@/lib/agent-message-utils";
 import type { ArtifactReference } from "@/lib/artifacts";
 import { getConversationEntryStableId } from "@/lib/conversation-history";
 import {
@@ -64,13 +59,6 @@ export interface MessageListHandle {
 
 const AUTO_SCROLL_THRESHOLD_PX = 100;
 const LOAD_OLDER_HISTORY_THRESHOLD_PX = 48;
-const MESSAGE_LIST_FIRST_ITEM_INDEX = 1_000_000;
-const MESSAGE_LIST_INITIAL_ITEM_RENDER_LIMIT = 12;
-const MESSAGE_LIST_OVERSCAN_PX = 240;
-const MESSAGE_LIST_VIEWPORT_BUFFER_PX = {
-  top: 240,
-  bottom: 360,
-};
 
 type DisplayEntry =
   | {
@@ -414,14 +402,6 @@ function OlderHistoryLoadingIndicator() {
   );
 }
 
-function LoadingIndicatorFooter() {
-  return (
-    <div className="px-2 pb-2 md:px-3 md:pb-3">
-      <LoadingIndicator />
-    </div>
-  );
-}
-
 function HistoryLoadingState() {
   return (
     <div
@@ -444,37 +424,6 @@ function HistoryLoadingState() {
     </div>
   );
 }
-
-const VirtualizedMessageScroller = forwardRef<
-  HTMLDivElement,
-  ComponentPropsWithoutRef<"div">
->(function VirtualizedMessageScroller({ className, ...props }, ref) {
-  return (
-    <div
-      {...props}
-      ref={ref}
-      className={cn(
-        "app-scroll-area h-full min-h-0 flex-1 overflow-y-auto",
-        "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
-        "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent",
-        "[scrollbar-width:thin] [scrollbar-color:transparent_transparent]",
-        "hover:[&::-webkit-scrollbar-thumb]:bg-border hover:[scrollbar-color:var(--color-border)_transparent]",
-        className,
-      )}
-    />
-  );
-});
-
-VirtualizedMessageScroller.displayName = "VirtualizedMessageScroller";
-
-const VirtualizedMessageListBody = forwardRef<
-  HTMLDivElement,
-  ComponentPropsWithoutRef<"div">
->(function VirtualizedMessageListBody({ className, ...props }, ref) {
-  return <div {...props} ref={ref} className={cn("p-2 md:p-3", className)} />;
-});
-
-VirtualizedMessageListBody.displayName = "VirtualizedMessageListBody";
 
 function areToolExecutionDisplayEntriesEqual(
   previousEntry: ToolExecutionDisplayEntry,
@@ -599,6 +548,17 @@ function areMessageListRowPropsEqual(
   return false;
 }
 
+function getDistanceFromBottom(container: HTMLDivElement): number {
+  return Math.max(
+    0,
+    container.scrollHeight - container.clientHeight - container.scrollTop,
+  );
+}
+
+function isNearBottom(container: HTMLDivElement): boolean {
+  return getDistanceFromBottom(container) <= AUTO_SCROLL_THRESHOLD_PX;
+}
+
 const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
   function MessageList(
     {
@@ -627,11 +587,13 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
     );
     const activeAgentIdFromAtom = useAtomValue(activeAgentIdAtom);
     const activeAgentRole = useAtomValue(activeAgentRoleAtom);
-    const virtuosoRef = useRef<VirtuosoHandle | null>(null);
-    const scrollContainerRef = useRef<HTMLElement | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     const previousAgentIdRef = useRef<string | null>(null);
     const previousFirstEntryIdRef = useRef<string | null>(null);
     const previousEntryCountRef = useRef(0);
+    const previousMessagesRef = useRef<ConversationEntry[] | undefined>(
+      undefined,
+    );
     const pendingAgentHistorySwapRef = useRef<string | null>(null);
     const settleScrollFrameRef = useRef<number | null>(null);
     const settleScrollInnerFrameRef = useRef<number | null>(null);
@@ -640,13 +602,12 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
     const pendingOlderHistoryScrollRef = useRef<{
       previousFirstEntryId: string | null;
       previousEntryCount: number;
+      previousScrollHeight: number;
+      previousScrollTop: number;
     } | null>(null);
     const didPrependHistoryRef = useRef(false);
     const [isScrollSettled, setIsScrollSettled] = useState(true);
     const [showScrollButton, setShowScrollButton] = useState(false);
-    const [firstItemIndex, setFirstItemIndex] = useState(
-      MESSAGE_LIST_FIRST_ITEM_INDEX,
-    );
     const resolvedMessages = messages ?? messagesFromAtom;
     const resolvedAgents = agents ?? agentsFromAtom;
     const resolvedIsLoading = isLoading ?? isLoadingFromAtom;
@@ -669,33 +630,38 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
       [resolvedAgents],
     );
 
-    const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
-      if (displayEntries.length === 0) {
-        return;
-      }
-
-      const scrollBehavior = behavior === "smooth" ? "smooth" : "auto";
-
-      virtuosoRef.current?.scrollToIndex({
-        index: "LAST",
-        align: "end",
-        behavior: scrollBehavior,
-      });
-
-      isAtBottomRef.current = true;
-      setShowScrollButton(false);
-    }, [displayEntries.length]);
-
-    const followOutput = useCallback((isAtBottom: boolean) => {
-      if (
-        pendingOlderHistoryScrollRef.current ||
-        didPrependHistoryRef.current
-      ) {
-        return false;
-      }
-
-      return isAtBottom ? "smooth" : false;
+    const syncScrollState = useCallback((container: HTMLDivElement) => {
+      const atBottom = isNearBottom(container);
+      isAtBottomRef.current = atBottom;
+      setShowScrollButton(!atBottom);
+      return atBottom;
     }, []);
+
+    const scrollToBottom = useCallback(
+      (behavior: ScrollBehavior = "auto") => {
+        if (displayEntries.length === 0) {
+          return;
+        }
+
+        const container = scrollContainerRef.current;
+        if (!container) {
+          return;
+        }
+
+        if (behavior === "smooth" && typeof container.scrollTo === "function") {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: "smooth",
+          });
+        } else {
+          container.scrollTop = container.scrollHeight;
+        }
+
+        isAtBottomRef.current = true;
+        setShowScrollButton(false);
+      },
+      [displayEntries.length],
+    );
 
     const cancelPendingScrollSettle = useCallback(() => {
       if (typeof window === "undefined") {
@@ -757,6 +723,8 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
       pendingOlderHistoryScrollRef.current = {
         previousFirstEntryId: displayEntries[0]?.id ?? null,
         previousEntryCount: displayEntries.length,
+        previousScrollHeight: container.scrollHeight,
+        previousScrollTop: container.scrollTop,
       };
 
       onLoadOlderHistory();
@@ -781,18 +749,20 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
         displayEntries.length > pendingRestore.previousEntryCount;
 
       if (didPrependHistory) {
-        const prependedEntryCount =
-          displayEntries.length - pendingRestore.previousEntryCount;
-        setFirstItemIndex((currentValue) =>
-          Math.max(1, currentValue - prependedEntryCount),
-        );
+        const container = scrollContainerRef.current;
+        if (container) {
+          const heightDelta =
+            container.scrollHeight - pendingRestore.previousScrollHeight;
+          container.scrollTop = pendingRestore.previousScrollTop + heightDelta;
+          syncScrollState(container);
+        }
         didPrependHistoryRef.current = true;
       }
 
       if (didPrependHistory || !resolvedIsLoadingOlderHistory) {
         pendingOlderHistoryScrollRef.current = null;
       }
-    }, [displayEntries, resolvedIsLoadingOlderHistory]);
+    }, [displayEntries, resolvedIsLoadingOlderHistory, syncScrollState]);
 
     useLayoutEffect(() => {
       const nextAgentId = resolvedActiveAgentId ?? null;
@@ -806,6 +776,7 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
         previousAgentIdRef.current = nextAgentId;
         previousFirstEntryIdRef.current = nextFirstEntryId;
         previousEntryCountRef.current = nextEntryCount;
+        previousMessagesRef.current = resolvedMessages;
         return;
       }
 
@@ -854,26 +825,61 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
           pendingAgentHistorySwapRef.current = null;
           scheduleScrollSettled();
         }
-      }
-
-      if (
-        (didAgentChange && !isPendingAgentHistorySwap) ||
-        didConversationReset
+      } else if (
+        nextEntryCount > 0 &&
+        previousMessagesRef.current !== resolvedMessages &&
+        !pendingOlderHistoryScrollRef.current &&
+        isAtBottomRef.current
       ) {
-        setFirstItemIndex(MESSAGE_LIST_FIRST_ITEM_INDEX);
+        scrollToBottom("smooth");
       }
 
       hasScrolledRef.current = true;
       previousAgentIdRef.current = nextAgentId;
       previousFirstEntryIdRef.current = nextFirstEntryId;
       previousEntryCountRef.current = nextEntryCount;
+      previousMessagesRef.current = resolvedMessages;
     }, [
       displayEntries,
       resolvedActiveAgentId,
       resolvedIsLoadingHistory,
+      resolvedMessages,
       scheduleScrollSettled,
       scrollToBottom,
     ]);
+
+    const handleScroll = useCallback(() => {
+      const container = scrollContainerRef.current;
+      if (!container) {
+        return;
+      }
+
+      syncScrollState(container);
+
+      if (container.scrollTop <= LOAD_OLDER_HISTORY_THRESHOLD_PX) {
+        requestOlderHistory();
+      }
+    }, [requestOlderHistory, syncScrollState]);
+
+    useEffect(() => {
+      const container = scrollContainerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const handleContainerScroll = () => {
+        handleScroll();
+      };
+
+      container.addEventListener("scroll", handleContainerScroll, {
+        passive: true,
+      });
+      handleScroll();
+
+      return () => {
+        container.removeEventListener("scroll", handleContainerScroll);
+      };
+    }, [handleScroll]);
 
     useEffect(() => {
       const container = scrollContainerRef.current;
@@ -902,85 +908,6 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
       scrollToBottom("smooth");
     };
 
-    const handleScrollerRef = useCallback(
-      (node: HTMLElement | Window | null) => {
-        scrollContainerRef.current =
-          node instanceof HTMLElement ? node : null;
-      },
-      [],
-    );
-
-    const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
-      isAtBottomRef.current = atBottom;
-      setShowScrollButton(!atBottom);
-    }, []);
-
-    const handleAtTopStateChange = useCallback(
-      (atTop: boolean) => {
-        if (!atTop) {
-          return;
-        }
-
-        requestOlderHistory();
-      },
-      [requestOlderHistory],
-    );
-
-    const handleStartReached = useCallback(() => {
-      requestOlderHistory();
-    }, [requestOlderHistory]);
-
-    const virtuosoComponents = useMemo(
-      () => ({
-        Footer: resolvedIsLoading
-          ? function VirtuosoFooter() {
-              return <LoadingIndicatorFooter />;
-            }
-          : undefined,
-        Header: function VirtuosoHeader() {
-          return resolvedIsLoadingOlderHistory ? (
-            <OlderHistoryLoadingIndicator />
-          ) : (
-            <div className="h-1" aria-hidden="true" />
-          );
-        },
-        List: VirtualizedMessageListBody,
-        Scroller: VirtualizedMessageScroller,
-      }),
-      [resolvedIsLoading, resolvedIsLoadingOlderHistory],
-    );
-
-    const renderMessageRow = useCallback(
-      (index: number, entry: DisplayEntry) => {
-        const dataIndex = index - firstItemIndex;
-        const previousEntry =
-          dataIndex > 0 ? displayEntries[dataIndex - 1] : undefined;
-        const rowSpacingClass = getDisplayEntrySpacingClass(
-          entry,
-          previousEntry,
-          resolvedIsWorkerDetailView,
-        );
-
-        return (
-          <MessageListRow
-            entry={entry}
-            rowSpacingClass={rowSpacingClass}
-            agentLookup={agentLookup}
-            onArtifactClick={onArtifactClick}
-            wsUrl={wsUrl}
-          />
-        );
-      },
-      [
-        agentLookup,
-        displayEntries,
-        firstItemIndex,
-        resolvedIsWorkerDetailView,
-        onArtifactClick,
-        wsUrl,
-      ],
-    );
-
     return (
       <div className="relative min-h-0 flex flex-1 flex-col overflow-hidden">
         {displayEntries.length === 0 && resolvedIsLoadingHistory ? (
@@ -996,33 +923,49 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
           </div>
         ) : (
           <>
-            <Virtuoso
-              ref={virtuosoRef}
-              data={displayEntries}
-              components={virtuosoComponents}
-              firstItemIndex={firstItemIndex}
-              initialItemCount={
-                displayEntries.length <= MESSAGE_LIST_INITIAL_ITEM_RENDER_LIMIT
-                  ? displayEntries.length
-                  : undefined
-              }
-              followOutput={followOutput}
-              increaseViewportBy={MESSAGE_LIST_VIEWPORT_BUFFER_PX}
-              overscan={MESSAGE_LIST_OVERSCAN_PX}
-              atBottomThreshold={AUTO_SCROLL_THRESHOLD_PX}
-              atBottomStateChange={handleAtBottomStateChange}
-              atTopThreshold={LOAD_OLDER_HISTORY_THRESHOLD_PX}
-              atTopStateChange={handleAtTopStateChange}
-              startReached={handleStartReached}
-              scrollerRef={handleScrollerRef}
-              computeItemKey={(_index, entry) => entry.id}
-              itemContent={renderMessageRow}
-              className="min-h-0 flex-1"
+            <div
+              ref={scrollContainerRef}
+              data-testid="message-list-scroller"
+              className={cn(
+                "app-scroll-area min-h-0 flex-1 overflow-y-auto pt-1",
+                "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
+                "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent",
+                "[scrollbar-width:thin] [scrollbar-color:transparent_transparent]",
+                "hover:[&::-webkit-scrollbar-thumb]:bg-border hover:[scrollbar-color:var(--color-border)_transparent]",
+              )}
               style={{
-                height: "100%",
                 opacity: isScrollSettled ? 1 : 0,
               }}
-            />
+            >
+              <div className="px-2 pb-2 md:px-3 md:pb-3">
+                {resolvedIsLoadingOlderHistory ? (
+                  <OlderHistoryLoadingIndicator />
+                ) : null}
+
+                {displayEntries.map((entry, index) => {
+                  const previousEntry =
+                    index > 0 ? displayEntries[index - 1] : undefined;
+                  const rowSpacingClass = getDisplayEntrySpacingClass(
+                    entry,
+                    previousEntry,
+                    resolvedIsWorkerDetailView,
+                  );
+
+                  return (
+                    <MessageListRow
+                      key={entry.id}
+                      entry={entry}
+                      rowSpacingClass={rowSpacingClass}
+                      agentLookup={agentLookup}
+                      onArtifactClick={onArtifactClick}
+                      wsUrl={wsUrl}
+                    />
+                  );
+                })}
+
+                {resolvedIsLoading ? <LoadingIndicator /> : null}
+              </div>
+            </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
               <Button

@@ -2,8 +2,16 @@
 
 import { createElement, createRef, type RefObject } from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { VirtuosoMockContext } from "react-virtuoso";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type {
   AgentDescriptor,
   ConversationEntry,
@@ -28,6 +36,56 @@ const manager: AgentDescriptor = {
 };
 
 const originalScrollTo = HTMLElement.prototype.scrollTo;
+const originalScrollTopDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollTop",
+);
+const originalScrollHeightDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollHeight",
+);
+const originalClientHeightDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "clientHeight",
+);
+
+const scrollMetrics = {
+  scrollHeight: 720,
+  clientHeight: 240,
+  scrollTop: 0,
+};
+
+function isMessageListScroller(element: unknown): element is HTMLElement {
+  return (
+    element instanceof HTMLElement &&
+    element.getAttribute("data-testid") === "message-list-scroller"
+  );
+}
+
+function getMaxScrollTop(): number {
+  return Math.max(0, scrollMetrics.scrollHeight - scrollMetrics.clientHeight);
+}
+
+function clampScrollTop(nextScrollTop: number): number {
+  return Math.max(0, Math.min(nextScrollTop, getMaxScrollTop()));
+}
+
+function setScrollMetrics(nextMetrics: Partial<typeof scrollMetrics>) {
+  if (typeof nextMetrics.scrollHeight === "number") {
+    scrollMetrics.scrollHeight = nextMetrics.scrollHeight;
+  }
+
+  if (typeof nextMetrics.clientHeight === "number") {
+    scrollMetrics.clientHeight = nextMetrics.clientHeight;
+  }
+
+  if (typeof nextMetrics.scrollTop === "number") {
+    scrollMetrics.scrollTop = clampScrollTop(nextMetrics.scrollTop);
+    return;
+  }
+
+  scrollMetrics.scrollTop = clampScrollTop(scrollMetrics.scrollTop);
+}
 
 function buildConversationMessages(count: number): ConversationEntry[] {
   return Array.from({ length: count }, (_, index) => {
@@ -87,8 +145,6 @@ function findRowSpacingWrapper(node: HTMLElement): HTMLElement | null {
 
 function renderMessageList({
   messages,
-  viewportHeight = 240,
-  itemHeight = 72,
   handleRef,
   onLoadOlderHistory = vi.fn(),
   canLoadOlderHistory = false,
@@ -97,8 +153,6 @@ function renderMessageList({
   isWorkerDetailView = false,
 }: {
   messages: ConversationEntry[];
-  viewportHeight?: number;
-  itemHeight?: number;
   handleRef?: RefObject<MessageListHandle | null>;
   onLoadOlderHistory?: () => void;
   canLoadOlderHistory?: boolean;
@@ -108,66 +162,145 @@ function renderMessageList({
 }) {
   return render(
     createElement(
-      VirtuosoMockContext.Provider,
-      { value: { viewportHeight, itemHeight } },
-      createElement(
-        "div",
-        { style: { display: "flex", height: `${viewportHeight}px` } },
-        createElement(MessageList, {
-          ref: handleRef,
-          messages,
-          agents: [manager],
-          isLoading,
-          isLoadingHistory,
-          activeAgentId: "manager",
-          canLoadOlderHistory,
-          isWorkerDetailView,
-          onLoadOlderHistory,
-        }),
-      ),
+      "div",
+      {
+        style: {
+          display: "flex",
+          height: `${scrollMetrics.clientHeight}px`,
+        },
+      },
+      createElement(MessageList, {
+        ref: handleRef,
+        messages,
+        agents: [manager],
+        isLoading,
+        isLoadingHistory,
+        activeAgentId: "manager",
+        canLoadOlderHistory,
+        isWorkerDetailView,
+        onLoadOlderHistory,
+      }),
     ),
   );
 }
 
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, "scrollTop", {
+    configurable: true,
+    get() {
+      return isMessageListScroller(this) ? scrollMetrics.scrollTop : 0;
+    },
+    set(value: number) {
+      if (!isMessageListScroller(this)) {
+        return;
+      }
+
+      scrollMetrics.scrollTop = clampScrollTop(Number(value));
+    },
+  });
+
+  Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+    configurable: true,
+    get() {
+      return isMessageListScroller(this) ? scrollMetrics.scrollHeight : 0;
+    },
+  });
+
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get() {
+      return isMessageListScroller(this) ? scrollMetrics.clientHeight : 0;
+    },
+  });
+});
+
 beforeEach(() => {
+  setScrollMetrics({
+    scrollHeight: 720,
+    clientHeight: 240,
+    scrollTop: 0,
+  });
+
   Object.defineProperty(HTMLElement.prototype, "scrollTo", {
     configurable: true,
     writable: true,
-    value: vi.fn(),
+    value: vi.fn(function scrollTo(
+      this: HTMLElement,
+      topOrOptions?: number | ScrollToOptions,
+      maybeTop?: number,
+    ) {
+      if (!isMessageListScroller(this)) {
+        return;
+      }
+
+      const nextScrollTop =
+        typeof topOrOptions === "object"
+          ? (topOrOptions.top ?? 0)
+          : (maybeTop ?? topOrOptions ?? 0);
+
+      scrollMetrics.scrollTop = clampScrollTop(Number(nextScrollTop));
+    }),
   });
 });
 
 afterEach(() => {
   cleanup();
+});
+
+afterAll(() => {
   Object.defineProperty(HTMLElement.prototype, "scrollTo", {
     configurable: true,
     writable: true,
     value: originalScrollTo,
   });
+
+  if (originalScrollTopDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "scrollTop",
+      originalScrollTopDescriptor,
+    );
+  }
+
+  if (originalScrollHeightDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "scrollHeight",
+      originalScrollHeightDescriptor,
+    );
+  }
+
+  if (originalClientHeightDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "clientHeight",
+      originalClientHeightDescriptor,
+    );
+  }
 });
 
 describe("MessageList", () => {
-  it("virtualizes long transcripts instead of mounting the full DOM list", () => {
+  it("renders the full transcript directly without virtualization", () => {
     const { container } = renderMessageList({
       messages: buildConversationMessages(100),
-      viewportHeight: 180,
-      itemHeight: 64,
     });
 
     expect(screen.getByText("message 0")).toBeTruthy();
-    expect(screen.queryByText("message 20")).toBeNull();
-    expect(container.querySelectorAll(".user-message-bubble").length).toBeLessThan(
-      100,
-    );
+    expect(screen.getByText("message 99")).toBeTruthy();
+    expect(container.querySelectorAll(".user-message-bubble").length).toBe(100);
   });
 
   it("requests older history when the list does not fill the viewport", async () => {
     const onLoadOlderHistory = vi.fn();
 
+    setScrollMetrics({
+      scrollHeight: 120,
+      clientHeight: 320,
+      scrollTop: 0,
+    });
+
     renderMessageList({
       messages: buildConversationMessages(1),
-      viewportHeight: 320,
-      itemHeight: 72,
       canLoadOlderHistory: true,
       onLoadOlderHistory,
     });
@@ -182,8 +315,6 @@ describe("MessageList", () => {
 
     renderMessageList({
       messages: buildConversationMessages(20),
-      viewportHeight: 200,
-      itemHeight: 64,
       handleRef,
     });
 
@@ -194,7 +325,7 @@ describe("MessageList", () => {
     expect(typeof handleRef.current?.scrollToBottom).toBe("function");
   });
 
-  it("renders the loading indicator inside the padded footer layout", () => {
+  it("renders the loading indicator at the bottom of the scroll container", () => {
     renderMessageList({
       messages: buildConversationMessages(1),
       isLoading: true,
@@ -207,10 +338,9 @@ describe("MessageList", () => {
     expect(indicator.className).toContain("mt-3");
     expect(indicator.className).toContain("min-h-5");
     expect(indicator.className).toContain("items-center");
-    expect(indicator.parentElement?.className).toContain("px-2");
-    expect(indicator.parentElement?.className).toContain("pb-2");
-    expect(indicator.parentElement?.className).toContain("md:px-3");
-    expect(indicator.parentElement?.className).toContain("md:pb-3");
+    expect(
+      screen.getByTestId("message-list-scroller").contains(indicator),
+    ).toBe(true);
   });
 
   it("shows a loading indicator instead of the empty state while history is loading", () => {
@@ -233,7 +363,7 @@ describe("MessageList", () => {
     expect(screen.queryByText("Loading conversation")).toBeNull();
   });
 
-  it("restores vertical spacing between consecutive virtualized chat messages", () => {
+  it("restores vertical spacing between consecutive chat messages", () => {
     renderMessageList({
       messages: [
         buildConversationMessage(0, "user", "first message"),
@@ -286,10 +416,13 @@ describe("MessageList", () => {
     });
 
     expect(
-      findRowSpacingWrapper(screen.getByText("follow-up reply"))?.className ?? "",
+      findRowSpacingWrapper(screen.getByText("follow-up reply"))?.className ??
+        "",
     ).toContain("pt-[var(--chat-block-gap)]");
     expect(
-      findRowSpacingWrapper(screen.getByRole("button", { name: /manager → worker-1/i }))?.className ?? "",
+      findRowSpacingWrapper(
+        screen.getByRole("button", { name: /manager → worker-1/i }),
+      )?.className ?? "",
     ).toContain("pt-[var(--chat-tool-assistant-gap)]");
     expect(
       findRowSpacingWrapper(
