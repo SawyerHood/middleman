@@ -34,6 +34,7 @@ import {
 } from "./cwd-policy.js";
 import { pickDirectory as pickNativeDirectory } from "./directory-picker.js";
 import {
+  resolveCreateManagerModelPreset,
   DEFAULT_SWARM_MODEL_PRESET,
   inferSwarmModelPresetFromDescriptor,
   parseSwarmModelPreset,
@@ -329,11 +330,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     const managerId = this.lifecycle.generateUniqueManagerId(input.name);
     const cwd = await this.runtimeContext.resolveAndValidateCwd(input.cwd);
-    const model = input.model
-      ? resolveModelDescriptorFromPreset(
-          parseSwarmModelPreset(input.model, "create_manager.model")!,
-        )
-      : this.lifecycle.resolveDefaultModelDescriptor();
+    const model = resolveModelDescriptorFromPreset(
+      resolveCreateManagerModelPreset(input.model, "create_manager.model"),
+    );
     const descriptor = await this.lifecycle.createAgentSessionAndRow({
       agentId: managerId,
       role: "manager",

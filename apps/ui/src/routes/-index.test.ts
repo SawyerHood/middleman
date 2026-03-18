@@ -10,7 +10,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { MESSAGE_DRAFTS_STORAGE_KEY } from '@/lib/message-drafts'
 import { IndexPage } from './index'
 
-const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus', 'codex-app'] as const
+const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus'] as const
 const TEST_BUILD_HASH = import.meta.env.VITE_BUILD_HASH || 'test-build'
 
 type ListenerMap = Record<string, Array<(event?: any) => void>>
@@ -403,13 +403,13 @@ function setPointerType(pointerType: 'coarse' | 'fine'): void {
 }
 
 describe('IndexPage create manager model selection', () => {
-  it('shows only allowed model presets and defaults to codex-app', async () => {
+  it('shows only Pi model presets and defaults to pi-codex', async () => {
     await renderPage()
 
     click(getAllByRole(container, 'button', { name: 'Add manager' })[0]!)
 
     const modelSelect = getByRole(document.body, 'combobox', { name: 'Model' })
-    expect(modelSelect.textContent).toContain('codex-app')
+    expect(modelSelect.textContent).toContain('pi-codex')
 
     click(modelSelect as HTMLElement)
 

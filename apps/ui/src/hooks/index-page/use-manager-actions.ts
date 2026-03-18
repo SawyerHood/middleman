@@ -14,13 +14,13 @@ import {
 } from '@/lib/ws-state'
 import type {
   AgentDescriptor,
-  ManagerModelPreset,
+  CreateManagerModelPreset,
 } from '@middleman/protocol'
 import type { AppRouteState } from './use-route-state'
 
 interface UseManagerActionsOptions {
   clientRef: MutableRefObject<ManagerWsClient | null>
-  defaultManagerModel: ManagerModelPreset
+  defaultManagerModel: CreateManagerModelPreset
   navigateToRoute: (nextRouteState: AppRouteState, replace?: boolean) => void
 }
 
@@ -32,7 +32,7 @@ export function useManagerActions({
   isCreateManagerDialogOpen: boolean
   newManagerName: string
   newManagerCwd: string
-  newManagerModel: ManagerModelPreset
+  newManagerModel: CreateManagerModelPreset
   createManagerError: string | null
   browseError: string | null
   isCreatingManager: boolean
@@ -40,7 +40,7 @@ export function useManagerActions({
   isPickingDirectory: boolean
   handleNewManagerNameChange: (value: string) => void
   handleNewManagerCwdChange: (value: string) => void
-  handleNewManagerModelChange: (value: ManagerModelPreset) => void
+  handleNewManagerModelChange: (value: CreateManagerModelPreset) => void
   handleOpenCreateManagerDialog: () => void
   handleCreateManagerDialogOpenChange: (open: boolean) => void
   handleBrowseDirectory: () => Promise<void>
@@ -57,7 +57,7 @@ export function useManagerActions({
   const [isCreateManagerDialogOpen, setIsCreateManagerDialogOpen] = useState(false)
   const [newManagerName, setNewManagerName] = useState('')
   const [newManagerCwd, setNewManagerCwd] = useState('')
-  const [newManagerModel, setNewManagerModel] = useState<ManagerModelPreset>(defaultManagerModel)
+  const [newManagerModel, setNewManagerModel] = useState<CreateManagerModelPreset>(defaultManagerModel)
   const [createManagerError, setCreateManagerError] = useState<string | null>(null)
   const [isCreatingManager, setIsCreatingManager] = useState(false)
   const [isValidatingDirectory, setIsValidatingDirectory] = useState(false)
@@ -84,7 +84,7 @@ export function useManagerActions({
     setCreateManagerError(null)
   }, [])
 
-  const handleNewManagerModelChange = useCallback((value: ManagerModelPreset) => {
+  const handleNewManagerModelChange = useCallback((value: CreateManagerModelPreset) => {
     setNewManagerModel(value)
     setCreateManagerError(null)
   }, [])

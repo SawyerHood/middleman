@@ -22,15 +22,15 @@ import {
 import { createStore } from "jotai/vanilla";
 import type { Store } from "jotai/vanilla/store";
 import {
-  MANAGER_MODEL_PRESETS,
+  CREATE_MANAGER_MODEL_PRESETS,
   type AgentContextUsage,
   type AgentDescriptor,
   type ClientCommand,
   type ConversationAttachment,
   type ConversationEntry,
   type ConversationMessageEvent,
+  type CreateManagerModelPreset,
   type DeliveryMode,
-  type ManagerModelPreset,
   type ServerEvent,
 } from "@middleman/protocol";
 
@@ -412,11 +412,11 @@ export class ManagerWsClient {
   async createManager(input: {
     name: string;
     cwd: string;
-    model: ManagerModelPreset;
+    model?: CreateManagerModelPreset;
   }): Promise<AgentDescriptor> {
     const name = input.name.trim();
     const cwd = input.cwd.trim();
-    const model = input.model;
+    const model = input.model ?? "pi-codex";
 
     if (!name) {
       throw new Error("Manager name is required.");
@@ -426,8 +426,8 @@ export class ManagerWsClient {
       throw new Error("Manager working directory is required.");
     }
 
-    if (!MANAGER_MODEL_PRESETS.includes(model)) {
-      throw new Error("Manager model is required.");
+    if (!CREATE_MANAGER_MODEL_PRESETS.includes(model)) {
+      throw new Error("Manager model must be one of pi-codex|pi-opus.");
     }
 
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {

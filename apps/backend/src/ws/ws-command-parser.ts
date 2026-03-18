@@ -2,8 +2,9 @@ import type { ClientCommand } from "@middleman/protocol";
 import { type RawData } from "ws";
 import { parseConversationAttachments } from "./attachment-parser.js";
 import {
-  describeSwarmModelPresets,
-  isSwarmModelPreset,
+  describeCreateManagerModelPresets,
+  isCreateManagerModelPreset,
+  resolveCreateManagerModelPreset,
 } from "../swarm/model-presets.js";
 
 export type ParsedClientCommand =
@@ -214,10 +215,10 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
         error: "create_manager.cwd must be a non-empty string",
       };
     }
-    if (model !== undefined && !isSwarmModelPreset(model)) {
+    if (model !== undefined && !isCreateManagerModelPreset(model)) {
       return {
         ok: false,
-        error: `create_manager.model must be one of ${describeSwarmModelPresets()}`,
+        error: `create_manager.model must be one of ${describeCreateManagerModelPresets()}`,
       };
     }
     if (requestId !== undefined && typeof requestId !== "string") {
@@ -233,7 +234,7 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
         type: "create_manager",
         name: name.trim(),
         cwd,
-        model,
+        model: resolveCreateManagerModelPreset(model, "create_manager.model"),
         requestId,
       },
     };
