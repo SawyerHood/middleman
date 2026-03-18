@@ -472,15 +472,35 @@ describe("ManagerWsClient", () => {
           timestamp: new Date().toISOString(),
           source: "speak_to_user",
         },
+        {
+          type: "agent_message",
+          agentId: "manager",
+          timestamp: new Date().toISOString(),
+          source: "agent_to_agent",
+          fromAgentId: "worker-2",
+          toAgentId: "manager",
+          text: "manager activity",
+        },
       ],
+      hasMore: true,
     });
+
+    const loadedState = snapshots.at(-1);
+    expect(loadedState?.messages).toHaveLength(1);
+    expect(loadedState?.activityMessages).toHaveLength(1);
+    expect(loadedState?.hasOlderHistory).toBe(true);
+    expect(loadedState?.oldestHistoryCursor).not.toBeNull();
 
     client.subscribeToAgent("worker-1");
 
     const switchingState = snapshots.at(-1);
     expect(switchingState?.targetAgentId).toBe("worker-1");
-    expect(switchingState?.messages).toEqual([]);
-    expect(switchingState?.activityMessages).toEqual([]);
+    expect(switchingState?.messages).toEqual(loadedState?.messages ?? []);
+    expect(switchingState?.activityMessages).toEqual(
+      loadedState?.activityMessages ?? [],
+    );
+    expect(switchingState?.oldestHistoryCursor).toBeNull();
+    expect(switchingState?.hasOlderHistory).toBe(false);
     expect(switchingState?.isLoadingHistory).toBe(true);
 
     emitServerEvent(socket, {
