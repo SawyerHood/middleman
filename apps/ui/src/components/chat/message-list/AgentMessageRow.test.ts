@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { getByRole, queryByRole } from '@testing-library/dom'
+import { getByRole, queryByRole, queryByText } from '@testing-library/dom'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
@@ -67,36 +67,7 @@ function renderAgentMessageRow({
 }
 
 describe('AgentMessageRow', () => {
-  it('collapses manager-to-manager chatter by default and lets it expand', () => {
-    renderAgentMessageRow({
-      agents: [
-        agent({ agentId: 'manager-a', managerId: 'manager-a', role: 'manager', displayName: 'Manager A' }),
-        agent({ agentId: 'manager-b', managerId: 'manager-b', role: 'manager', displayName: 'Manager B' }),
-      ],
-      message: {
-        type: 'agent_message',
-        agentId: 'manager-a',
-        timestamp: '2026-01-01T00:00:01.000Z',
-        source: 'agent_to_agent',
-        fromAgentId: 'manager-a',
-        toAgentId: 'manager-b',
-        text: 'Please sync on the deployment window and confirm the handoff.',
-      },
-    })
-
-    const toggle = getByRole(container, 'button', { name: /expand/i })
-    expect(toggle.getAttribute('aria-expanded')).toBe('false')
-
-    flushSync(() => {
-      toggle.click()
-    })
-
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(container.textContent).toContain('Collapse')
-    expect(container.textContent).toContain('Please sync on the deployment window')
-  })
-
-  it('keeps non-manager agent messages expanded', () => {
+  it('collapses internal chatter by default and lets it expand', () => {
     renderAgentMessageRow({
       agents: [
         agent({ agentId: 'manager-a', managerId: 'manager-a', role: 'manager', displayName: 'Manager A' }),
@@ -109,11 +80,40 @@ describe('AgentMessageRow', () => {
         source: 'agent_to_agent',
         fromAgentId: 'manager-a',
         toAgentId: 'worker-a',
-        text: 'Investigate the failing test and report back.',
+        text: 'Please sync on the deployment window and confirm the handoff.',
+        requestedDelivery: 'auto',
+      },
+    })
+
+    const toggle = getByRole(container, 'button', { name: /manager a → worker a · auto/i })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(queryByText(container, 'Please sync on the deployment window and confirm the handoff.')).toBeNull()
+
+    flushSync(() => {
+      toggle.click()
+    })
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(container.textContent).toContain('Please sync on the deployment window')
+  })
+
+  it('keeps user-to-agent messages expanded', () => {
+    renderAgentMessageRow({
+      agents: [
+        agent({ agentId: 'manager-a', managerId: 'manager-a', role: 'manager', displayName: 'Manager A' }),
+      ],
+      message: {
+        type: 'agent_message',
+        agentId: 'manager-a',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        source: 'user_to_agent',
+        fromAgentId: 'user',
+        toAgentId: 'manager-a',
+        text: 'Open the latest build logs.',
       },
     })
 
     expect(queryByRole(container, 'button', { name: /expand|collapse/i })).toBeNull()
-    expect(container.textContent).toContain('Investigate the failing test and report back.')
+    expect(container.textContent).toContain('Open the latest build logs.')
   })
 })

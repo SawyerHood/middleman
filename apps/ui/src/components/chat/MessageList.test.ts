@@ -289,7 +289,7 @@ describe("MessageList", () => {
       findRowSpacingWrapper(screen.getByText("follow-up reply"))?.className ?? "",
     ).toContain("pt-[var(--chat-block-gap)]");
     expect(
-      findRowSpacingWrapper(screen.getByText("delegated task"))?.className ?? "",
+      findRowSpacingWrapper(screen.getByRole("button", { name: /manager → worker-1/i }))?.className ?? "",
     ).toContain("pt-[var(--chat-tool-assistant-gap)]");
     expect(
       findRowSpacingWrapper(
