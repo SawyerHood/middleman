@@ -189,6 +189,19 @@ function createUserInput(id: string, text: string): UserInput {
   };
 }
 
+function createSystemInput(id: string, text: string): UserInput {
+  return {
+    id,
+    role: "system",
+    parts: [
+      {
+        type: "text",
+        text,
+      },
+    ],
+  };
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -578,6 +591,59 @@ describe("ClaudeQuerySession", () => {
         turnId: "turn-2",
         delivery: "interrupt",
         role: "user",
+      },
+    ]);
+
+    await session.dispose();
+  });
+
+  it("normalizes system input into a Claude user message", async () => {
+    const callbacks = createCallbacks();
+    const handle = new FakeClaudeQueryHandle();
+    const sdk: Pick<ClaudeSdkModule, "query"> = {
+      query: vi.fn(({ prompt }) => {
+        handle.attachPrompt(prompt);
+        return handle;
+      }),
+    };
+
+    const session = new ClaudeQuerySession({
+      sdk,
+      callbacks: callbacks.callbacks,
+      config: createConfig(),
+      sessionId: "ses_runtime",
+      threadId: "thr_runtime",
+    });
+
+    const startPromise = session.start();
+    handle.pushEvent({
+      type: "system:init",
+      session_id: "claude-session-live",
+    });
+
+    await startPromise;
+    await expect(session.sendInput(createSystemInput("turn-system", "Assigned task"), "auto")).resolves.toEqual({
+      acceptedDelivery: "auto",
+      queued: false,
+    });
+
+    await flush();
+    expect(handle.receivedInputs).toHaveLength(1);
+    expect(handle.receivedInputs[0]).toMatchObject({
+      type: "user",
+      session_id: "claude-session-live",
+      message: {
+        role: "user",
+        content: "System message:\nAssigned task",
+      },
+    });
+    expect(
+      callbacks.events.filter((event) => event.type === "turn.started").map((event) => event.payload),
+    ).toEqual([
+      {
+        turnId: "turn-system",
+        delivery: "auto",
+        role: "system",
       },
     ]);
 
