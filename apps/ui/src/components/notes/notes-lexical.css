@@ -13,10 +13,11 @@
 }
 
 .notes-lexical-editor {
+  --notes-lexical-line-height: 1.7;
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 0.98rem;
-  line-height: 1.7;
+  line-height: var(--notes-lexical-line-height);
   caret-color: var(--primary);
 }
 
@@ -147,7 +148,8 @@
 .notes-lexical-list-item-unchecked {
   position: relative;
   list-style: none;
-  padding-left: 1.75rem;
+  min-height: calc(var(--notes-lexical-line-height) * 1em);
+  padding-left: 1.85rem;
 }
 
 .notes-lexical-list-item-checked::before,
@@ -155,13 +157,14 @@
   content: '';
   position: absolute;
   left: 0;
-  top: 0.48em;
+  top: calc(var(--notes-lexical-line-height) * 0.5em);
   width: 1.05rem;
   height: 1.05rem;
   border: 1.5px solid color-mix(in srgb, var(--border) 82%, var(--foreground) 10%);
   border-radius: 0.3rem;
   background: var(--background);
   transition: background-color 140ms ease, border-color 140ms ease;
+  transform: translateY(-50%);
 }
 
 .notes-lexical-list-item-checked::before {
@@ -173,17 +176,16 @@
   content: '';
   position: absolute;
   left: 0.28rem;
-  top: 0.48em;
-  margin-top: 0.25rem;
+  top: calc(var(--notes-lexical-line-height) * 0.5em);
   width: 0.48rem;
   height: 0.26rem;
   border-left: 2px solid var(--primary-foreground);
   border-bottom: 2px solid var(--primary-foreground);
-  transform: rotate(-45deg);
+  transform: translateY(-58%) rotate(-45deg);
 }
 
-.notes-lexical-list-item-checked > span {
-  opacity: 0.55;
+.notes-lexical-list-item-checked {
+  color: color-mix(in srgb, var(--foreground) 52%, var(--muted-foreground));
   text-decoration: line-through;
 }
 

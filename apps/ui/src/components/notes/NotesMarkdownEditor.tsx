@@ -2,12 +2,14 @@ import {
   $createParagraphNode,
   $getRoot,
   $getSelection,
+  $isParagraphNode,
   $insertNodes,
   $isNodeSelection,
   $isRangeSelection,
   $isRootOrShadowRoot,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
+  KEY_SPACE_COMMAND,
   SELECTION_CHANGE_COMMAND,
   type EditorThemeClasses,
   type LexicalEditor,
@@ -37,7 +39,16 @@ import {
 } from '@lexical/markdown'
 import { $createCodeNode, $isCodeNode, CodeNode } from '@lexical/code'
 import { $isLinkNode, LinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link'
-import { $insertList, $isListNode, $removeList, ListItemNode, ListNode, type ListType } from '@lexical/list'
+import {
+  $createListItemNode,
+  $createListNode,
+  $insertList,
+  $isListNode,
+  $removeList,
+  ListItemNode,
+  ListNode,
+  type ListType,
+} from '@lexical/list'
 import { $setBlocksType } from '@lexical/selection'
 import { $findMatchingParent, mergeRegister } from '@lexical/utils'
 import { $createHeadingNode, $createQuoteNode, $isHeadingNode, $isQuoteNode, HeadingNode, QuoteNode, type HeadingTagType } from '@lexical/rich-text'
@@ -158,6 +169,8 @@ const NOTES_EDITOR_THEME = {
   },
 } satisfies EditorThemeClasses
 
+const NOTES_CHECKLIST_SHORTCUT_REGEX = /^(\s*)(?:[-*+]\s)?\s?\[(\s|x|X)?\]$/
+
 const IMAGE_MARKDOWN_TRANSFORMER: TextMatchTransformer = {
   dependencies: [ImageNode],
   export: (node) => {
@@ -256,6 +269,7 @@ export const NotesMarkdownEditor = memo(function NotesMarkdownEditor({
         <CheckListPlugin />
         <LinkPlugin />
         <ClickableLinkPlugin newTab />
+        <NotesChecklistMarkdownShortcutPlugin />
         <MarkdownShortcutPlugin transformers={NOTES_EDITOR_TRANSFORMERS} />
 
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -406,6 +420,59 @@ function NotesImageUploadPlugin({
         COMMAND_PRIORITY_LOW,
       ),
     [editor, setStatusError, setUploadCount, wsUrl],
+  )
+
+  return null
+}
+
+function NotesChecklistMarkdownShortcutPlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_SPACE_COMMAND,
+        (event) => {
+          const selection = $getSelection()
+          if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+            return false
+          }
+
+          const anchorNode = selection.anchor.getNode()
+          if ($isRootOrShadowRoot(anchorNode)) {
+            return false
+          }
+
+          const paragraph = anchorNode.getTopLevelElementOrThrow()
+          if (!$isParagraphNode(paragraph)) {
+            return false
+          }
+
+          const match = paragraph.getTextContent().match(NOTES_CHECKLIST_SHORTCUT_REGEX)
+          if (!match) {
+            return false
+          }
+
+          event?.preventDefault()
+
+          const checked = (match[2] ?? '').toLowerCase() === 'x'
+          const listItem = $createListItemNode(checked)
+          const listNode = $createListNode('check')
+
+          listNode.append(listItem)
+          paragraph.replace(listNode)
+
+          const indent = countMarkdownListIndent(match[1] ?? '')
+          if (indent > 0) {
+            listItem.setIndent(indent)
+          }
+
+          listItem.selectStart()
+          return true
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+    [editor],
   )
 
   return null
@@ -804,6 +871,29 @@ function normalizeEditorMarkdown(markdown: string): string {
   }
 
   return `${normalized.replace(/\n+$/, '')}\n`
+}
+
+function countMarkdownListIndent(whitespace: string): number {
+  let indent = 0
+  let consecutiveSpaces = 0
+
+  for (const character of whitespace) {
+    if (character === '\t') {
+      indent += 1
+      consecutiveSpaces = 0
+      continue
+    }
+
+    if (character === ' ') {
+      consecutiveSpaces += 1
+      if (consecutiveSpaces === 4) {
+        indent += 1
+        consecutiveSpaces = 0
+      }
+    }
+  }
+
+  return indent
 }
 
 /**

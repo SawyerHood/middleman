@@ -3,7 +3,7 @@
 import { $convertFromMarkdownString, $convertToMarkdownString } from '@lexical/markdown'
 import { DRAG_DROP_PASTE } from '@lexical/rich-text'
 import { getByRole, waitFor } from '@testing-library/dom'
-import type { LexicalEditor } from 'lexical'
+import { $createParagraphNode, $createTextNode, $getRoot, KEY_SPACE_COMMAND, type LexicalEditor } from 'lexical'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
@@ -82,6 +82,43 @@ describe('NotesMarkdownEditor', () => {
     await waitFor(() => {
       expect(onChange).toHaveBeenLastCalledWith('## Updated\n\n- [x] done\n')
     })
+  })
+
+  it('converts "- [ ]" into an interactive checklist when space is typed', async () => {
+    const editorRef = createEditorRef()
+    const onChange = vi.fn()
+
+    await mountEditor({
+      editorId: 'note-1',
+      editorRef,
+      markdown: '',
+      onChange,
+      wsUrl: 'ws://127.0.0.1:47187',
+    })
+
+    const editor = await waitForEditor(editorRef)
+
+    editor.update(() => {
+      const paragraph = $createParagraphNode()
+      paragraph.append($createTextNode('- [ ]'))
+      $getRoot().clear()
+      $getRoot().append(paragraph)
+      paragraph.selectEnd()
+    })
+
+    await flushMicrotasks()
+    onChange.mockClear()
+
+    const preventDefault = vi.fn()
+    editor.dispatchCommand(KEY_SPACE_COMMAND, { preventDefault } as unknown as KeyboardEvent)
+
+    await waitFor(() => {
+      expect(container.querySelector('[role="checkbox"][aria-checked="false"]')).toBeTruthy()
+    })
+
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(editor.getEditorState().read(() => $convertToMarkdownString(NOTES_EDITOR_TRANSFORMERS))).toBe('- [ ] ')
+    expect(onChange).toHaveBeenLastCalledWith('- [ ] \n')
   })
 
   it('uploads pasted or dropped images through the notes API and inserts markdown-backed image nodes', async () => {
