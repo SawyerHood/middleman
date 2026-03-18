@@ -3,10 +3,32 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
+  "imports": {
+    "#attachments": "./src/attachments.ts",
+    "#client-commands": "./src/client-commands.ts",
+    "#server-events": "./src/server-events.ts",
+    "#shared-types": "./src/shared-types.ts"
+  },
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./attachments": {
+      "types": "./src/attachments.ts",
+      "default": "./src/attachments.ts"
+    },
+    "./client-commands": {
+      "types": "./src/client-commands.ts",
+      "default": "./src/client-commands.ts"
+    },
+    "./server-events": {
+      "types": "./src/server-events.ts",
+      "default": "./src/server-events.ts"
+    },
+    "./shared-types": {
+      "types": "./src/shared-types.ts",
+      "default": "./src/shared-types.ts"
     }
   },
   "types": "./src/index.ts",

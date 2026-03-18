@@ -1,4 +1,4 @@
-import type { ConversationMessageAttachment } from "./attachments.js";
+import type { ConversationMessageAttachment } from "#attachments";
 import type {
   AcceptedDeliveryMode,
   AgentContextUsage,
@@ -7,7 +7,7 @@ import type {
   DeliveryMode,
   DirectoryItem,
   MessageSourceContext,
-} from "./shared-types.js";
+} from "#shared-types";
 
 export interface ConversationMessageEvent {
   type: "conversation_message";

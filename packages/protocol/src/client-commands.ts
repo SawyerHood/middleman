@@ -1,5 +1,5 @@
-import type { ConversationAttachment } from "./attachments.js";
-import type { CreateManagerModelPreset, DeliveryMode } from "./shared-types.js";
+import type { ConversationAttachment } from "#attachments";
+import type { CreateManagerModelPreset, DeliveryMode } from "#shared-types";
 
 export type ClientCommand =
   | { type: "subscribe"; agentId?: string }

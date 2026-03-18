@@ -1,3 +1,23 @@
+import type {
+  AcceptedDeliveryMode,
+  AgentMessageEvent,
+  AgentToolCallEvent,
+  AgentToolCallKind,
+  ConversationAttachment,
+  ConversationAttachmentMetadata,
+  ConversationBinaryAttachment,
+  ConversationEntryEvent,
+  ConversationImageAttachment,
+  ConversationLogEvent,
+  ConversationLogKind,
+  ConversationMessageAttachment,
+  ConversationMessageEvent,
+  ConversationTextAttachment,
+  DeliveryMode,
+  MessageSourceContext,
+  MessageTargetContext,
+} from "@middleman/protocol";
+
 export type AgentRole = "manager" | "worker";
 
 export type AgentArchetypeId = string;
@@ -48,17 +68,26 @@ export interface AgentDescriptor {
   contextUsage?: AgentContextUsage;
 }
 
-export type RequestedDeliveryMode = "auto" | "followUp" | "steer";
+export type RequestedDeliveryMode = DeliveryMode;
 
-export type AcceptedDeliveryMode = "prompt" | "followUp" | "steer";
-
-export type MessageChannel = "web";
-
-export interface MessageSourceContext {
-  channel: MessageChannel;
-}
-
-export type MessageTargetContext = Pick<MessageSourceContext, "channel">;
+export type {
+  AcceptedDeliveryMode,
+  AgentMessageEvent,
+  AgentToolCallEvent,
+  AgentToolCallKind,
+  ConversationAttachment,
+  ConversationAttachmentMetadata,
+  ConversationBinaryAttachment,
+  ConversationEntryEvent,
+  ConversationImageAttachment,
+  ConversationLogEvent,
+  ConversationLogKind,
+  ConversationMessageAttachment,
+  ConversationMessageEvent,
+  ConversationTextAttachment,
+  MessageSourceContext,
+  MessageTargetContext,
+};
 
 export interface SendMessageReceipt {
   targetAgentId: string;
@@ -130,119 +159,6 @@ export interface SwarmConfig {
   cwdAllowlistRoots: string[];
   paths: SwarmPaths;
 }
-
-export interface ConversationImageAttachment {
-  type?: "image";
-  mimeType: string;
-  data: string;
-  fileName?: string;
-  filePath?: string;
-}
-
-export interface ConversationTextAttachment {
-  type: "text";
-  mimeType: string;
-  text: string;
-  fileName?: string;
-  filePath?: string;
-}
-
-export interface ConversationBinaryAttachment {
-  type: "binary";
-  mimeType: string;
-  data: string;
-  fileName?: string;
-  filePath?: string;
-}
-
-export type ConversationAttachment =
-  | ConversationImageAttachment
-  | ConversationTextAttachment
-  | ConversationBinaryAttachment;
-
-export interface ConversationAttachmentMetadata {
-  type?: "image" | "text" | "binary";
-  mimeType: string;
-  fileName?: string;
-  filePath?: string;
-  sizeBytes?: number;
-}
-
-export type ConversationMessageAttachment =
-  | ConversationAttachment
-  | ConversationAttachmentMetadata;
-
-export interface ConversationMessageEvent {
-  type: "conversation_message";
-  agentId: string;
-  role: "user" | "assistant" | "system";
-  text: string;
-  attachments?: ConversationMessageAttachment[];
-  timestamp: string;
-  historyCursor?: string;
-  source: "user_input" | "speak_to_user" | "system";
-  sourceContext?: MessageSourceContext;
-}
-
-export type ConversationLogKind =
-  | "message_start"
-  | "message_end"
-  | "tool_execution_start"
-  | "tool_execution_update"
-  | "tool_execution_end";
-
-export interface ConversationLogEvent {
-  type: "conversation_log";
-  agentId: string;
-  timestamp: string;
-  historyCursor?: string;
-  source: "runtime_log";
-  kind: ConversationLogKind;
-  role?: "user" | "assistant" | "system";
-  toolName?: string;
-  toolCallId?: string;
-  text: string;
-  isError?: boolean;
-}
-
-export interface AgentMessageEvent {
-  type: "agent_message";
-  agentId: string;
-  timestamp: string;
-  historyCursor?: string;
-  source: "user_to_agent" | "agent_to_agent";
-  fromAgentId?: string;
-  toAgentId: string;
-  text: string;
-  sourceContext?: MessageSourceContext;
-  requestedDelivery?: RequestedDeliveryMode;
-  acceptedMode?: AcceptedDeliveryMode;
-  attachmentCount?: number;
-}
-
-export type AgentToolCallKind = Extract<
-  ConversationLogKind,
-  "tool_execution_start" | "tool_execution_update" | "tool_execution_end"
->;
-
-export interface AgentToolCallEvent {
-  type: "agent_tool_call";
-  agentId: string;
-  actorAgentId: string;
-  timestamp: string;
-  historyCursor?: string;
-  kind: AgentToolCallKind;
-  toolName?: string;
-  toolCallId?: string;
-  text: string;
-  isError?: boolean;
-}
-
-export type ConversationEntryEvent =
-  | ConversationMessageEvent
-  | ConversationLogEvent
-  | AgentMessageEvent
-  | AgentToolCallEvent;
 
 export interface AgentStatusEvent {
   type: "agent_status";
