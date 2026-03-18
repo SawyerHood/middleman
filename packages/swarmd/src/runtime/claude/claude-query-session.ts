@@ -50,7 +50,7 @@ export interface ClaudeSdkUserMessage {
   session_id?: string;
   parent_tool_use_id?: string | null;
   message: {
-    role: "user" | "system";
+    role: "user";
     content: string | ClaudeSdkInputContent[];
   };
 }
@@ -877,20 +877,42 @@ function toClaudeUserMessage(input: UserInput, sessionId?: string): ClaudeSdkUse
     });
   }
 
+  const normalizedContentBlocks =
+    input.role === "system" ? prefixSystemMessage(contentBlocks) : contentBlocks;
   const content =
-    contentBlocks.length === 1 && contentBlocks[0]?.type === "text"
-      ? contentBlocks[0].text
-      : contentBlocks;
+    normalizedContentBlocks.length === 1 && normalizedContentBlocks[0]?.type === "text"
+      ? normalizedContentBlocks[0].text
+      : normalizedContentBlocks;
 
   return {
     type: "user",
     session_id: sessionId,
     parent_tool_use_id: null,
     message: {
-      role: input.role,
+      role: "user",
       content,
     },
   };
+}
+
+function prefixSystemMessage(contentBlocks: ClaudeSdkInputContent[]): ClaudeSdkInputContent[] {
+  if (contentBlocks[0]?.type === "text") {
+    return [
+      {
+        ...contentBlocks[0],
+        text: `System message:\n${contentBlocks[0].text}`.trim(),
+      },
+      ...contentBlocks.slice(1),
+    ];
+  }
+
+  return [
+    {
+      type: "text",
+      text: "System message:",
+    },
+    ...contentBlocks,
+  ];
 }
 
 function describeFileAttachment(part: Extract<UserInput["parts"][number], { type: "file" }>): string {
