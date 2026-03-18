@@ -34,6 +34,11 @@ export interface ConversationHistoryPageResult<
   hasMore: boolean;
 }
 
+interface ProjectStoredMessageOptions {
+  agentIdOverride?: string;
+  includeSendMessageToolResults?: boolean;
+}
+
 export class SwarmTranscriptService {
   constructor(private readonly options: SwarmTranscriptServiceOptions) {}
 
@@ -131,9 +136,16 @@ export class SwarmTranscriptService {
     }
 
     let hasPersistedRuntimeError = false;
+    const projectionOptions: ProjectStoredMessageOptions =
+      resolvedDescriptor?.role === "worker"
+        ? {
+            agentIdOverride: resolvedDescriptor.agentId,
+            includeSendMessageToolResults: true,
+          }
+        : {};
     for (const message of core.messageStore.list(resolvedAgentId)) {
       seenMessageIds.add(message.id);
-      const projected = projectStoredMessage(message);
+      const projected = projectStoredMessage(message, projectionOptions);
       if (!projected) {
         continue;
       }
@@ -287,6 +299,7 @@ function fromSwarmdModel(session: SessionRecord): AgentModelDescriptor {
 
 export function projectStoredMessage(
   message: SwarmdMessage,
+  options: ProjectStoredMessageOptions = {},
 ): ConversationEntryEvent | null {
   const middleman = readObject(readObject(message.metadata)?.middleman);
   const routing = readObject(middleman?.routing);
@@ -370,6 +383,7 @@ export function projectStoredMessage(
     return {
       type: "agent_message",
       agentId:
+        options.agentIdOverride ??
         readString(middleman?.managerId) ??
         readString(middleman?.agentId) ??
         message.sessionId,
@@ -413,34 +427,79 @@ export function projectStoredMessage(
 
   if (message.role === "tool") {
     const content = readObject(message.content);
-    if (readString(content?.toolName) !== "speak_to_user") {
-      return null;
+    const toolName = readString(content?.toolName);
+    if (toolName === "speak_to_user") {
+      const result = readObject(content?.result);
+      const details = readObject(result?.details);
+      const text =
+        readString(details?.text) ??
+        extractToolResultContentText(result?.contentItems);
+      if (!text) {
+        return null;
+      }
+
+      return {
+        type: "conversation_message",
+        agentId: message.sessionId,
+        role: "assistant",
+        text,
+        timestamp: message.createdAt,
+        historyCursor,
+        source: "speak_to_user",
+        sourceContext: readObject(details?.targetContext) as
+          | MessageSourceContext
+          | undefined,
+      };
     }
 
-    const result = readObject(content?.result);
-    const details = readObject(result?.details);
-    const text =
-      readString(details?.text) ??
-      extractToolResultContentText(result?.contentItems);
-    if (!text) {
-      return null;
+    if (
+      content &&
+      options.includeSendMessageToolResults === true &&
+      toolName === "send_message_to_agent"
+    ) {
+      return projectStoredSendMessageToolResult(
+        message,
+        content,
+        historyCursor,
+        options,
+      );
     }
 
-    return {
-      type: "conversation_message",
-      agentId: message.sessionId,
-      role: "assistant",
-      text,
-      timestamp: message.createdAt,
-      historyCursor,
-      source: "speak_to_user",
-      sourceContext: readObject(details?.targetContext) as
-        | MessageSourceContext
-        | undefined,
-    };
+    return null;
   }
 
   return null;
+}
+
+function projectStoredSendMessageToolResult(
+  message: SwarmdMessage,
+  content: Record<string, unknown>,
+  historyCursor: string,
+  options: ProjectStoredMessageOptions,
+): AgentMessageEvent | null {
+  const input = readObject(content.input);
+  const result = readObject(content.result);
+  const details = readObject(result?.details);
+  const text = readString(input?.message);
+  const toAgentId =
+    readString(input?.targetAgentId) ?? readString(details?.targetAgentId);
+
+  if (!text || !toAgentId) {
+    return null;
+  }
+
+  return {
+    type: "agent_message",
+    agentId: options.agentIdOverride ?? message.sessionId,
+    timestamp: message.createdAt,
+    historyCursor,
+    source: "agent_to_agent",
+    fromAgentId: message.sessionId,
+    toAgentId,
+    text,
+    requestedDelivery: readRequestedDeliveryMode(input?.delivery) ?? "auto",
+    acceptedMode: readAcceptedDeliveryMode(details?.acceptedMode),
+  };
 }
 
 export function buildAttachmentMetadata(
@@ -501,6 +560,14 @@ export function readRequestedDeliveryMode(
   value: unknown,
 ): RequestedDeliveryMode | undefined {
   return value === "auto" || value === "followUp" || value === "steer"
+    ? value
+    : undefined;
+}
+
+export function readAcceptedDeliveryMode(
+  value: unknown,
+): SendMessageReceipt["acceptedMode"] | undefined {
+  return value === "prompt" || value === "followUp" || value === "steer"
     ? value
     : undefined;
 }

@@ -349,6 +349,76 @@ describe("projectStoredMessage", () => {
     });
   });
 
+  it("projects worker send_message_to_agent tool results into visible agent messages", () => {
+    const projected = projectStoredMessage(
+      makeMessage({
+        id: "tool-result-1",
+        sessionId: "worker-1",
+        source: "tool",
+        kind: "tool_result",
+        role: "tool",
+        createdAt: "2026-03-15T00:00:09.000Z",
+        content: {
+          toolName: "send_message_to_agent",
+          input: {
+            targetAgentId: "manager-1",
+            message: "Completed the fix and pushed the patch.",
+            delivery: "followUp",
+          },
+          result: {
+            content: [
+              {
+                type: "text",
+                text: "Queued message for manager-1.",
+              },
+            ],
+            details: {
+              targetAgentId: "manager-1",
+              acceptedMode: "followUp",
+            },
+          },
+        },
+      }),
+      {
+        agentIdOverride: "worker-1",
+        includeSendMessageToolResults: true,
+      },
+    );
+
+    expect(projected).toEqual({
+      type: "agent_message",
+      agentId: "worker-1",
+      timestamp: "2026-03-15T00:00:09.000Z",
+      historyCursor:
+        "2026-03-15T00:00:09.000Z|worker-1|2026-03-15T00:00:09.000Z:tool-result-1|tool-result-1",
+      source: "agent_to_agent",
+      fromAgentId: "worker-1",
+      toAgentId: "manager-1",
+      text: "Completed the fix and pushed the patch.",
+      requestedDelivery: "followUp",
+      acceptedMode: "followUp",
+    });
+    expect(
+      projectStoredMessage(
+        makeMessage({
+          id: "tool-result-1",
+          sessionId: "worker-1",
+          source: "tool",
+          kind: "tool_result",
+          role: "tool",
+          createdAt: "2026-03-15T00:00:09.000Z",
+          content: {
+            toolName: "send_message_to_agent",
+            input: {
+              targetAgentId: "manager-1",
+              message: "Completed the fix and pushed the patch.",
+            },
+          },
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("falls back to contentItems for speak_to_user and ignores unsupported rows", () => {
     const projected = projectStoredMessage(
       makeMessage({
@@ -796,5 +866,148 @@ describe("SwarmTranscriptService", () => {
     ).toEqual(["second", "third"]);
     expect(transcript.projectConversationEntries("missing")).toEqual([]);
     expect(transcript.getVisibleTranscript("missing")).toEqual([]);
+  });
+
+  it("replays worker detail transcripts with inbound manager messages and outbound worker reports", () => {
+    const worker = makeDescriptor({
+      agentId: "worker-1",
+      managerId: "manager-1",
+      role: "worker",
+      status: "errored",
+    });
+    const session = makeSession({
+      id: "worker-1",
+      backend: "codex",
+      status: "errored",
+      updatedAt: "2026-03-15T00:00:05.000Z",
+      lastError: {
+        code: "RUNTIME_FAILED",
+        message: "worker exploded",
+        retryable: false,
+      },
+    });
+    const messages = [
+      makeMessage({
+        id: "manager-to-worker",
+        sessionId: "worker-1",
+        source: "system",
+        kind: "text",
+        role: "system",
+        createdAt: "2026-03-15T00:00:01.000Z",
+        content: { text: "Investigate the failing deploy" },
+        metadata: {
+          middleman: {
+            visibility: "internal",
+            renderAs: "hidden",
+            managerId: "manager-1",
+            agentId: "worker-1",
+            routing: {
+              origin: "agent",
+              fromAgentId: "manager-1",
+              toAgentId: "worker-1",
+              requestedDelivery: "steer",
+            },
+          },
+        },
+      }),
+      makeMessage({
+        id: "worker-to-manager",
+        sessionId: "worker-1",
+        source: "tool",
+        kind: "tool_result",
+        role: "tool",
+        createdAt: "2026-03-15T00:00:02.000Z",
+        content: {
+          toolName: "send_message_to_agent",
+          input: {
+            targetAgentId: "manager-1",
+            message: "I found the broken migration and patched it.",
+            delivery: "followUp",
+          },
+          result: {
+            details: {
+              targetAgentId: "manager-1",
+              acceptedMode: "followUp",
+            },
+          },
+        },
+      }),
+      makeMessage({
+        id: "assistant-1",
+        sessionId: "worker-1",
+        source: "assistant",
+        kind: "text",
+        role: "assistant",
+        createdAt: "2026-03-15T00:00:03.000Z",
+        content: { text: "I also added coverage for the failure case." },
+      }),
+      makeMessage({
+        id: "runtime-error",
+        sessionId: "worker-1",
+        source: "system",
+        kind: "middleman_event",
+        role: "system",
+        createdAt: "2026-03-15T00:00:04.000Z",
+        content: { text: "worker exploded" },
+        metadata: {
+          middleman: {
+            renderAs: "conversation_log",
+            event: {
+              agentId: "worker-1",
+              timestamp: "2026-03-15T00:00:04.000Z",
+              kind: "message_end",
+              text: "worker exploded",
+              isError: true,
+            },
+          },
+        },
+      }),
+    ];
+
+    const transcript = new SwarmTranscriptService({
+      getCore: () =>
+        ({
+          sessionService: {
+            getById: (sessionId: string) =>
+              sessionId === "worker-1" ? session : null,
+            list: () => [session],
+          },
+          messageStore: {
+            list: () => messages,
+          },
+        }) as unknown as SwarmdCoreHandle,
+      getAgent: (agentId) => (agentId === "worker-1" ? worker : undefined),
+      resolvePreferredManagerId: () => undefined,
+      resolveRuntimeErrorMessage: () => "worker exploded",
+    });
+
+    expect(transcript.getVisibleTranscript("worker-1")).toEqual([
+      expect.objectContaining({
+        type: "agent_message",
+        agentId: "worker-1",
+        fromAgentId: "manager-1",
+        toAgentId: "worker-1",
+        text: "Investigate the failing deploy",
+      }),
+      expect.objectContaining({
+        type: "agent_message",
+        agentId: "worker-1",
+        fromAgentId: "worker-1",
+        toAgentId: "manager-1",
+        text: "I found the broken migration and patched it.",
+      }),
+      expect.objectContaining({
+        type: "conversation_message",
+        agentId: "worker-1",
+        role: "assistant",
+        text: "I also added coverage for the failure case.",
+      }),
+      expect.objectContaining({
+        type: "conversation_log",
+        agentId: "worker-1",
+        text: "worker exploded",
+        isError: true,
+      }),
+    ]);
   });
 });
