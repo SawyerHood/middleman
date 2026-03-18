@@ -75,7 +75,6 @@ const DEFAULT_MANAGER_MODEL: CreateManagerModelPreset = "pi-codex";
 const DEFAULT_DEV_WS_URL = "ws://127.0.0.1:47187";
 const DESKTOP_SIDEBAR_MEDIA_QUERY = "(min-width: 768px)";
 const SIDEBAR_WIDTH_STORAGE_KEY = "middleman:sidebar-width";
-const LEGACY_SIDEBAR_WIDTH_STORAGE_KEY = "middleman:index:sidebar-width";
 const SIDEBAR_DEFAULT_WIDTH = 320;
 const SIDEBAR_MIN_WIDTH = 256;
 const SIDEBAR_MAX_WIDTH = 480;
@@ -126,13 +125,6 @@ function readStoredSidebarWidth(): number {
     );
     if (storedWidth !== null) {
       return storedWidth;
-    }
-
-    const legacyStoredWidth = parseStoredSidebarWidth(
-      window.localStorage.getItem(LEGACY_SIDEBAR_WIDTH_STORAGE_KEY),
-    );
-    if (legacyStoredWidth !== null) {
-      return legacyStoredWidth;
     }
 
     return SIDEBAR_DEFAULT_WIDTH;
@@ -221,8 +213,8 @@ export function IndexPage() {
   const storedSidebarWidthRef = useRef(initialSidebarWidth);
   const sidebarRestoreFrameRef = useRef<number | null>(null);
   const isRestoringSidebarWidthRef = useRef(true);
-  const navigate = useOptionalNavigate();
-  const location = useOptionalLocation();
+  const navigate = useNavigate({ from: "/" });
+  const location = useLocation();
   const pruneMessageDrafts = useSetAtom(pruneMessageDraftsAtom);
   const isDesktopSidebarLayout = useDesktopSidebarLayout();
   const agents = useAtomValue(agentsAtom);
@@ -744,99 +736,4 @@ export function IndexPage() {
       />
     </main>
   );
-}
-
-function useOptionalLocation(): { pathname: string; search: unknown } {
-  try {
-    const location = useLocation();
-    return {
-      pathname: location.pathname,
-      search: location.search,
-    };
-  } catch {
-    if (typeof window === "undefined") {
-      return { pathname: "/", search: {} };
-    }
-
-    return {
-      pathname: window.location.pathname || "/",
-      search: parseWindowRouteSearch(window.location.search),
-    };
-  }
-}
-
-type NavigateFn = (options: {
-  to: string;
-  search?: { view?: string; agent?: string };
-  replace?: boolean;
-  resetScroll?: boolean;
-}) => void | Promise<void>;
-
-function useOptionalNavigate(): NavigateFn {
-  let navigate: NavigateFn | null = null;
-
-  try {
-    navigate = useNavigate() as unknown as NavigateFn;
-  } catch {}
-
-  return (options) => {
-    if (navigate) {
-      try {
-        return navigate(options);
-      } catch {
-        // Fall through to the window.history fallback when no router context is mounted.
-      }
-    }
-
-    applyWindowNavigation(options);
-  };
-}
-
-function parseWindowRouteSearch(search: string): {
-  view?: string;
-  agent?: string;
-} {
-  if (!search) {
-    return {};
-  }
-
-  const params = new URLSearchParams(search);
-  const view = params.get("view");
-  const agent = params.get("agent");
-
-  return {
-    view: view ?? undefined,
-    agent: agent ?? undefined,
-  };
-}
-
-function applyWindowNavigation({
-  to,
-  search,
-  replace,
-}: {
-  to: string;
-  search?: { view?: string; agent?: string };
-  replace?: boolean;
-}): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const params = new URLSearchParams();
-  if (search?.view) {
-    params.set("view", search.view);
-  }
-  if (search?.agent) {
-    params.set("agent", search.agent);
-  }
-
-  const query = params.toString();
-  const nextUrl = query ? `${to}?${query}` : to;
-
-  if (replace) {
-    window.history.replaceState(null, "", nextUrl);
-  } else {
-    window.history.pushState(null, "", nextUrl);
-  }
 }

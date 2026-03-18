@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { fireEvent, getAllByRole, getByLabelText, getByRole, queryByText, within } from '@testing-library/dom'
+import { Outlet, RouterProvider, createBrowserHistory, createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
@@ -12,6 +13,15 @@ import { IndexPage } from './index'
 
 const CREATE_MANAGER_MODEL_PRESETS = ['pi-codex', 'pi-opus'] as const
 const TEST_BUILD_HASH = import.meta.env.VITE_BUILD_HASH || 'test-build'
+const testRootRoute = createRootRoute({
+  component: () => createElement(Outlet),
+})
+const testIndexRoute = createRoute({
+  getParentRoute: () => testRootRoute,
+  path: '/',
+  component: IndexPage,
+})
+const testRouteTree = testRootRoute.addChildren([testIndexRoute])
 
 type ListenerMap = Record<string, Array<(event?: any) => void>>
 const faviconEmojiByCanvas = new WeakMap<HTMLCanvasElement, string>()
@@ -155,6 +165,13 @@ function createLocalStorageMock(): Storage {
 let container!: HTMLDivElement
 let root: Root | null = null
 let windowScrollToMock: ReturnType<typeof vi.fn>
+
+function createTestRouter() {
+  return createRouter({
+    routeTree: testRouteTree,
+    history: createBrowserHistory(),
+  })
+}
 
 const originalWebSocket = globalThis.WebSocket
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
@@ -324,6 +341,7 @@ afterEach(() => {
 })
 
 async function renderPage(): Promise<FakeWebSocket> {
+  const router = createTestRouter()
   root = createRoot(container)
 
   flushSync(() => {
@@ -334,12 +352,13 @@ async function renderPage(): Promise<FakeWebSocket> {
         createElement(
           TooltipProvider,
           null,
-          createElement(IndexPage),
+          createElement(RouterProvider, { router }),
         ),
       ),
     )
   })
 
+  await router.load()
   await Promise.resolve()
   vi.advanceTimersByTime(60)
 

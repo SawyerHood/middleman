@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentDescriptor, ConversationEntry } from '@middleman/protocol'
-import { deriveVisibleMessages } from './use-visible-messages'
+import { deriveVisibleMessages } from '@/lib/visible-messages'
 
 const manager: AgentDescriptor = {
   agentId: 'manager',

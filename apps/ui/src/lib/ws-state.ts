@@ -107,8 +107,6 @@ export const managerWsStateSnapshotAtom = atom<ManagerWsState>((get) => ({
   lastError: get(lastErrorAtom),
 }));
 
-type ManagerWsStateKey = keyof ManagerWsState;
-
 function applyManagerWsStatePatch(
   get: Store["get"],
   set: Store["set"],
@@ -384,16 +382,6 @@ export const visibleMessagesAtom = selectAtom(
   areConversationEntryArraysEqual,
 );
 
-export const contextUsageByAgentIdAtomFamily = atomFamily((agentId: string) =>
-  atom((get) => {
-    return (
-      get(statusEntryAtomFamily(agentId))?.contextUsage ??
-      get(agentByIdAtomFamily(agentId))?.contextUsage ??
-      null
-    );
-  }),
-);
-
 export const contextWindowAtom = atom((get) =>
   deriveContextWindowUsage({
     activeAgent: get(activeAgentAtom),
@@ -501,9 +489,6 @@ export const managerTreeAtom = atom((get) =>
   buildManagerTreeRows(get(agentsAtom), get(managerOrderAtom)),
 );
 
-export const managerRowsAtom = atom((get) => get(managerTreeAtom).managerRows);
-export const orphanWorkersAtom = atom((get) => get(managerTreeAtom).orphanWorkers);
-
 export const activeWorkerCountByManagerAtomFamily = atomFamily(
   (managerId: string) =>
     atom((get) => {
@@ -531,20 +516,3 @@ export const artifactsAtom = selectAtom(
 );
 
 export const statusBannerTextAtom = atom((get) => get(lastErrorAtom));
-
-export const managerWsStateAtomKeys = [
-  "connected",
-  "hasReceivedAgentsSnapshot",
-  "targetAgentId",
-  "subscribedAgentId",
-  "messages",
-  "activityMessages",
-  "oldestHistoryCursor",
-  "hasOlderHistory",
-  "isLoadingOlderHistory",
-  "isLoadingHistory",
-  "agents",
-  "managerOrder",
-  "statuses",
-  "lastError",
-] as const satisfies ReadonlyArray<ManagerWsStateKey>;

@@ -1,6 +1,6 @@
 export type ThemePreference = 'light' | 'dark' | 'auto'
 
-export const THEME_STORAGE_KEY = 'swarm-theme'
+export const THEME_STORAGE_KEY = 'middleman-theme'
 
 const DARK_CLASS_NAME = 'dark'
 const SYSTEM_THEME_MEDIA_QUERY = '(prefers-color-scheme: dark)'

@@ -74,26 +74,7 @@ function getAgentLiveStatus(
   return statuses[agent.agentId]?.status ?? agent.status
 }
 
-export function hasStreamingAgentInManagerScope(
-  managerId: string | null,
-  agents: AgentDescriptor[],
-  statuses: AgentLiveStatuses,
-): boolean {
-  if (!managerId) {
-    return false
-  }
-
-  return agents.some((agent) => {
-    if (agent.agentId !== managerId && agent.managerId !== managerId) {
-      return false
-    }
-
-    return isWorkingAgentStatus(getAgentLiveStatus(agent, statuses))
-  })
-}
-
-export function resolveManagerFaviconEmoji(
-  _managerId: string | null,
+export function resolveWorkspaceFaviconEmoji(
   agents: AgentDescriptor[],
   statuses: AgentLiveStatuses,
 ): string {
