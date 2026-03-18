@@ -188,11 +188,11 @@ export class ManagerWsClient {
     this.desiredAgentId = trimmed;
     this.updateState({
       targetAgentId: trimmed,
-      messages: [],
-      activityMessages: [],
       oldestHistoryCursor: null,
       hasOlderHistory: false,
       isLoadingOlderHistory: false,
+      // Keep the current transcript visible until the replacement history lands
+      // so the chat panel swaps in a single render without flashing empty state.
       isLoadingHistory: true,
       lastError: null,
     });

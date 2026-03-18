@@ -776,6 +776,11 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
       if (didAgentChange) {
         pendingOlderHistoryScrollRef.current = null;
       }
+      const isPendingAgentHistorySwap =
+        didAgentChange &&
+        resolvedIsLoadingHistory &&
+        previousEntryCountRef.current > 0 &&
+        nextEntryCount > 0;
       const didConversationReset =
         previousEntryCountRef.current > 0 &&
         (nextEntryCount === 0 ||
@@ -786,7 +791,7 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
 
       const shouldForceScroll =
         isInitialScroll ||
-        didAgentChange ||
+        (didAgentChange && !isPendingAgentHistorySwap) ||
         didConversationReset ||
         didInitialConversationLoad;
 
@@ -794,7 +799,10 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
         scrollToBottom("auto");
       }
 
-      if (didAgentChange || didConversationReset) {
+      if (
+        (didAgentChange && !isPendingAgentHistorySwap) ||
+        didConversationReset
+      ) {
         setFirstItemIndex(MESSAGE_LIST_FIRST_ITEM_INDEX);
       }
 
@@ -802,7 +810,12 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
       previousAgentIdRef.current = nextAgentId;
       previousFirstEntryIdRef.current = nextFirstEntryId;
       previousEntryCountRef.current = nextEntryCount;
-    }, [displayEntries, resolvedActiveAgentId, scrollToBottom]);
+    }, [
+      displayEntries,
+      resolvedActiveAgentId,
+      resolvedIsLoadingHistory,
+      scrollToBottom,
+    ]);
 
     useEffect(() => {
       const container = scrollContainerRef.current;

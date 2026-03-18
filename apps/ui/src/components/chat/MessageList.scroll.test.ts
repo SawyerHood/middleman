@@ -202,8 +202,10 @@ afterEach(() => {
 
 describe("MessageList scroll behavior", () => {
   it("scrolls to the last item when replacement history renders after an agent switch", async () => {
+    const managerMessages = buildConversationMessages("manager", 3);
+
     const { rerender } = renderMessageList({
-      messages: buildConversationMessages("manager", 3),
+      messages: managerMessages,
       agents: [manager, worker],
       activeAgentId: "manager",
     });
@@ -220,14 +222,15 @@ describe("MessageList scroll behavior", () => {
 
     rerender(
       createElement(MessageList, {
-        messages: [],
+        messages: managerMessages,
         agents: [manager, worker],
         activeAgentId: "worker-1",
         isLoadingHistory: true,
       }),
     );
 
-    expect(screen.getByText("Loading conversation")).toBeTruthy();
+    expect(screen.getByText("message 0")).toBeTruthy();
+    expect(screen.queryByText("Loading conversation")).toBeNull();
     expect(virtuosoMocks.scrollToIndex).not.toHaveBeenCalled();
 
     rerender(
