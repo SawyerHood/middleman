@@ -81,13 +81,13 @@
 .notes-lexical-code {
   margin: 0 0 1.15rem;
   overflow-x: auto;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: calc(var(--radius) + 2px);
-  background: color-mix(in srgb, var(--card) 84%, var(--background));
-  padding: 0.95rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--muted) 25%, var(--background));
+  padding: 1rem;
   font-family: var(--font-mono);
-  font-size: 0.88rem;
-  line-height: 1.65;
+  font-size: 0.84rem;
+  line-height: 1.6;
 }
 
 .notes-lexical-link {
@@ -110,12 +110,11 @@
 }
 
 .notes-lexical-text-code {
-  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-  border-radius: 0.45rem;
-  background: color-mix(in srgb, var(--muted) 74%, var(--background));
-  padding: 0.08rem 0.35rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--muted) 70%, var(--background));
+  padding: 0.125rem 0.375rem;
   font-family: var(--font-mono);
-  font-size: 0.88em;
+  font-size: 0.85em;
 }
 
 .notes-lexical-list {
