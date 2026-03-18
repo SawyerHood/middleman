@@ -937,11 +937,13 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
               return <LoadingIndicatorFooter />;
             }
           : undefined,
-        Header: resolvedIsLoadingOlderHistory
-          ? function VirtuosoHeader() {
-              return <OlderHistoryLoadingIndicator />;
-            }
-          : undefined,
+        Header: function VirtuosoHeader() {
+          return resolvedIsLoadingOlderHistory ? (
+            <OlderHistoryLoadingIndicator />
+          ) : (
+            <div className="h-1" aria-hidden="true" />
+          );
+        },
         List: VirtualizedMessageListBody,
         Scroller: VirtualizedMessageScroller,
       }),
@@ -1018,7 +1020,6 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
               className="min-h-0 flex-1"
               style={{
                 height: "100%",
-                paddingTop: 16,
                 opacity: isScrollSettled ? 1 : 0,
               }}
             />
