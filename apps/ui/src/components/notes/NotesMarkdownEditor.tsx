@@ -175,6 +175,7 @@ const NOTES_EDITOR_THEME = {
 } satisfies EditorThemeClasses
 
 const NOTES_CHECKLIST_SHORTCUT_REGEX = /^(\s*)(?:[-*+]\s)?\s?\[(\s|x|X)?\]$/
+const NOTES_CHECKLIST_LIST_ITEM_SHORTCUT_REGEX = /^\s?\[(\s|x|X)?\]$/
 
 const IMAGE_MARKDOWN_TRANSFORMER: TextMatchTransformer = {
   dependencies: [ImageNode],
@@ -451,30 +452,48 @@ function NotesChecklistMarkdownShortcutPlugin() {
           }
 
           const paragraph = anchorNode.getTopLevelElementOrThrow()
-          if (!$isParagraphNode(paragraph)) {
+          if ($isParagraphNode(paragraph)) {
+            const match = paragraph.getTextContent().match(NOTES_CHECKLIST_SHORTCUT_REGEX)
+            if (!match) {
+              return false
+            }
+
+            event?.preventDefault()
+
+            const checked = isCheckedChecklistShortcut(match[2])
+            const listItem = createChecklistListItem(checked)
+
+            paragraph.replace(wrapListItemInChecklist(listItem))
+
+            const indent = countMarkdownListIndent(match[1] ?? '')
+            if (indent > 0) {
+              listItem.setIndent(indent)
+            }
+
+            listItem.selectStart()
+            return true
+          }
+
+          const listItem = $findMatchingParent(anchorNode, $isListItemNode)
+          if (!$isListItemNode(listItem)) {
             return false
           }
 
-          const match = paragraph.getTextContent().match(NOTES_CHECKLIST_SHORTCUT_REGEX)
+          const parentList = listItem.getParent()
+          if (!$isListNode(parentList) || parentList.getListType() === 'check') {
+            return false
+          }
+
+          const match = listItem.getTextContent().match(NOTES_CHECKLIST_LIST_ITEM_SHORTCUT_REGEX)
           if (!match) {
             return false
           }
 
           event?.preventDefault()
 
-          const checked = (match[2] ?? '').toLowerCase() === 'x'
-          const listItem = $createListItemNode(checked)
-          const listNode = $createListNode('check')
-
-          listNode.append(listItem)
-          paragraph.replace(listNode)
-
-          const indent = countMarkdownListIndent(match[1] ?? '')
-          if (indent > 0) {
-            listItem.setIndent(indent)
-          }
-
-          listItem.selectStart()
+          const checklistItem = createChecklistListItem(isCheckedChecklistShortcut(match[1]))
+          listItem.replace(wrapListItemInChecklist(checklistItem))
+          checklistItem.selectStart()
           return true
         },
         COMMAND_PRIORITY_LOW,
@@ -957,6 +976,20 @@ function countMarkdownListIndent(whitespace: string): number {
   }
 
   return indent
+}
+
+function createChecklistListItem(checked: boolean): ListItemNode {
+  return $createListItemNode(checked)
+}
+
+function wrapListItemInChecklist(listItem: ListItemNode): ListNode {
+  const listNode = $createListNode('check')
+  listNode.append(listItem)
+  return listNode
+}
+
+function isCheckedChecklistShortcut(value: string | undefined): boolean {
+  return (value ?? '').toLowerCase() === 'x'
 }
 
 /**

@@ -18,7 +18,7 @@ import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ListItemNode } from '@lexical/list'
+import { $createListItemNode, $createListNode, ListItemNode } from '@lexical/list'
 
 const mocks = vi.hoisted(() => ({
   resolveNoteImageUrl: vi.fn((_wsUrl: string, src: string) => `resolved:${src}`),
@@ -130,6 +130,51 @@ describe('NotesMarkdownEditor', () => {
     expect(preventDefault).toHaveBeenCalledTimes(1)
     expect(editor.getEditorState().read(() => $convertToMarkdownString(NOTES_EDITOR_TRANSFORMERS))).toBe('- [ ] ')
     expect(onChange).toHaveBeenLastCalledWith('- [ ] \n')
+  })
+
+  it('converts "[ ]" at the start of an existing bullet list item into a checklist item', async () => {
+    const editorRef = createEditorRef()
+    const onChange = vi.fn()
+
+    await mountEditor({
+      editorId: 'note-1',
+      editorRef,
+      markdown: '',
+      onChange,
+      wsUrl: 'ws://127.0.0.1:47187',
+    })
+
+    const editor = await waitForEditor(editorRef)
+
+    editor.update(() => {
+      const bulletList = $createListNode('bullet')
+      bulletList.append($createListItemNode().append($createTextNode('first')))
+      const pendingItem = $createListItemNode().append($createTextNode('[ ]'))
+      bulletList.append(pendingItem)
+      $getRoot().clear()
+      $getRoot().append(bulletList)
+
+      const textNode = pendingItem.getChildren().find($isTextNode)
+      if (!$isTextNode(textNode)) {
+        throw new Error('Expected pending list item to contain a text node')
+      }
+
+      textNode.selectEnd()
+    })
+
+    await flushMicrotasks()
+    onChange.mockClear()
+
+    const preventDefault = vi.fn()
+    editor.dispatchCommand(KEY_SPACE_COMMAND, { preventDefault } as unknown as KeyboardEvent)
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('[role="checkbox"]')).toHaveLength(1)
+    })
+
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(editor.getEditorState().read(() => $convertToMarkdownString(NOTES_EDITOR_TRANSFORMERS))).toBe('- first\n\n- [ ] ')
+    expect(onChange).toHaveBeenLastCalledWith('- first\n\n- [ ] \n')
   })
 
   it('uploads pasted or dropped images through the notes API and inserts markdown-backed image nodes', async () => {
