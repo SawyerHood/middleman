@@ -1,24 +1,20 @@
+import {
+  CREATE_MANAGER_MODEL_PRESETS,
+} from "@middleman/protocol";
 import type { AgentModelDescriptor, SwarmModelPreset } from "./types.js";
 import { SWARM_MODEL_PRESETS } from "./types.js";
 
 export const DEFAULT_SWARM_MODEL_PRESET: SwarmModelPreset = "pi-codex";
-export const CREATE_MANAGER_MODEL_PRESETS = [
-  "pi-codex",
-  "pi-opus",
-] as const satisfies readonly SwarmModelPreset[];
 export type CreateManagerSwarmModelPreset =
   (typeof CREATE_MANAGER_MODEL_PRESETS)[number];
 export const DEFAULT_CREATE_MANAGER_MODEL_PRESET: CreateManagerSwarmModelPreset =
   "pi-codex";
-const PI_CODEX_MODEL_ID = "gpt-5.4";
-const LEGACY_PI_CODEX_MODEL_ID = "gpt-5.3-codex";
-const CODEX_APP_MODEL_ID = "gpt-5.4";
-const LEGACY_CODEX_APP_MODEL_ID = "default";
+const GPT_5_4_MODEL_ID = "gpt-5.4";
 
 const MODEL_PRESET_DESCRIPTORS: Record<SwarmModelPreset, AgentModelDescriptor> = {
   "pi-codex": {
     provider: "openai-codex",
-    modelId: PI_CODEX_MODEL_ID,
+    modelId: GPT_5_4_MODEL_ID,
     thinkingLevel: "xhigh"
   },
   "pi-opus": {
@@ -30,7 +26,7 @@ const MODEL_PRESET_DESCRIPTORS: Record<SwarmModelPreset, AgentModelDescriptor> =
   },
   "codex-app": {
     provider: "openai-codex-app-server",
-    modelId: CODEX_APP_MODEL_ID,
+    modelId: GPT_5_4_MODEL_ID,
     thinkingLevel: "xhigh"
   },
   "claude-code": {
@@ -124,7 +120,7 @@ export function inferSwarmModelPresetFromDescriptor(
   const provider = descriptor.provider?.trim().toLowerCase();
   const modelId = descriptor.modelId?.trim().toLowerCase();
 
-  if (provider === "openai-codex" && (modelId === PI_CODEX_MODEL_ID || modelId === LEGACY_PI_CODEX_MODEL_ID)) {
+  if (provider === "openai-codex" && modelId === GPT_5_4_MODEL_ID) {
     return "pi-codex";
   }
 
@@ -132,10 +128,7 @@ export function inferSwarmModelPresetFromDescriptor(
     return "pi-opus";
   }
 
-  if (
-    provider === "openai-codex-app-server" &&
-    (modelId === CODEX_APP_MODEL_ID || modelId === LEGACY_CODEX_APP_MODEL_ID)
-  ) {
+  if (provider === "openai-codex-app-server" && modelId === GPT_5_4_MODEL_ID) {
     return "codex-app";
   }
 
@@ -144,12 +137,4 @@ export function inferSwarmModelPresetFromDescriptor(
   }
 
   return undefined;
-}
-
-export function normalizeSwarmModelDescriptor(
-  descriptor: Pick<AgentModelDescriptor, "provider" | "modelId"> | undefined,
-  fallbackPreset: SwarmModelPreset = DEFAULT_SWARM_MODEL_PRESET
-): AgentModelDescriptor {
-  const preset = inferSwarmModelPresetFromDescriptor(descriptor) ?? fallbackPreset;
-  return resolveModelDescriptorFromPreset(preset);
 }

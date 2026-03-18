@@ -8,6 +8,8 @@ import {
   type MessageTargetContext,
   type RequestedDeliveryMode,
   type SendMessageReceipt,
+  type SwarmModelPreset,
+  SWARM_MODEL_PRESETS,
   type SpawnAgentInput
 } from "./types.js";
 
@@ -39,12 +41,10 @@ const deliveryModeSchema = Type.Union([
   Type.Literal("steer")
 ]);
 
-const spawnModelPresetSchema = Type.Union([
-  Type.Literal("pi-codex"),
-  Type.Literal("pi-opus"),
-  Type.Literal("codex-app"),
-  Type.Literal("claude-code")
-]);
+const spawnModelPresetSchema = Type.Unsafe<SwarmModelPreset>({
+  type: "string",
+  enum: [...SWARM_MODEL_PRESETS],
+});
 
 type ListAgentsEntry = Pick<
   AgentDescriptor,

@@ -375,8 +375,7 @@ export class CodexBackendAdapter implements BackendAdapter {
       });
     }
 
-    // Codex currently exposes `thread/start`; keep `thread/create` as a fallback surface.
-    const response = await this.#clientRequestWithFallback<{ thread?: unknown }>(["thread/start", "thread/create"], {
+    const response = await this.#clientRequest<{ thread?: unknown }>("thread/start", {
       ...(this.#model() ? { model: this.#model() } : {}),
       cwd: this.#config?.cwd,
       approvalPolicy: this.#resolvedConfig?.approvalPolicy,
@@ -641,23 +640,6 @@ export class CodexBackendAdapter implements BackendAdapter {
     return await this.#client.sendRequest<T>(method, params, this.#resolvedConfig.requestTimeoutMs);
   }
 
-  async #clientRequestWithFallback<T>(methods: string[], params?: unknown): Promise<T> {
-    let lastError: unknown;
-
-    for (const method of methods) {
-      try {
-        return await this.#clientRequest<T>(method, params);
-      } catch (error) {
-        lastError = error;
-        if (!isMethodNotFoundError(error)) {
-          throw error;
-        }
-      }
-    }
-
-    throw lastError instanceof Error ? lastError : new Error(String(lastError));
-  }
-
   #ensureReady(): void {
     if (!this.#client || !this.#config || !this.#resolvedConfig) {
       throw new Error("Codex backend adapter is not bootstrapped.");
@@ -888,15 +870,6 @@ function parseToolLikeItem(value: unknown): ({ id: string; type: string } & Reco
     id,
     type,
   };
-}
-
-function isMethodNotFoundError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const code = (error as Error & { code?: unknown }).code;
-  return code === -32601 || /not found|unsupported/i.test(error.message);
 }
 
 function serializeError(error: unknown): Record<string, unknown> {

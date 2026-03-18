@@ -14,7 +14,7 @@ function manager(agentId: string, managerId = agentId): AgentDescriptor {
     cwd: '/tmp',
     model: {
       provider: 'openai-codex',
-      modelId: 'gpt-5.3-codex',
+      modelId: 'gpt-5.4',
       thinkingLevel: 'medium',
     },
   }
@@ -32,7 +32,7 @@ function worker(agentId: string, managerId: string): AgentDescriptor {
     cwd: '/tmp',
     model: {
       provider: 'openai-codex',
-      modelId: 'gpt-5.3-codex',
+      modelId: 'gpt-5.4',
       thinkingLevel: 'medium',
     },
   }

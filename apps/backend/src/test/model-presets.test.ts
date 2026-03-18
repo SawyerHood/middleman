@@ -23,15 +23,6 @@ describe('model presets', () => {
     ).toBe('codex-app')
   })
 
-  it('infers codex-app preset from legacy default descriptor', () => {
-    expect(
-      inferSwarmModelPresetFromDescriptor({
-        provider: 'openai-codex-app-server',
-        modelId: 'default',
-      }),
-    ).toBe('codex-app')
-  })
-
   it('resolves claude-code to anthropic-claude-code descriptor', () => {
     expect(resolveModelDescriptorFromPreset('claude-code')).toEqual({
       provider: 'anthropic-claude-code',

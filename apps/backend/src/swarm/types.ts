@@ -1,21 +1,23 @@
-import type {
-  AcceptedDeliveryMode,
-  AgentMessageEvent,
-  AgentToolCallEvent,
-  AgentToolCallKind,
-  ConversationAttachment,
-  ConversationAttachmentMetadata,
-  ConversationBinaryAttachment,
-  ConversationEntryEvent,
-  ConversationImageAttachment,
-  ConversationLogEvent,
-  ConversationLogKind,
-  ConversationMessageAttachment,
-  ConversationMessageEvent,
-  ConversationTextAttachment,
-  DeliveryMode,
-  MessageSourceContext,
-  MessageTargetContext,
+import {
+  MANAGER_MODEL_PRESETS,
+  type AcceptedDeliveryMode,
+  type AgentMessageEvent,
+  type AgentToolCallEvent,
+  type AgentToolCallKind,
+  type ConversationAttachment,
+  type ConversationAttachmentMetadata,
+  type ConversationBinaryAttachment,
+  type ConversationEntryEvent,
+  type ConversationImageAttachment,
+  type ConversationLogEvent,
+  type ConversationLogKind,
+  type ConversationMessageAttachment,
+  type ConversationMessageEvent,
+  type ConversationTextAttachment,
+  type DeliveryMode,
+  type ManagerModelPreset,
+  type MessageSourceContext,
+  type MessageTargetContext,
 } from "@middleman/protocol";
 
 export type AgentRole = "manager" | "worker";
@@ -33,14 +35,9 @@ export type AgentStatus =
   | "errored"
   | "terminated";
 
-export const SWARM_MODEL_PRESETS = [
-  "pi-codex",
-  "pi-opus",
-  "codex-app",
-  "claude-code",
-] as const;
+export const SWARM_MODEL_PRESETS = MANAGER_MODEL_PRESETS;
 
-export type SwarmModelPreset = (typeof SWARM_MODEL_PRESETS)[number];
+export type SwarmModelPreset = ManagerModelPreset;
 
 export interface AgentModelDescriptor {
   provider: string;
@@ -151,9 +148,6 @@ export interface SettingsAuthProvider {
 export interface SwarmConfig {
   host: string;
   port: number;
-  debug: boolean;
-  allowNonManagerSubscriptions: boolean;
-  managerId?: string;
   defaultModel: AgentModelDescriptor;
   defaultCwd: string;
   cwdAllowlistRoots: string[];

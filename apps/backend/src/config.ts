@@ -24,7 +24,6 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
   const dataDir = resolveDataDir(options.dataDir);
   const installArchetypesDir = resolveInstallArchetypesDir(installDir);
   const installSkillsDir = resolveInstallSkillsDir(installDir);
-  const managerId = undefined;
   const configFile = resolve(dataDir, "config.json");
   const configEnvFile = resolve(dataDir, "config.env");
   const runDir = resolve(dataDir, "run");
@@ -49,9 +48,6 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
   return {
     host: options.host ?? process.env.MIDDLEMAN_HOST ?? "0.0.0.0",
     port: options.port ?? Number.parseInt(process.env.MIDDLEMAN_PORT ?? "47187", 10),
-    debug: true,
-    allowNonManagerSubscriptions: true,
-    managerId,
     defaultModel: {
       provider: "openai-codex-app-server",
       modelId: "gpt-5.4",

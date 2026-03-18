@@ -4,7 +4,6 @@ import type {
   ConversationAttachment,
   ConversationAttachmentMetadata,
   ConversationBinaryAttachment,
-  ConversationEntryEvent,
   ConversationImageAttachment,
   ConversationLogEvent,
   ConversationMessageAttachment,
@@ -12,15 +11,6 @@ import type {
   ConversationTextAttachment,
   MessageSourceContext,
 } from "./types.js";
-
-export function isConversationEntryEvent(value: unknown): value is ConversationEntryEvent {
-  return (
-    isConversationMessageEvent(value) ||
-    isConversationLogEvent(value) ||
-    isAgentMessageEvent(value) ||
-    isAgentToolCallEvent(value)
-  );
-}
 
 export function isConversationMessageEvent(value: unknown): value is ConversationMessageEvent {
   if (!value || typeof value !== "object") return false;

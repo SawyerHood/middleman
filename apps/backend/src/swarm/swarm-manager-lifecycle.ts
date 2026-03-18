@@ -187,7 +187,7 @@ export class SwarmLifecycleService {
         return managerId;
       }
     }
-    return managers[0]?.agentId ?? this.options.config.managerId;
+    return managers[0]?.agentId;
   }
 
   listManagers(options?: { includeArchived?: boolean }): AgentDescriptor[] {

@@ -15,7 +15,7 @@ function makeManagerDescriptor(agentId = 'manager'): AgentDescriptor {
     cwd: '/tmp/swarm',
     model: {
       provider: 'openai-codex',
-      modelId: 'gpt-5.3-codex',
+      modelId: 'gpt-5.4',
       thinkingLevel: 'xhigh',
     },
   }
@@ -123,7 +123,7 @@ describe('buildSwarmTools', () => {
           status: 'idle',
           model: {
             provider: 'openai-codex',
-            modelId: 'gpt-5.3-codex',
+            modelId: 'gpt-5.4',
             thinkingLevel: 'xhigh',
           },
         },
@@ -170,7 +170,7 @@ describe('buildSwarmTools', () => {
           status: 'idle',
           model: {
             provider: 'openai-codex',
-            modelId: 'gpt-5.3-codex',
+            modelId: 'gpt-5.4',
             thinkingLevel: 'xhigh',
           },
         },
@@ -261,7 +261,7 @@ describe('buildSwarmTools', () => {
           status: 'idle',
           model: {
             provider: 'openai-codex',
-            modelId: 'gpt-5.3-codex',
+            modelId: 'gpt-5.4',
             thinkingLevel: 'xhigh',
           },
         },
@@ -283,7 +283,7 @@ describe('buildSwarmTools', () => {
           status: 'idle',
           model: {
             provider: 'openai-codex',
-            modelId: 'gpt-5.3-codex',
+            modelId: 'gpt-5.4',
             thinkingLevel: 'xhigh',
           },
           isExternal: true,
@@ -347,7 +347,7 @@ describe('buildSwarmTools', () => {
           status: 'idle',
           model: {
             provider: 'openai-codex',
-            modelId: 'gpt-5.3-codex',
+            modelId: 'gpt-5.4',
             thinkingLevel: 'xhigh',
           },
         },
@@ -386,7 +386,7 @@ describe('buildSwarmTools', () => {
           status: 'idle',
           model: {
             provider: 'openai-codex',
-            modelId: 'gpt-5.3-codex',
+            modelId: 'gpt-5.4',
             thinkingLevel: 'xhigh',
           },
         },

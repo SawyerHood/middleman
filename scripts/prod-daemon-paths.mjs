@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,13 +12,4 @@ export function resolveDataDir() {
 
 export function getControlPidFilePath() {
   return path.join(resolveDataDir(), "run", "prod-daemon.pid");
-}
-
-export function getLegacyControlPidFilePath(installDir) {
-  const installHash = createHash("sha1").update(installDir).digest("hex").slice(0, 10);
-  return path.join(os.tmpdir(), `swarm-prod-daemon-${installHash}.pid`);
-}
-
-export function getControlPidFileCandidates(installDir) {
-  return [getControlPidFilePath(), getLegacyControlPidFilePath(installDir)];
 }

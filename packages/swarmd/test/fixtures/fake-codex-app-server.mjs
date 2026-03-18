@@ -138,7 +138,6 @@ reader.on("line", (line) => {
     case "initialized":
       return;
     case "thread/start":
-    case "thread/create":
     case "thread/resume":
     case "thread/fork":
       sendResult(id, {

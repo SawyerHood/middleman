@@ -63,7 +63,7 @@ function managerDescriptor(
     cwd: "/tmp",
     model: {
       provider: "openai-codex",
-      modelId: "gpt-5.3-codex",
+      modelId: "gpt-5.4",
       thinkingLevel: "medium",
     },
   };
@@ -1282,7 +1282,7 @@ describe("ManagerWsClient", () => {
           cwd: "/tmp",
           model: {
             provider: "openai-codex",
-            modelId: "gpt-5.3-codex",
+            modelId: "gpt-5.4",
             thinkingLevel: "xhigh",
           },
         },
@@ -1391,7 +1391,7 @@ describe("ManagerWsClient", () => {
         cwd: "/tmp/release",
         model: {
           provider: "openai-codex",
-          modelId: "gpt-5.3-codex",
+          modelId: "gpt-5.4",
           thinkingLevel: "high",
         },
       },
@@ -1713,7 +1713,7 @@ describe("ManagerWsClient", () => {
           cwd: "/tmp",
           model: {
             provider: "openai-codex",
-            modelId: "gpt-5.3-codex",
+            modelId: "gpt-5.4",
             thinkingLevel: "medium",
           },
         },
@@ -1728,7 +1728,7 @@ describe("ManagerWsClient", () => {
           cwd: "/tmp/secondary",
           model: {
             provider: "openai-codex",
-            modelId: "gpt-5.3-codex",
+            modelId: "gpt-5.4",
             thinkingLevel: "medium",
           },
         },
@@ -1845,7 +1845,7 @@ describe("ManagerWsClient", () => {
           cwd: "/tmp",
           model: {
             provider: "openai-codex",
-            modelId: "gpt-5.3-codex",
+            modelId: "gpt-5.4",
             thinkingLevel: "medium",
           },
         },

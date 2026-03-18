@@ -8,10 +8,8 @@ export interface ConversationCommandRouteContext {
   socket: WebSocket;
   subscribedAgentId: string;
   swarmManager: SwarmManager;
-  allowNonManagerSubscriptions: boolean;
   send: (socket: WebSocket, event: ServerEvent) => void;
   logDebug: (message: string, details?: unknown) => void;
-  resolveConfiguredManagerId: () => string | undefined;
 }
 
 export async function handleConversationCommand(context: ConversationCommandRouteContext): Promise<boolean> {
@@ -20,10 +18,8 @@ export async function handleConversationCommand(context: ConversationCommandRout
     socket,
     subscribedAgentId,
     swarmManager,
-    allowNonManagerSubscriptions,
     send,
-    logDebug,
-    resolveConfiguredManagerId
+    logDebug
   } = context;
 
   if (command.type !== "user_message") {
@@ -31,30 +27,15 @@ export async function handleConversationCommand(context: ConversationCommandRout
   }
 
   const config = swarmManager.getConfig();
-  const managerId = resolveConfiguredManagerId();
   const targetAgentId = command.agentId ?? subscribedAgentId;
 
   logDebug("user_message:received", {
     subscribedAgentId,
     targetAgentId,
-    managerId,
     requestedDelivery: command.delivery ?? "auto",
     textPreview: previewForLog(command.text),
     attachmentCount: command.attachments?.length ?? 0
   });
-
-  if (!allowNonManagerSubscriptions && managerId && targetAgentId !== managerId) {
-    logDebug("user_message:rejected:subscription_not_supported", {
-      targetAgentId,
-      managerId
-    });
-    send(socket, {
-      type: "error",
-      code: "SUBSCRIPTION_NOT_SUPPORTED",
-      message: `Messages are currently limited to ${managerId}.`
-    });
-    return true;
-  }
 
   const targetDescriptor = swarmManager.getAgent(targetAgentId);
   if (!targetDescriptor) {

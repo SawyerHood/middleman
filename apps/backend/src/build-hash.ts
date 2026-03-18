@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 
-function resolveBuildHash(): string {
+export function resolveBuildHash(): string {
   const envBuildHash =
     process.env.MIDDLEMAN_BUILD_HASH?.trim() ||
     process.env.VITE_BUILD_HASH?.trim();

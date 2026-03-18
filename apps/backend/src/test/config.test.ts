@@ -15,9 +15,6 @@ const MANAGED_ENV_KEYS = [
   'MIDDLEMAN_HOME',
   'MIDDLEMAN_PROJECT_ROOT',
   'MIDDLEMAN_INSTALL_DIR',
-  'SWARM_DEBUG',
-  'SWARM_ALLOW_NON_MANAGER_SUBSCRIPTIONS',
-  'SWARM_MANAGER_ID',
   'SWARM_DEFAULT_CWD',
   'SWARM_MODEL_PROVIDER',
   'SWARM_MODEL_ID',
@@ -61,9 +58,6 @@ describe('createConfig', () => {
 
       expect(config.host).toBe('0.0.0.0')
       expect(config.port).toBe(47187)
-      expect(config.debug).toBe(true)
-      expect(config.allowNonManagerSubscriptions).toBe(true)
-      expect(config.managerId).toBeUndefined()
       expect(config.defaultModel).toEqual({
         provider: 'openai-codex-app-server',
         modelId: 'gpt-5.4',
@@ -106,9 +100,6 @@ describe('createConfig', () => {
         SWARM_ROOT_DIR: '/tmp/swarm-root',
         SWARM_DATA_DIR: '/tmp/swarm-data',
         SWARM_AUTH_FILE: '/tmp/swarm-auth/auth.json',
-        SWARM_DEBUG: 'false',
-        SWARM_ALLOW_NON_MANAGER_SUBSCRIPTIONS: 'false',
-        SWARM_MANAGER_ID: 'opus-manager',
         SWARM_DEFAULT_CWD: '/tmp/swarm-cwd',
         SWARM_MODEL_PROVIDER: 'anthropic',
         SWARM_MODEL_ID: 'claude-opus-4-6',
@@ -120,9 +111,6 @@ describe('createConfig', () => {
 
         expect(config.paths.dataDir).toBe(resolve(homedir(), '.middleman'))
         expect(config.paths.authFile).toBe(resolve(homedir(), '.middleman', 'auth', 'auth.json'))
-        expect(config.debug).toBe(true)
-        expect(config.allowNonManagerSubscriptions).toBe(true)
-        expect(config.managerId).toBeUndefined()
         expect(config.defaultCwd).toBe(config.paths.projectRoot)
         expect(config.defaultModel).toEqual({
           provider: 'openai-codex-app-server',

@@ -5,7 +5,7 @@ import { readFile, stat } from "node:fs/promises"
 import { extname, resolve, sep } from "node:path"
 import { WebSocketServer } from "ws"
 import type { ServerEvent } from "@middleman/protocol"
-import { getControlPidFileCandidates } from "../reboot/control-pid.js"
+import { getControlPidFilePath } from "../reboot/control-pid.js"
 import type { SwarmManager } from "../swarm/swarm-manager.js"
 import { resolveReadFileContentType } from "./http-utils.js"
 import { type NodeServerEnv } from "./hono-utils.js"
@@ -69,7 +69,6 @@ export class SwarmWebSocketServer {
     swarmManager: SwarmManager
     host: string
     port: number
-    allowNonManagerSubscriptions: boolean
     uiDir?: string
   }) {
     this.swarmManager = options.swarmManager
@@ -79,7 +78,6 @@ export class SwarmWebSocketServer {
 
     this.wsHandler = new WsHandler({
       swarmManager: this.swarmManager,
-      allowNonManagerSubscriptions: options.allowNonManagerSubscriptions,
     })
 
     this.settingsRoutes = createSettingsRoutes({ swarmManager: this.swarmManager })
@@ -147,10 +145,7 @@ export class SwarmWebSocketServer {
     app.route(
       "/",
       createHealthRoutes({
-        resolveControlPidFiles: () => {
-          const { installDir, runDir } = this.swarmManager.getConfig().paths
-          return getControlPidFileCandidates({ installDir, runDir })
-        },
+        resolveControlPidFile: () => getControlPidFilePath(this.swarmManager.getConfig().paths.runDir),
       }),
     )
     app.route("/", createFileRoutes({ swarmManager: this.swarmManager }))

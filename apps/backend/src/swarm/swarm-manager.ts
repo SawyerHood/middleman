@@ -43,7 +43,6 @@ import {
 import { SecretsEnvService } from "./secrets-env-service.js";
 import { SkillMetadataService } from "./skill-metadata-service.js";
 import {
-  MANAGER_BOOTSTRAP_INTERVIEW_MESSAGE,
   SwarmLifecycleService,
 } from "./swarm-manager-lifecycle.js";
 import {
@@ -59,7 +58,6 @@ import {
   readString,
   safeJson,
   SwarmTranscriptService,
-  toTargetContext,
 } from "./swarm-manager-transcript.js";
 import {
   SwarmRuntimeContextService,
@@ -77,7 +75,6 @@ import type {
   AgentContextUsage,
   AgentDescriptor,
   AgentMessageEvent,
-  AgentModelDescriptor,
   AgentStatus,
   AgentToolCallEvent,
   AgentsSnapshotEvent,
@@ -217,7 +214,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       {
         dataDir: this.config.paths.dataDir,
         dbPath: this.config.paths.swarmdDbFile,
-        logLevel: this.config.debug ? "debug" : "info",
+        logLevel: "debug",
       },
       {
         migrations: MIDDLEMAN_STORE_MIGRATIONS,
@@ -532,9 +529,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     },
   ): Promise<void> {
     const targetAgentId =
-      options?.targetAgentId ??
-      this.lifecycle.resolvePreferredManagerId() ??
-      this.config.managerId;
+      options?.targetAgentId ?? this.lifecycle.resolvePreferredManagerId();
     if (!targetAgentId) {
       throw new Error("No target agent is available.");
     }

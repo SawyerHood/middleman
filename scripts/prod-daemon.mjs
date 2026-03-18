@@ -6,9 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  getControlPidFileCandidates,
   getControlPidFilePath,
-  getLegacyControlPidFilePath
 } from "./prod-daemon-paths.mjs";
 
 const RESTART_SIGNAL = "SIGUSR1";
@@ -19,9 +17,8 @@ const DEFAULT_INSTALL_COMMAND = "pnpm i";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pidFile = getControlPidFilePath();
-const legacyPidFile = getLegacyControlPidFilePath(repoRoot);
 const lockFilePath = path.join(repoRoot, "pnpm-lock.yaml");
-const lockHashFile = `${legacyPidFile}.lock.sha1`;
+const lockHashFile = `${pidFile}.lock.sha1`;
 const command = process.env.SWARM_PROD_DAEMON_COMMAND?.trim() || DEFAULT_COMMAND;
 const installCommand = process.env.SWARM_PROD_DAEMON_INSTALL_COMMAND?.trim() || DEFAULT_INSTALL_COMMAND;
 
@@ -59,6 +56,7 @@ function readLockHashFile() {
 }
 
 function writeLockHashFile(lockHash) {
+  fs.mkdirSync(path.dirname(lockHashFile), { recursive: true });
   fs.writeFileSync(lockHashFile, `${lockHash}\n`, "utf8");
 }
 
@@ -122,12 +120,8 @@ function isChildRunning() {
 }
 
 function writePidFile() {
-  for (const candidate of getControlPidFileCandidates(repoRoot)) {
-    if (!fs.existsSync(candidate)) {
-      continue;
-    }
-
-    const existingPid = Number.parseInt(fs.readFileSync(candidate, "utf8").trim(), 10);
+  if (fs.existsSync(pidFile)) {
+    const existingPid = Number.parseInt(fs.readFileSync(pidFile, "utf8").trim(), 10);
 
     if (Number.isInteger(existingPid) && existingPid > 0 && existingPid !== process.pid) {
       try {
@@ -143,19 +137,16 @@ function writePidFile() {
 
   fs.mkdirSync(path.dirname(pidFile), { recursive: true });
   fs.writeFileSync(pidFile, `${process.pid}\n`, "utf8");
-  fs.writeFileSync(legacyPidFile, `${process.pid}\n`, "utf8");
 }
 
 function removePidFile() {
-  for (const candidate of [pidFile, legacyPidFile]) {
-    if (!fs.existsSync(candidate)) {
-      continue;
-    }
+  if (!fs.existsSync(pidFile)) {
+    return;
+  }
 
-    const filePid = Number.parseInt(fs.readFileSync(candidate, "utf8").trim(), 10);
-    if (filePid === process.pid) {
-      fs.rmSync(candidate, { force: true });
-    }
+  const filePid = Number.parseInt(fs.readFileSync(pidFile, "utf8").trim(), 10);
+  if (filePid === process.pid) {
+    fs.rmSync(pidFile, { force: true });
   }
 }
 

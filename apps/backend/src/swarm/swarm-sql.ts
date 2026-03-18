@@ -5,7 +5,7 @@ import type { MessageTargetContext } from "./types.js";
 
 export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
   {
-    id: "middleman_001_agent_tables",
+    id: "middleman_001_base_schema",
     sql: `
       CREATE TABLE IF NOT EXISTS middleman_agents (
         session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
@@ -22,11 +22,7 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         manager_session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
         sort_index INTEGER NOT NULL
       );
-    `,
-  },
-  {
-    id: "middleman_005_settings",
-    sql: `
+
       CREATE TABLE IF NOT EXISTS middleman_settings (
         namespace TEXT NOT NULL,
         key TEXT NOT NULL,
@@ -34,24 +30,7 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         updated_at TEXT NOT NULL,
         PRIMARY KEY (namespace, key)
       );
-    `,
-  },
-  {
-    id: "middleman_007_drop_auth_settings",
-    sql: `
-      DELETE FROM middleman_settings
-      WHERE namespace = 'auth';
-    `,
-  },
-  {
-    id: "middleman_008_drop_schedule_table",
-    sql: `
-      DROP TABLE IF EXISTS middleman_schedules;
-    `,
-  },
-  {
-    id: "middleman_009_schedule_table",
-    sql: `
+
       CREATE TABLE IF NOT EXISTS middleman_schedules (
         id TEXT PRIMARY KEY,
         manager_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -70,12 +49,6 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
 
       CREATE INDEX IF NOT EXISTS idx_middleman_schedules_manager_next_fire
         ON middleman_schedules(manager_session_id, next_fire_at, created_at);
-    `,
-  },
-  {
-    id: "middleman_011_drop_integration_profiles",
-    sql: `
-      DROP TABLE IF EXISTS middleman_integration_profiles;
     `,
   },
 ];

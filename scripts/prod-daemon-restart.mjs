@@ -1,12 +1,9 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { getControlPidFileCandidates } from "./prod-daemon-paths.mjs";
+import { getControlPidFilePath } from "./prod-daemon-paths.mjs";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const pidFiles = getControlPidFileCandidates(repoRoot);
+const pidFiles = [getControlPidFilePath()];
 
 const resolved = resolveRunningPidFile(pidFiles);
 if (!resolved) {

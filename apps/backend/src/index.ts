@@ -85,7 +85,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     return next;
   };
 
-  await queueSchedulerSync(collectManagerIds(swarmManager.listAgents(), config.managerId));
+  await queueSchedulerSync(collectManagerIds(swarmManager.listAgents()));
 
   const handleAgentsSnapshot = (event: unknown): void => {
     if (!event || typeof event !== "object") {
@@ -97,7 +97,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
       return;
     }
 
-    const managerIds = collectManagerIds(payload.agents, config.managerId);
+    const managerIds = collectManagerIds(payload.agents);
     void queueSchedulerSync(managerIds).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[scheduler] Failed to sync scheduler instances: ${message}`);
@@ -124,7 +124,6 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     swarmManager,
     host: config.host,
     port: config.port,
-    allowNonManagerSubscriptions: config.allowNonManagerSubscriptions,
     uiDir: config.paths.uiDir
   });
   await wsServer.start();
@@ -217,7 +216,7 @@ async function main(): Promise<void> {
   console.log(`Middleman listening on http://${config.host}:${config.port}`);
 }
 
-function collectManagerIds(agents: unknown[], fallbackManagerId?: string): Set<string> {
+function collectManagerIds(agents: unknown[]): Set<string> {
   const managerIds = new Set<string>();
 
   for (const agent of agents) {
@@ -235,12 +234,6 @@ function collectManagerIds(agents: unknown[], fallbackManagerId?: string): Set<s
     }
 
     managerIds.add(descriptor.agentId.trim());
-  }
-
-  const normalizedFallbackManagerId =
-    typeof fallbackManagerId === "string" ? fallbackManagerId.trim() : "";
-  if (managerIds.size === 0 && normalizedFallbackManagerId.length > 0) {
-    managerIds.add(normalizedFallbackManagerId);
   }
 
   return managerIds;

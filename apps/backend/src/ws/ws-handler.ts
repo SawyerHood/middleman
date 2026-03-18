@@ -16,18 +16,13 @@ const MAX_WS_BUFFERED_AMOUNT_BYTES = 5 * 1024 * 1024;
 
 export class WsHandler {
   private readonly swarmManager: SwarmManager;
-  private readonly allowNonManagerSubscriptions: boolean;
 
   private wss: WebSocketServer | null = null;
   private readonly subscriptions = new Map<WebSocket, string>();
   private readonly agentDetailSubscriptions = new Map<WebSocket, string>();
 
-  constructor(options: {
-    swarmManager: SwarmManager;
-    allowNonManagerSubscriptions: boolean;
-  }) {
+  constructor(options: { swarmManager: SwarmManager }) {
     this.swarmManager = options.swarmManager;
-    this.allowNonManagerSubscriptions = options.allowNonManagerSubscriptions;
   }
 
   attach(server: WebSocketServer): void {
@@ -194,10 +189,8 @@ export class WsHandler {
       socket,
       subscribedAgentId,
       swarmManager: this.swarmManager,
-      allowNonManagerSubscriptions: this.allowNonManagerSubscriptions,
       send: (targetSocket, event) => this.send(targetSocket, event),
       logDebug: (message, details) => this.logDebug(message, details),
-      resolveConfiguredManagerId: () => this.resolveConfiguredManagerId(),
     });
     if (conversationHandled) {
       return;
@@ -214,32 +207,16 @@ export class WsHandler {
     socket: WebSocket,
     requestedAgentId?: string,
   ): Promise<void> {
-    const managerId = this.resolveConfiguredManagerId();
     const targetAgentId =
       requestedAgentId ??
       this.resolvePreferredManagerSubscriptionId() ??
       this.resolveDefaultSubscriptionAgentId();
 
-    if (
-      !this.allowNonManagerSubscriptions &&
-      managerId &&
-      targetAgentId !== managerId
-    ) {
-      this.send(socket, {
-        type: "error",
-        code: "SUBSCRIPTION_NOT_SUPPORTED",
-        message: `Subscriptions are currently limited to ${managerId}.`,
-      });
-      return;
-    }
-
     const targetDescriptor = this.swarmManager.getAgent(targetAgentId);
     const canBootstrapSubscription =
       !targetDescriptor &&
       !this.hasKnownManagers() &&
-      (managerId
-        ? requestedAgentId === managerId
-        : requestedAgentId === undefined);
+      requestedAgentId === undefined;
 
     if (!targetDescriptor && requestedAgentId && !canBootstrapSubscription) {
       this.send(socket, {
@@ -326,7 +303,7 @@ export class WsHandler {
     const descriptor = this.swarmManager.getAgent(subscribedAgentId);
     if (!descriptor) {
       if (!this.hasKnownManagers()) {
-        return this.resolveConfiguredManagerId() ?? subscribedAgentId;
+        return subscribedAgentId;
       }
       return undefined;
     }
@@ -544,7 +521,6 @@ export class WsHandler {
   private resolveDefaultSubscriptionAgentId(): string {
     return (
       this.resolvePreferredManagerSubscriptionId() ??
-      this.resolveConfiguredManagerId() ??
       BOOTSTRAP_SUBSCRIPTION_AGENT_ID
     );
   }
@@ -557,16 +533,6 @@ export class WsHandler {
     return firstManager?.agentId;
   }
 
-  private resolveConfiguredManagerId(): string | undefined {
-    const managerId = this.swarmManager.getConfig().managerId;
-    if (typeof managerId !== "string") {
-      return undefined;
-    }
-
-    const normalized = managerId.trim();
-    return normalized.length > 0 ? normalized : undefined;
-  }
-
   private hasKnownManagers(): boolean {
     return this.swarmManager
       .listAgents()
@@ -574,10 +540,6 @@ export class WsHandler {
   }
 
   private logDebug(message: string, details?: unknown): void {
-    if (!this.swarmManager.getConfig().debug) {
-      return;
-    }
-
     const prefix = `[swarm][${new Date().toISOString()}] ws:${message}`;
     if (details === undefined) {
       console.log(prefix);

@@ -1,5 +1,5 @@
 import { readdir, realpath, stat } from "node:fs/promises";
-import { basename, resolve, sep } from "node:path";
+import { resolve, sep } from "node:path";
 
 const CWD_ERROR_MESSAGES = {
   REQUIRED: "Directory path must be a non-empty string.",
@@ -172,28 +172,10 @@ export async function isPathWithinRoots(pathValue: string, roots: string[]): Pro
   });
 }
 
-export async function isPathWithinRoot(pathValue: string, rootPath: string): Promise<boolean> {
-  const [normalizedPath, normalizedRoot] = await Promise.all([
-    resolveToRealPath(pathValue),
-    resolveToRealPath(rootPath)
-  ]);
-
-  if (normalizedPath === normalizedRoot) {
-    return true;
-  }
-
-  return normalizedPath.startsWith(`${normalizedRoot}${sep}`);
-}
-
 async function resolveToRealPath(pathValue: string): Promise<string> {
   try {
     return resolve(await realpath(pathValue));
   } catch {
     return resolve(pathValue);
   }
-}
-
-export function toDirectoryName(pathValue: string): string {
-  const normalized = resolve(pathValue);
-  return basename(normalized);
 }
