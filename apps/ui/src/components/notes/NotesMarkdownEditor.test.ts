@@ -242,6 +242,23 @@ describe('NotesMarkdownEditor', () => {
     expect(outdentEvent.defaultPrevented).toBe(true)
   })
 
+  it('marks structural nested list wrappers so they do not render an extra bullet', async () => {
+    const editorRef = createEditorRef()
+
+    await mountEditor({
+      editorId: 'note-1',
+      editorRef,
+      markdown: '- parent\n    - child\n',
+      onChange: vi.fn(),
+      wsUrl: 'ws://127.0.0.1:47187',
+    })
+
+    const nestedWrapper = container.querySelector('li.notes-lexical-list-item-nested')
+    expect(nestedWrapper).toBeTruthy()
+    expect(nestedWrapper?.querySelector(':scope > ul')).toBeTruthy()
+    expect(nestedWrapper?.querySelector(':scope > ul > li')?.textContent).toContain('child')
+  })
+
   it('registers undo history so undo restores the previous markdown state', async () => {
     const editorRef = createEditorRef()
     const onChange = vi.fn()

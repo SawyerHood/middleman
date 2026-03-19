@@ -138,6 +138,14 @@
   margin: 0.35rem 0;
 }
 
+.notes-lexical-list-item-nested {
+  list-style: none;
+}
+
+.notes-lexical-list-item-nested > .notes-lexical-list {
+  margin-bottom: 0;
+}
+
 .notes-lexical-list-checklist {
   list-style: none;
   padding-left: 0;

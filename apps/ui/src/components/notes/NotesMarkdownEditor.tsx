@@ -158,7 +158,7 @@ const NOTES_EDITOR_THEME = {
     listitemUnchecked: 'notes-lexical-list-item notes-lexical-list-item-unchecked',
     nested: {
       list: 'notes-lexical-list-nested',
-      listitem: 'notes-lexical-list-item',
+      listitem: 'notes-lexical-list-item notes-lexical-list-item-nested',
     },
     ol: 'notes-lexical-list notes-lexical-list-ordered',
     ul: 'notes-lexical-list notes-lexical-list-bullet',
