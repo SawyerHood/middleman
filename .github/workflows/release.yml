@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version to publish (vX.Y.Z or X.Y.Z)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: npm-release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify release version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            RAW_VERSION="${INPUT_VERSION}"
+          else
+            RAW_VERSION="${GITHUB_REF_NAME}"
+          fi
+
+          if [ -z "${RAW_VERSION}" ]; then
+            echo "Release version is required." >&2
+            exit 1
+          fi
+
+          RELEASE_VERSION="${RAW_VERSION#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [ "${RELEASE_VERSION}" != "${PACKAGE_VERSION}" ]; then
+            echo "Release version ${RELEASE_VERSION} does not match package.json version ${PACKAGE_VERSION}." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Validate
+        run: pnpm exec tsc --noEmit && pnpm test
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: cd dist/npm && npm publish --provenance
