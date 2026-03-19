@@ -4,10 +4,7 @@ import {
   getConversationEntryCursor,
   getConversationEntryStableId,
 } from "./conversation-history";
-import {
-  normalizeManagerOrder,
-  reorderAgentsByManagerOrder,
-} from "./manager-order";
+import { normalizeManagerOrder, reorderAgentsByManagerOrder } from "./manager-order";
 import { WsRequestTracker } from "./ws-request-tracker";
 import {
   applyManagerWsStatePatchToStore,
@@ -123,19 +120,12 @@ export class ManagerWsClient {
     REQUEST_TIMEOUT_MS,
   );
 
-  constructor(
-    url: string,
-    initialAgentId?: string | null,
-    store?: Store,
-  ) {
+  constructor(url: string, initialAgentId?: string | null, store?: Store) {
     const normalizedInitialAgentId = normalizeAgentId(initialAgentId);
     this.url = url;
     this.store = store ?? createStore();
     this.desiredAgentId = normalizedInitialAgentId;
-    replaceManagerWsStateInStore(
-      this.store,
-      createInitialManagerWsState(normalizedInitialAgentId),
-    );
+    replaceManagerWsStateInStore(this.store, createInitialManagerWsState(normalizedInitialAgentId));
   }
 
   private get state(): ManagerWsState {
@@ -238,8 +228,7 @@ export class ManagerWsClient {
   }
 
   unsubscribeFromAgentDetail(agentId?: string): void {
-    const normalizedAgentId =
-      normalizeAgentId(agentId) ?? this.desiredDetailAgentId;
+    const normalizedAgentId = normalizeAgentId(agentId) ?? this.desiredDetailAgentId;
     if (!normalizedAgentId) {
       return;
     }
@@ -265,11 +254,7 @@ export class ManagerWsClient {
       this.state.subscribedAgentId ??
       this.desiredAgentId;
 
-    if (
-      !targetAgentId ||
-      !this.state.hasOlderHistory ||
-      this.state.isLoadingOlderHistory
-    ) {
+    if (!targetAgentId || !this.state.hasOlderHistory || this.state.isLoadingOlderHistory) {
       return;
     }
 
@@ -330,8 +315,7 @@ export class ManagerWsClient {
 
     if (!agentId) {
       this.updateState({
-        lastError:
-          "No active agent selected. Create a manager or select an active thread.",
+        lastError: "No active agent selected. Create a manager or select an active thread.",
       });
       return;
     }
@@ -343,8 +327,7 @@ export class ManagerWsClient {
       this.state.agents.length === 0
     ) {
       this.updateState({
-        lastError:
-          "No active agent selected. Create a manager or select an active thread.",
+        lastError: "No active agent selected. Create a manager or select an active thread.",
       });
       return;
     }
@@ -354,8 +337,7 @@ export class ManagerWsClient {
       !this.state.agents.some((agent) => agent.agentId === agentId)
     ) {
       this.updateState({
-        lastError:
-          "No active agent selected. Create a manager or select an active thread.",
+        lastError: "No active agent selected. Create a manager or select an active thread.",
       });
       return;
     }
@@ -386,9 +368,7 @@ export class ManagerWsClient {
     });
   }
 
-  async stopAllAgents(
-    managerId: string,
-  ): Promise<{
+  async stopAllAgents(managerId: string): Promise<{
     managerId: string;
     stoppedWorkerIds: string[];
     managerStopped: boolean;
@@ -478,14 +458,11 @@ export class ManagerWsClient {
     this.applyManagerOrderUpdate(normalizedManagerIds);
 
     try {
-      const nextManagerOrder = await this.enqueueRequest(
-        "reorder_managers",
-        (requestId) => ({
-          type: "reorder_managers",
-          managerIds: normalizedManagerIds,
-          requestId,
-        }),
-      );
+      const nextManagerOrder = await this.enqueueRequest("reorder_managers", (requestId) => ({
+        type: "reorder_managers",
+        managerIds: normalizedManagerIds,
+        requestId,
+      }));
 
       this.applyManagerOrderUpdate(nextManagerOrder);
       return nextManagerOrder;
@@ -583,9 +560,7 @@ export class ManagerWsClient {
         isLoadingOlderHistory: false,
       });
 
-      this.rejectAllPendingRequests(
-        "WebSocket disconnected before request completed.",
-      );
+      this.rejectAllPendingRequests("WebSocket disconnected before request completed.");
       this.scheduleConnect(RECONNECT_MS);
     });
 
@@ -637,8 +612,7 @@ export class ManagerWsClient {
     }
 
     const requestAnimationFrame =
-      typeof window !== "undefined" &&
-      typeof window.requestAnimationFrame === "function"
+      typeof window !== "undefined" && typeof window.requestAnimationFrame === "function"
         ? window.requestAnimationFrame.bind(window)
         : typeof globalThis.requestAnimationFrame === "function"
           ? globalThis.requestAnimationFrame.bind(globalThis)
@@ -683,8 +657,7 @@ export class ManagerWsClient {
     }
 
     const cancelAnimationFrame =
-      typeof window !== "undefined" &&
-      typeof window.cancelAnimationFrame === "function"
+      typeof window !== "undefined" && typeof window.cancelAnimationFrame === "function"
         ? window.cancelAnimationFrame.bind(window)
         : typeof globalThis.cancelAnimationFrame === "function"
           ? globalThis.cancelAnimationFrame.bind(globalThis)
@@ -762,27 +735,19 @@ export class ManagerWsClient {
         }
 
         {
-          const {
-            messages: incomingMessages,
-            activityMessages: incomingActivityMessages,
-          } = splitConversationHistory(event.messages);
+          const { messages: incomingMessages, activityMessages: incomingActivityMessages } =
+            splitConversationHistory(event.messages);
           const isPrepend = event.mode === "prepend";
           const messages = isPrepend
             ? prependConversationEntries(this.state.messages, incomingMessages)
             : incomingMessages;
           const activityMessages = isPrepend
-            ? prependConversationEntries(
-                this.state.activityMessages,
-                incomingActivityMessages,
-              )
+            ? prependConversationEntries(this.state.activityMessages, incomingActivityMessages)
             : incomingActivityMessages;
           this.updateState({
             messages,
             activityMessages,
-            oldestHistoryCursor: resolveOldestHistoryCursor(
-              messages,
-              activityMessages,
-            ),
+            oldestHistoryCursor: resolveOldestHistoryCursor(messages, activityMessages),
             hasOlderHistory: event.hasMore ?? false,
             isLoadingOlderHistory: false,
             isLoadingHistory: isPrepend ? this.state.isLoadingHistory : false,
@@ -818,11 +783,7 @@ export class ManagerWsClient {
 
       case "manager_created": {
         this.applyManagerCreated(event.manager);
-        this.requestTracker.resolve(
-          "create_manager",
-          event.requestId,
-          event.manager,
-        );
+        this.requestTracker.resolve("create_manager", event.requestId, event.manager);
         break;
       }
 
@@ -836,11 +797,7 @@ export class ManagerWsClient {
 
       case "manager_order_updated": {
         this.applyManagerOrderUpdate(event.managerIds);
-        this.requestTracker.resolve(
-          "reorder_managers",
-          event.requestId,
-          event.managerIds,
-        );
+        this.requestTracker.resolve("reorder_managers", event.requestId, event.managerIds);
         break;
       }
 
@@ -871,20 +828,14 @@ export class ManagerWsClient {
       }
 
       case "directory_picked": {
-        this.requestTracker.resolve(
-          "pick_directory",
-          event.requestId,
-          event.path ?? null,
-        );
+        this.requestTracker.resolve("pick_directory", event.requestId, event.path ?? null);
         break;
       }
 
       case "error":
         this.updateState({
           lastError: event.message,
-          ...(this.state.isLoadingOlderHistory
-            ? { isLoadingOlderHistory: false }
-            : {}),
+          ...(this.state.isLoadingOlderHistory ? { isLoadingOlderHistory: false } : {}),
         });
         this.pushSystemMessage(`${event.code}: ${event.message}`);
         this.rejectPendingFromError(event.code, event.message, event.requestId);
@@ -893,16 +844,10 @@ export class ManagerWsClient {
   }
 
   private applyAgentsSnapshot(agents: AgentDescriptor[]): void {
-    const nextManagerOrder = normalizeManagerOrder(
-      extractManagerOrder(agents),
-      agents,
-    );
+    const nextManagerOrder = normalizeManagerOrder(extractManagerOrder(agents), agents);
     const orderedAgents = reorderAgentsByManagerOrder(agents, nextManagerOrder);
     const liveAgentIds = new Set(orderedAgents.map((agent) => agent.agentId));
-    if (
-      this.desiredDetailAgentId &&
-      !liveAgentIds.has(this.desiredDetailAgentId)
-    ) {
+    if (this.desiredDetailAgentId && !liveAgentIds.has(this.desiredDetailAgentId)) {
       this.desiredDetailAgentId = null;
     }
 
@@ -925,22 +870,14 @@ export class ManagerWsClient {
     );
 
     const preferredTarget =
-      this.state.targetAgentId ??
-      this.state.subscribedAgentId ??
-      this.desiredAgentId ??
-      undefined;
+      this.state.targetAgentId ?? this.state.subscribedAgentId ?? this.desiredAgentId ?? undefined;
     const fallbackTarget =
       preferredTarget && liveAgentIds.has(preferredTarget)
         ? preferredTarget
-        : chooseFallbackAgentId(
-            orderedAgents,
-            nextManagerOrder,
-            preferredTarget,
-          );
+        : chooseFallbackAgentId(orderedAgents, nextManagerOrder, preferredTarget);
     const targetChanged = fallbackTarget !== this.state.targetAgentId;
     const nextSubscribedAgentId =
-      this.state.subscribedAgentId &&
-      liveAgentIds.has(this.state.subscribedAgentId)
+      this.state.subscribedAgentId && liveAgentIds.has(this.state.subscribedAgentId)
         ? this.state.subscribedAgentId
         : (fallbackTarget ?? null);
 
@@ -969,11 +906,7 @@ export class ManagerWsClient {
 
     this.updateState(patch);
 
-    if (
-      targetChanged &&
-      fallbackTarget &&
-      this.socket?.readyState === WebSocket.OPEN
-    ) {
+    if (targetChanged && fallbackTarget && this.socket?.readyState === WebSocket.OPEN) {
       this.send({
         type: "subscribe",
         agentId: fallbackTarget,
@@ -990,9 +923,7 @@ export class ManagerWsClient {
       [...this.state.managerOrder, manager.agentId],
       nextAgents,
     );
-    this.applyAgentsSnapshot(
-      reorderAgentsByManagerOrder(nextAgents, nextManagerOrder),
-    );
+    this.applyAgentsSnapshot(reorderAgentsByManagerOrder(nextAgents, nextManagerOrder));
   }
 
   private applyManagerDeleted(managerId: string): void {
@@ -1002,16 +933,11 @@ export class ManagerWsClient {
     const nextManagerOrder = this.state.managerOrder.filter(
       (orderedManagerId) => orderedManagerId !== managerId,
     );
-    this.applyAgentsSnapshot(
-      reorderAgentsByManagerOrder(nextAgents, nextManagerOrder),
-    );
+    this.applyAgentsSnapshot(reorderAgentsByManagerOrder(nextAgents, nextManagerOrder));
   }
 
   private applyManagerOrderUpdate(managerIds: string[]): void {
-    const nextManagerOrder = normalizeManagerOrder(
-      managerIds,
-      this.state.agents,
-    );
+    const nextManagerOrder = normalizeManagerOrder(managerIds, this.state.agents);
     this.updateState({
       managerOrder: nextManagerOrder,
       agents: reorderAgentsByManagerOrder(this.state.agents, nextManagerOrder),
@@ -1022,9 +948,7 @@ export class ManagerWsClient {
     const message: ConversationMessageEvent = {
       type: "conversation_message",
       agentId:
-        (this.state.targetAgentId ??
-          this.state.subscribedAgentId ??
-          this.desiredAgentId) ||
+        (this.state.targetAgentId ?? this.state.subscribedAgentId ?? this.desiredAgentId) ||
         "system",
       role: "system",
       text,
@@ -1042,14 +966,9 @@ export class ManagerWsClient {
     return true;
   }
 
-  private applyAgentStatus(
-    event: Extract<ServerEvent, { type: "agent_status" }>,
-  ): void {
+  private applyAgentStatus(event: Extract<ServerEvent, { type: "agent_status" }>): void {
     const patch: Partial<ManagerWsState> = {};
-    const hasContextUsage = Object.prototype.hasOwnProperty.call(
-      event,
-      "contextUsage",
-    );
+    const hasContextUsage = Object.prototype.hasOwnProperty.call(event, "contextUsage");
 
     const previousStatus = this.state.statuses[event.agentId];
     const nextStatusContextUsage = hasContextUsage
@@ -1065,10 +984,7 @@ export class ManagerWsClient {
       !previousStatus ||
       previousStatus.status !== nextStatusEntry.status ||
       previousStatus.pendingCount !== nextStatusEntry.pendingCount ||
-      !areAgentContextUsagesEqual(
-        previousStatus.contextUsage,
-        nextStatusEntry.contextUsage,
-      )
+      !areAgentContextUsagesEqual(previousStatus.contextUsage, nextStatusEntry.contextUsage)
     ) {
       patch.statuses = {
         ...this.state.statuses,
@@ -1076,9 +992,7 @@ export class ManagerWsClient {
       };
     }
 
-    const agentIndex = this.state.agents.findIndex(
-      (agent) => agent.agentId === event.agentId,
-    );
+    const agentIndex = this.state.agents.findIndex((agent) => agent.agentId === event.agentId);
     if (agentIndex >= 0) {
       const previousAgent = this.state.agents[agentIndex];
       const nextAgentContextUsage = hasContextUsage
@@ -1087,10 +1001,7 @@ export class ManagerWsClient {
 
       if (
         previousAgent.status !== event.status ||
-        !areAgentContextUsagesEqual(
-          previousAgent.contextUsage,
-          nextAgentContextUsage,
-        )
+        !areAgentContextUsagesEqual(previousAgent.contextUsage, nextAgentContextUsage)
       ) {
         const nextAgents = [...this.state.agents];
         nextAgents[agentIndex] = {
@@ -1182,17 +1093,10 @@ export class ManagerWsClient {
     });
   }
 
-  private rejectPendingFromError(
-    code: string,
-    message: string,
-    requestId?: string,
-  ): void {
+  private rejectPendingFromError(code: string, message: string, requestId?: string): void {
     const fullError = new Error(`${code}: ${message}`);
 
-    if (
-      requestId &&
-      this.requestTracker.rejectByRequestId(requestId, fullError)
-    ) {
+    if (requestId && this.requestTracker.rejectByRequestId(requestId, fullError)) {
       return;
     }
 
@@ -1238,12 +1142,9 @@ function normalizeConversationAttachments(
       fileName?: unknown;
     };
 
-    const attachmentType =
-      typeof maybe.type === "string" ? maybe.type.trim() : "";
-    const mimeType =
-      typeof maybe.mimeType === "string" ? maybe.mimeType.trim() : "";
-    const fileName =
-      typeof maybe.fileName === "string" ? maybe.fileName.trim() : "";
+    const attachmentType = typeof maybe.type === "string" ? maybe.type.trim() : "";
+    const mimeType = typeof maybe.mimeType === "string" ? maybe.mimeType.trim() : "";
+    const fileName = typeof maybe.fileName === "string" ? maybe.fileName.trim() : "";
 
     if (attachmentType === "text") {
       const text = typeof maybe.text === "string" ? maybe.text : "";
@@ -1327,9 +1228,7 @@ function prependConversationEntries<Entry extends ConversationEntry>(
     (entry) => !existingEntryIds.has(getConversationEntryStableId(entry)),
   );
 
-  return prependedEntries.length > 0
-    ? [...prependedEntries, ...existingEntries]
-    : existingEntries;
+  return prependedEntries.length > 0 ? [...prependedEntries, ...existingEntries] : existingEntries;
 }
 
 function resolveOldestHistoryCursor(
@@ -1351,23 +1250,16 @@ function resolveOldestHistoryCursor(
     return getConversationEntryCursor(oldestConversationEntry);
   }
 
-  return compareConversationEntries(
-    oldestConversationEntry,
-    oldestActivityEntry,
-  ) <= 0
+  return compareConversationEntries(oldestConversationEntry, oldestActivityEntry) <= 0
     ? getConversationEntryCursor(oldestConversationEntry)
     : getConversationEntryCursor(oldestActivityEntry);
 }
 
 function extractManagerOrder(agents: AgentDescriptor[]): string[] {
-  return agents
-    .filter((agent) => agent.role === "manager")
-    .map((agent) => agent.agentId);
+  return agents.filter((agent) => agent.role === "manager").map((agent) => agent.agentId);
 }
 
-function resolveLastErrorFromHistory(
-  messages: ConversationHistoryEntry[],
-): string | null {
+function resolveLastErrorFromHistory(messages: ConversationHistoryEntry[]): string | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const entry = messages[index];
     if (entry.type === "conversation_log") {
@@ -1382,9 +1274,7 @@ function resolveLastErrorFromHistory(
   return null;
 }
 
-function shouldClearLastErrorFromTranscriptEntry(
-  entry: ConversationHistoryEntry,
-): boolean {
+function shouldClearLastErrorFromTranscriptEntry(entry: ConversationHistoryEntry): boolean {
   if (entry.type === "conversation_log") {
     return entry.isError !== true;
   }
@@ -1393,11 +1283,7 @@ function shouldClearLastErrorFromTranscriptEntry(
     return false;
   }
 
-  return (
-    entry.role === "assistant" ||
-    entry.role === "system" ||
-    entry.source === "speak_to_user"
-  );
+  return entry.role === "assistant" || entry.role === "system" || entry.source === "speak_to_user";
 }
 
 function normalizeAgentId(agentId: string | null | undefined): string | null {
@@ -1405,10 +1291,7 @@ function normalizeAgentId(agentId: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-function areAgentContextUsagesEqual(
-  left?: AgentContextUsage,
-  right?: AgentContextUsage,
-): boolean {
+function areAgentContextUsagesEqual(left?: AgentContextUsage, right?: AgentContextUsage): boolean {
   if (left === right) {
     return true;
   }

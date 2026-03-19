@@ -6,6 +6,7 @@ description: Update persistent swarm memory in ${SWARM_MEMORY_FILE} when the use
 # Persistent Memory Workflow
 
 Use this skill when the user explicitly asks to:
+
 - remember something for later,
 - update previously remembered facts/preferences, or
 - forget/remove stored memory entries.
@@ -13,10 +14,12 @@ Use this skill when the user explicitly asks to:
 Do not write memory for normal one-off requests.
 
 ## File location
+
 - Persistent memory files are stored at `${SWARM_DATA_DIR}/memory/<agentId>.md`.
 - In this runtime, use `${SWARM_MEMORY_FILE}` (also shown in your loaded context).
 
 ## Steps
+
 1. Read the current memory file with `read` before changing it.
 2. Apply minimal edits:
    - prefer `edit` for targeted changes,

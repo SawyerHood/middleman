@@ -38,9 +38,7 @@ interface Harness {
 }
 
 async function createHarness(): Promise<Harness> {
-  const dataDir = await mkdtemp(
-    resolve(tmpdir(), "middleman-swarm-lifecycle-"),
-  );
+  const dataDir = await mkdtemp(resolve(tmpdir(), "middleman-swarm-lifecycle-"));
   const manager = new SwarmManager(
     createConfig({
       installDir: REPO_ROOT,
@@ -108,12 +106,7 @@ async function createHarness(): Promise<Harness> {
       }
       session.status = "stopped";
       session.updatedAt = new Date().toISOString();
-      sessionRepo.updateStatus(
-        sessionId,
-        "stopped",
-        null,
-        session.contextUsage,
-      );
+      sessionRepo.updateStatus(sessionId, "stopped", null, session.contextUsage);
     },
     async terminate(sessionId: string) {
       const session = sessions.get(sessionId);
@@ -122,17 +115,9 @@ async function createHarness(): Promise<Harness> {
       }
       session.status = "terminated";
       session.updatedAt = new Date().toISOString();
-      sessionRepo.updateStatus(
-        sessionId,
-        "terminated",
-        null,
-        session.contextUsage,
-      );
+      sessionRepo.updateStatus(sessionId, "terminated", null, session.contextUsage);
     },
-    reset(
-      sessionId: string,
-      input: { systemPrompt: string; updatedAt?: string },
-    ) {
+    reset(sessionId: string, input: { systemPrompt: string; updatedAt?: string }) {
       const session = sessions.get(sessionId);
       if (!session) {
         throw new Error(`Missing session ${sessionId}`);
@@ -157,10 +142,7 @@ async function createHarness(): Promise<Harness> {
     getById(sessionId: string) {
       return sessionRepo.getById(sessionId);
     },
-    list(filter?: {
-      status?: SessionRecord["status"][];
-      includeArchived?: boolean;
-    }) {
+    list(filter?: { status?: SessionRecord["status"][]; includeArchived?: boolean }) {
       return sessionRepo.list(filter);
     },
     archiveSession(sessionId: string) {
@@ -191,15 +173,10 @@ async function createHarness(): Promise<Harness> {
     supervisor: {
       hasWorker(sessionId: string) {
         const session = sessions.get(sessionId);
-        return Boolean(
-          session &&
-          session.status !== "stopped" &&
-          session.status !== "terminated",
-        );
+        return Boolean(session && session.status !== "stopped" && session.status !== "terminated");
       },
     } as SwarmdCoreHandle["supervisor"],
-    sessionService:
-      sessionService as unknown as SwarmdCoreHandle["sessionService"],
+    sessionService: sessionService as unknown as SwarmdCoreHandle["sessionService"],
     messageService: {
       send(sessionId: string, parts: Array<{ type: string; text?: string }>) {
         const session = sessions.get(sessionId);
@@ -223,12 +200,7 @@ async function createHarness(): Promise<Harness> {
         if (session) {
           session.status = "idle";
           session.updatedAt = new Date().toISOString();
-          sessionRepo.updateStatus(
-            sessionId,
-            "idle",
-            null,
-            session.contextUsage,
-          );
+          sessionRepo.updateStatus(sessionId, "idle", null, session.contextUsage);
         }
         return `interrupt-${interruptCalls.length}`;
       },
@@ -278,8 +250,7 @@ async function createHarness(): Promise<Harness> {
     manager,
     managerOrderRepo,
     resetCalls,
-    sessionService:
-      sessionService as unknown as SwarmdCoreHandle["sessionService"],
+    sessionService: sessionService as unknown as SwarmdCoreHandle["sessionService"],
     sessions,
     startCalls,
   };
@@ -298,13 +269,10 @@ describe("SwarmManager lifecycle", () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
-    const created = await harness.manager.createManager(
-      "__bootstrap_manager__",
-      {
-        name: "Product Manager",
-        cwd: REPO_ROOT,
-      },
-    );
+    const created = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Product Manager",
+      cwd: REPO_ROOT,
+    });
 
     expect(created.agentId).toBe("product-manager");
     expect(created.model).toEqual({
@@ -347,21 +315,15 @@ describe("SwarmManager lifecycle", () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
-    const managerDescriptor = await harness.manager.createManager(
-      "__bootstrap_manager__",
-      {
-        name: "Manager",
-        cwd: REPO_ROOT,
-        model: "pi-codex",
-      },
-    );
-    const workerDescriptor = await harness.manager.spawnAgent(
-      managerDescriptor.agentId,
-      {
-        agentId: "worker",
-        model: "codex-app",
-      },
-    );
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
+      agentId: "worker",
+      model: "codex-app",
+    });
 
     await harness.manager.resetManagerSession(managerDescriptor.agentId);
 
@@ -369,18 +331,11 @@ describe("SwarmManager lifecycle", () => {
     expect(harness.resetCalls[0]).toMatchObject({
       sessionId: managerDescriptor.agentId,
     });
-    expect(harness.resetCalls[0].systemPrompt).toContain(
-      "You are a worker agent in a swarm.",
-    );
-    expect(harness.sessions.get(managerDescriptor.agentId)?.status).toBe(
-      "idle",
-    );
+    expect(harness.resetCalls[0].systemPrompt).toContain("You are a worker agent in a swarm.");
+    expect(harness.sessions.get(managerDescriptor.agentId)?.status).toBe("idle");
     expect(
       await readFileSafe(
-        getAgentMemoryPath(
-          harness.manager.getConfig().paths.dataDir,
-          managerDescriptor.agentId,
-        ),
+        getAgentMemoryPath(harness.manager.getConfig().paths.dataDir, managerDescriptor.agentId),
       ),
     ).toBe("");
 
@@ -402,21 +357,15 @@ describe("SwarmManager lifecycle", () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
-    const managerDescriptor = await harness.manager.createManager(
-      "__bootstrap_manager__",
-      {
-        name: "Manager",
-        cwd: REPO_ROOT,
-        model: "pi-codex",
-      },
-    );
-    const workerDescriptor = await harness.manager.spawnAgent(
-      managerDescriptor.agentId,
-      {
-        agentId: "worker",
-        model: "codex-app",
-      },
-    );
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
+      agentId: "worker",
+      model: "codex-app",
+    });
 
     harness.startCalls.length = 0;
     await harness.sessionService.stop(workerDescriptor.agentId);
@@ -439,22 +388,16 @@ describe("SwarmManager lifecycle", () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
-    const senderManager = await harness.manager.createManager(
-      "__bootstrap_manager__",
-      {
-        name: "Sender",
-        cwd: REPO_ROOT,
-        model: "pi-codex",
-      },
-    );
-    const recipientManager = await harness.manager.createManager(
-      senderManager.agentId,
-      {
-        name: "Recipient",
-        cwd: REPO_ROOT,
-        model: "pi-codex",
-      },
-    );
+    const senderManager = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Sender",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const recipientManager = await harness.manager.createManager(senderManager.agentId, {
+      name: "Recipient",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
 
     const agentMessages: Array<{
       agentId: string;
@@ -501,21 +444,15 @@ describe("SwarmManager lifecycle", () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
-    const managerDescriptor = await harness.manager.createManager(
-      "__bootstrap_manager__",
-      {
-        name: "Manager",
-        cwd: REPO_ROOT,
-        model: "pi-codex",
-      },
-    );
-    const workerDescriptor = await harness.manager.spawnAgent(
-      managerDescriptor.agentId,
-      {
-        agentId: "worker",
-        model: "codex-app",
-      },
-    );
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
+      agentId: "worker",
+      model: "codex-app",
+    });
 
     const agentMessages: Array<{
       agentId: string;
@@ -562,21 +499,15 @@ describe("SwarmManager lifecycle", () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
-    const managerDescriptor = await harness.manager.createManager(
-      "__bootstrap_manager__",
-      {
-        name: "Manager",
-        cwd: REPO_ROOT,
-        model: "pi-codex",
-      },
-    );
-    const workerDescriptor = await harness.manager.spawnAgent(
-      managerDescriptor.agentId,
-      {
-        agentId: "worker",
-        model: "codex-app",
-      },
-    );
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
+      agentId: "worker",
+      model: "codex-app",
+    });
     (harness.sessionService as any).applyRuntimeStatus(
       workerDescriptor.agentId,
       "busy",
@@ -595,9 +526,7 @@ describe("SwarmManager lifecycle", () => {
       managerStopped: false,
     });
     expect(harness.interruptCalls).toEqual([workerDescriptor.agentId]);
-    expect(harness.sessions.get(managerDescriptor.agentId)?.status).toBe(
-      "idle",
-    );
+    expect(harness.sessions.get(managerDescriptor.agentId)?.status).toBe("idle");
     expect(harness.sessions.get(workerDescriptor.agentId)?.status).toBe("idle");
   });
 
@@ -605,38 +534,25 @@ describe("SwarmManager lifecycle", () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
-    const managerDescriptor = await harness.manager.createManager(
-      "__bootstrap_manager__",
-      {
-        name: "Manager",
-        cwd: REPO_ROOT,
-        model: "pi-codex",
-      },
-    );
-    const workerDescriptor = await harness.manager.spawnAgent(
-      managerDescriptor.agentId,
-      {
-        agentId: "worker",
-        model: "codex-app",
-      },
-    );
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
+      agentId: "worker",
+      model: "codex-app",
+    });
 
-    await harness.manager.killAgent(
-      managerDescriptor.agentId,
-      workerDescriptor.agentId,
-    );
+    await harness.manager.killAgent(managerDescriptor.agentId, workerDescriptor.agentId);
 
     expect(harness.manager.listAgents().map((agent) => agent.agentId)).toEqual([
       managerDescriptor.agentId,
     ]);
     expect(
-      harness.manager
-        .listAgents({ includeArchived: true })
-        .map((agent) => agent.agentId),
+      harness.manager.listAgents({ includeArchived: true }).map((agent) => agent.agentId),
     ).toEqual([managerDescriptor.agentId, workerDescriptor.agentId]);
-    expect(
-      harness.sessionService.getById(workerDescriptor.agentId)?.status,
-    ).toBe("terminated");
+    expect(harness.sessionService.getById(workerDescriptor.agentId)?.status).toBe("terminated");
 
     const deleted = await harness.manager.deleteManager(
       managerDescriptor.agentId,
@@ -654,14 +570,11 @@ describe("SwarmManager lifecycle", () => {
     const harness = await createHarness();
     harnesses.push(harness);
 
-    const managerDescriptor = await harness.manager.createManager(
-      "__bootstrap_manager__",
-      {
-        name: "Manager",
-        cwd: REPO_ROOT,
-        model: "pi-codex",
-      },
-    );
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
 
     await harness.manager.handleUserMessage("hello from the web", {
       targetAgentId: managerDescriptor.agentId,
@@ -670,9 +583,7 @@ describe("SwarmManager lifecycle", () => {
       },
     });
 
-    expect(
-      harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget,
-    ).toBeUndefined();
+    expect(harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget).toBeUndefined();
 
     const explicitReply = await harness.manager.publishToUser(
       managerDescriptor.agentId,
@@ -686,9 +597,7 @@ describe("SwarmManager lifecycle", () => {
     expect(explicitReply.targetContext).toEqual({
       channel: "web",
     });
-    expect(
-      harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget,
-    ).toEqual({
+    expect(harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget).toEqual({
       channel: "web",
     });
 
@@ -700,9 +609,7 @@ describe("SwarmManager lifecycle", () => {
     expect(defaultReply.targetContext).toEqual({
       channel: "web",
     });
-    expect(
-      harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget,
-    ).toEqual({
+    expect(harness.agentRepo.get(managerDescriptor.agentId)?.replyTarget).toEqual({
       channel: "web",
     });
   });
@@ -710,9 +617,7 @@ describe("SwarmManager lifecycle", () => {
 
 async function readFileSafe(path: string): Promise<string> {
   try {
-    return await import("node:fs/promises").then(({ readFile }) =>
-      readFile(path, "utf8"),
-    );
+    return await import("node:fs/promises").then(({ readFile }) => readFile(path, "utf8"));
   } catch {
     return "";
   }

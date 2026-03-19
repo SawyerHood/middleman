@@ -191,14 +191,14 @@ describe("SwarmManager bootstrap transcript", () => {
         }),
       ]);
       expect(
-        swarmManager.getVisibleTranscript("manager-1").map((entry) =>
-          entry.type === "conversation_message" ? entry.text : "",
-        ),
+        swarmManager
+          .getVisibleTranscript("manager-1")
+          .map((entry) => (entry.type === "conversation_message" ? entry.text : "")),
       ).toEqual(["hello manager", "welcome back"]);
       expect(
-        swarmManager.getVisibleTranscript("worker-1").map((entry) =>
-          entry.type === "conversation_message" ? entry.text : "",
-        ),
+        swarmManager
+          .getVisibleTranscript("worker-1")
+          .map((entry) => (entry.type === "conversation_message" ? entry.text : "")),
       ).toEqual(["finish the task", "already on it"]);
     } finally {
       await swarmManager.shutdown();

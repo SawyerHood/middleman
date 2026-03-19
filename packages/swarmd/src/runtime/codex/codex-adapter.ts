@@ -235,7 +235,10 @@ export class CodexBackendAdapter implements BackendAdapter {
     return await this.#createThreadInternal(seed);
   }
 
-  async forkThread(source: BackendCheckpoint, sourceMessageId?: string): Promise<BackendCheckpoint> {
+  async forkThread(
+    source: BackendCheckpoint,
+    sourceMessageId?: string,
+  ): Promise<BackendCheckpoint> {
     this.#ensureReady();
     validateCheckpoint(source, "codex");
     if (!isCodexCheckpoint(source)) {
@@ -486,9 +489,7 @@ export class CodexBackendAdapter implements BackendAdapter {
 
       case "turn/completed": {
         const turn = readObject(notification.params, "turn");
-        const turnFailed =
-          readString(turn?.status) === "failed" ||
-          turn?.error != null;
+        const turnFailed = readString(turn?.status) === "failed" || turn?.error != null;
 
         this.#activeTurnId = null;
         this.#startRequestPending = false;
@@ -517,7 +518,10 @@ export class CodexBackendAdapter implements BackendAdapter {
             this.#callbacks.log("error", "codex queued turn start failed", {
               error: serializeError(error),
             });
-            this.#updateStatus("errored", toSessionErrorInfo("CODEX_TURN_START_FAILED", error, true));
+            this.#updateStatus(
+              "errored",
+              toSessionErrorInfo("CODEX_TURN_START_FAILED", error, true),
+            );
           }
           return;
         }
@@ -757,7 +761,8 @@ function resolveCodexConfig(config: SessionRuntimeConfig): ResolvedCodexConfig {
         ...envOverrides,
       },
     },
-    requestTimeoutMs: readPositiveNumber(backendConfig.requestTimeoutMs) ?? DEFAULT_REQUEST_TIMEOUT_MS,
+    requestTimeoutMs:
+      readPositiveNumber(backendConfig.requestTimeoutMs) ?? DEFAULT_REQUEST_TIMEOUT_MS,
     approvalPolicy: readApprovalPolicy(backendConfig.approvalPolicy) ?? "never",
     sandbox: readSandboxMode(backendConfig.sandbox) ?? "danger-full-access",
     clientInfo: {
@@ -830,7 +835,9 @@ function toCodexInputItems(input: UserInput): Array<Record<string, unknown>> {
   return items;
 }
 
-function sandboxThreadConfig(sandbox: ResolvedCodexConfig["sandbox"] | undefined): Record<string, string> {
+function sandboxThreadConfig(
+  sandbox: ResolvedCodexConfig["sandbox"] | undefined,
+): Record<string, string> {
   return {
     sandbox_mode: sandbox ?? "danger-full-access",
   };
@@ -857,7 +864,9 @@ function readTurnId(value: unknown): string | null {
   return readString(readObject(value)?.id) ?? null;
 }
 
-function parseToolLikeItem(value: unknown): ({ id: string; type: string } & Record<string, unknown>) | null {
+function parseToolLikeItem(
+  value: unknown,
+): ({ id: string; type: string } & Record<string, unknown>) | null {
   const item = readObject(value);
   const id = readString(item?.id);
   const type = readString(item?.type);
@@ -925,10 +934,8 @@ function extractCodexContextUsage(params: unknown): SessionContextUsage | null {
   const tokens =
     readNonNegativeNumber(last.totalTokens) ??
     readNonNegativeNumber(last.total_tokens) ??
-    (
-      (readNonNegativeNumber(last.inputTokens) ?? readNonNegativeNumber(last.input_tokens) ?? 0) +
-      (readNonNegativeNumber(last.outputTokens) ?? readNonNegativeNumber(last.output_tokens) ?? 0)
-    );
+    (readNonNegativeNumber(last.inputTokens) ?? readNonNegativeNumber(last.input_tokens) ?? 0) +
+      (readNonNegativeNumber(last.outputTokens) ?? readNonNegativeNumber(last.output_tokens) ?? 0);
 
   return {
     tokens,
@@ -958,7 +965,9 @@ function areContextUsagesEqual(
 
 function readObject(value: unknown, key?: string): Record<string, unknown> | undefined {
   const candidate = key ? (value as Record<string, unknown> | undefined)?.[key] : value;
-  return candidate && typeof candidate === "object" ? (candidate as Record<string, unknown>) : undefined;
+  return candidate && typeof candidate === "object"
+    ? (candidate as Record<string, unknown>)
+    : undefined;
 }
 
 function readString(value: unknown): string | undefined {
@@ -982,7 +991,9 @@ function readStringArray(value: unknown): string[] | undefined {
     return undefined;
   }
 
-  const values = value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  const values = value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
   return values.length > 0 ? values : undefined;
 }
 

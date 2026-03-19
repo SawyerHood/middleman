@@ -1,9 +1,17 @@
 import { useAtom, useAtomValue } from "jotai";
-import { CircleDashed, Loader2, Menu, MoreHorizontal, PanelRight, Square, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  CircleDashed,
+  Loader2,
+  Menu,
+  MoreHorizontal,
+  PanelRight,
+  Square,
+  Trash2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   activeAgentArchetypeIdAtom,
   activeAgentIdAtom,
@@ -22,54 +30,54 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { ContextWindowIndicator } from '@/components/chat/ContextWindowIndicator'
-import { isWorkingAgentStatus } from '@/lib/agent-status'
-import { cn } from '@/lib/utils'
-import type { AgentStatus } from '@middleman/protocol'
+} from "@/components/ui/dropdown-menu";
+import { ContextWindowIndicator } from "@/components/chat/ContextWindowIndicator";
+import { isWorkingAgentStatus } from "@/lib/agent-status";
+import { cn } from "@/lib/utils";
+import type { AgentStatus } from "@middleman/protocol";
 
 interface ChatHeaderProps {
-  connected?: boolean
-  activeAgentId?: string | null
-  activeAgentLabel?: string
-  activeAgentArchetypeId?: string | null
-  activeAgentStatus?: AgentStatus | null
-  contextWindowUsage?: { usedTokens: number; contextWindow: number } | null
-  showStopAll?: boolean
-  stopAllInProgress: boolean
-  stopAllDisabled?: boolean
-  onStopAll: () => void
-  showNewChat?: boolean
-  onNewChat: () => void
-  showInternalChatter?: boolean
-  onShowInternalChatterChange?: (nextValue: boolean) => void
-  isArtifactsPanelOpen: boolean
-  onToggleArtifactsPanel: () => void
-  onToggleMobileSidebar?: () => void
+  connected?: boolean;
+  activeAgentId?: string | null;
+  activeAgentLabel?: string;
+  activeAgentArchetypeId?: string | null;
+  activeAgentStatus?: AgentStatus | null;
+  contextWindowUsage?: { usedTokens: number; contextWindow: number } | null;
+  showStopAll?: boolean;
+  stopAllInProgress: boolean;
+  stopAllDisabled?: boolean;
+  onStopAll: () => void;
+  showNewChat?: boolean;
+  onNewChat: () => void;
+  showInternalChatter?: boolean;
+  onShowInternalChatterChange?: (nextValue: boolean) => void;
+  isArtifactsPanelOpen: boolean;
+  onToggleArtifactsPanel: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 function formatAgentStatus(status: AgentStatus | null): string {
-  if (!status) return 'Idle'
+  if (!status) return "Idle";
 
   switch (status) {
-    case 'created':
-      return 'Created'
-    case 'starting':
-      return 'Starting'
-    case 'idle':
-      return 'Idle'
-    case 'busy':
-      return 'Busy'
-    case 'interrupting':
-      return 'Interrupting'
-    case 'stopping':
-      return 'Stopping'
-    case 'terminated':
-      return 'Terminated'
-    case 'stopped':
-      return 'Stopped'
-    case 'errored':
-      return 'Error'
+    case "created":
+      return "Created";
+    case "starting":
+      return "Starting";
+    case "idle":
+      return "Idle";
+    case "busy":
+      return "Busy";
+    case "interrupting":
+      return "Interrupting";
+    case "stopping":
+      return "Stopping";
+    case "terminated":
+      return "Terminated";
+    case "stopped":
+      return "Stopped";
+    case "errored":
+      return "Error";
   }
 }
 
@@ -92,47 +100,38 @@ export function ChatHeader({
   onToggleArtifactsPanel,
   onToggleMobileSidebar,
 }: ChatHeaderProps) {
-  const connectedFromAtom = useAtomValue(connectedAtom)
-  const activeAgentIdFromAtom = useAtomValue(activeAgentIdAtom)
-  const activeAgentLabelFromAtom = useAtomValue(activeAgentLabelAtom)
-  const activeAgentArchetypeIdFromAtom = useAtomValue(activeAgentArchetypeIdAtom)
-  const activeAgentStatusFromAtom = useAtomValue(activeAgentStatusAtom)
-  const contextWindowUsageFromAtom = useAtomValue(contextWindowAtom)
-  const activeAgent = useAtomValue(activeAgentAtom)
-  const canStopAllAgents = useAtomValue(canStopAllAgentsAtom)
-  const [showInternalChatterFromAtom, setShowInternalChatter] = useAtom(
-    showInternalChatterAtom,
-  )
+  const connectedFromAtom = useAtomValue(connectedAtom);
+  const activeAgentIdFromAtom = useAtomValue(activeAgentIdAtom);
+  const activeAgentLabelFromAtom = useAtomValue(activeAgentLabelAtom);
+  const activeAgentArchetypeIdFromAtom = useAtomValue(activeAgentArchetypeIdAtom);
+  const activeAgentStatusFromAtom = useAtomValue(activeAgentStatusAtom);
+  const contextWindowUsageFromAtom = useAtomValue(contextWindowAtom);
+  const activeAgent = useAtomValue(activeAgentAtom);
+  const canStopAllAgents = useAtomValue(canStopAllAgentsAtom);
+  const [showInternalChatterFromAtom, setShowInternalChatter] = useAtom(showInternalChatterAtom);
 
-  const resolvedConnected = connected ?? connectedFromAtom
-  const resolvedActiveAgentId = activeAgentId ?? activeAgentIdFromAtom
-  const resolvedActiveAgentLabel = activeAgentLabel ?? activeAgentLabelFromAtom
-  const resolvedActiveAgentArchetypeId =
-    activeAgentArchetypeId ?? activeAgentArchetypeIdFromAtom
-  const resolvedActiveAgentStatus = activeAgentStatus ?? activeAgentStatusFromAtom
-  const resolvedContextWindowUsage =
-    contextWindowUsage ?? contextWindowUsageFromAtom
-  const resolvedShowStopAll = showStopAll ?? activeAgent?.role === "manager"
-  const resolvedShowNewChat = showNewChat ?? activeAgent?.role === "manager"
-  const resolvedStopAllDisabled =
-    stopAllDisabled ?? (!resolvedConnected || !canStopAllAgents)
-  const resolvedShowInternalChatter =
-    showInternalChatter ?? showInternalChatterFromAtom
-  const handleShowInternalChatterChange =
-    onShowInternalChatterChange ?? setShowInternalChatter
+  const resolvedConnected = connected ?? connectedFromAtom;
+  const resolvedActiveAgentId = activeAgentId ?? activeAgentIdFromAtom;
+  const resolvedActiveAgentLabel = activeAgentLabel ?? activeAgentLabelFromAtom;
+  const resolvedActiveAgentArchetypeId = activeAgentArchetypeId ?? activeAgentArchetypeIdFromAtom;
+  const resolvedActiveAgentStatus = activeAgentStatus ?? activeAgentStatusFromAtom;
+  const resolvedContextWindowUsage = contextWindowUsage ?? contextWindowUsageFromAtom;
+  const resolvedShowStopAll = showStopAll ?? activeAgent?.role === "manager";
+  const resolvedShowNewChat = showNewChat ?? activeAgent?.role === "manager";
+  const resolvedStopAllDisabled = stopAllDisabled ?? (!resolvedConnected || !canStopAllAgents);
+  const resolvedShowInternalChatter = showInternalChatter ?? showInternalChatterFromAtom;
+  const handleShowInternalChatterChange = onShowInternalChatterChange ?? setShowInternalChatter;
 
   const isStreaming =
     resolvedConnected &&
     !!resolvedActiveAgentStatus &&
-    isWorkingAgentStatus(resolvedActiveAgentStatus)
+    isWorkingAgentStatus(resolvedActiveAgentStatus);
   const statusLabel = resolvedConnected
     ? formatAgentStatus(resolvedActiveAgentStatus)
-    : 'Reconnecting'
-  const archetypeLabel = resolvedActiveAgentArchetypeId?.trim()
+    : "Reconnecting";
+  const archetypeLabel = resolvedActiveAgentArchetypeId?.trim();
   const hasMenu =
-    resolvedShowNewChat ||
-    resolvedShowStopAll ||
-    handleShowInternalChatterChange !== undefined
+    resolvedShowNewChat || resolvedShowStopAll || handleShowInternalChatterChange !== undefined;
 
   return (
     <header className="app-top-bar sticky top-0 z-20 flex w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/80 bg-card/80 px-2 backdrop-blur md:px-4">
@@ -151,7 +150,10 @@ export function ChatHeader({
         ) : null}
 
         {isStreaming ? (
-          <CircleDashed className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Active" />
+          <CircleDashed
+            className="size-3.5 shrink-0 animate-spin text-muted-foreground"
+            aria-label="Active"
+          />
         ) : (
           <span className="inline-block size-3.5 shrink-0" aria-hidden="true" />
         )}
@@ -221,17 +223,12 @@ export function ChatHeader({
                     >
                       Show internal chatter
                     </DropdownMenuCheckboxItem>
-                    {(resolvedShowNewChat || resolvedShowStopAll) ? (
-                      <DropdownMenuSeparator />
-                    ) : null}
+                    {resolvedShowNewChat || resolvedShowStopAll ? <DropdownMenuSeparator /> : null}
                   </>
                 ) : null}
 
                 {resolvedShowNewChat ? (
-                  <DropdownMenuItem
-                    onClick={onNewChat}
-                    className="gap-2 text-xs"
-                  >
+                  <DropdownMenuItem onClick={onNewChat} className="gap-2 text-xs">
                     <Trash2 className="size-3.5" />
                     Clear conversation
                   </DropdownMenuItem>
@@ -248,7 +245,7 @@ export function ChatHeader({
                     ) : (
                       <Square className="size-3.5" />
                     )}
-                    {stopAllInProgress ? 'Stopping…' : 'Stop All'}
+                    {stopAllInProgress ? "Stopping…" : "Stop All"}
                   </DropdownMenuItem>
                 ) : null}
               </DropdownMenuContent>
@@ -264,13 +261,13 @@ export function ChatHeader({
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  'size-7 shrink-0 transition-colors',
+                  "size-7 shrink-0 transition-colors",
                   isArtifactsPanelOpen
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground',
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                 )}
                 onClick={onToggleArtifactsPanel}
-                aria-label={isArtifactsPanelOpen ? 'Close artifacts panel' : 'Open artifacts panel'}
+                aria-label={isArtifactsPanelOpen ? "Close artifacts panel" : "Open artifacts panel"}
                 aria-pressed={isArtifactsPanelOpen}
               />
             }
@@ -278,10 +275,10 @@ export function ChatHeader({
             <PanelRight className="size-3.5" />
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={6}>
-            {isArtifactsPanelOpen ? 'Close artifacts' : 'Artifacts'}
+            {isArtifactsPanelOpen ? "Close artifacts" : "Artifacts"}
           </TooltipContent>
         </Tooltip>
       </div>
     </header>
-  )
+  );
 }

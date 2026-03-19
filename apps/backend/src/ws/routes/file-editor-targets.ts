@@ -18,9 +18,7 @@ export async function resolveFileEditorTargets(options: {
   filePath: string;
 }): Promise<FileEditorTargets> {
   const { dataDir, filePath } = options;
-  const [obsidianTarget] = await Promise.all([
-    resolveObsidianTarget(filePath),
-  ]);
+  const [obsidianTarget] = await Promise.all([resolveObsidianTarget(filePath)]);
 
   const targets: FileEditorTargets = {};
   const notesPath = resolveMiddlemanNotesPath({
@@ -39,10 +37,7 @@ export async function resolveFileEditorTargets(options: {
   return targets;
 }
 
-function resolveMiddlemanNotesPath(options: {
-  dataDir: string;
-  filePath: string;
-}): string | null {
+function resolveMiddlemanNotesPath(options: { dataDir: string; filePath: string }): string | null {
   const { dataDir, filePath } = options;
   if (!filePath.toLowerCase().endsWith(MIDDLEMAN_NOTE_EXTENSION)) {
     return null;
@@ -51,7 +46,9 @@ function resolveMiddlemanNotesPath(options: {
   return toRelativeEditorPath(resolveNotesDir(dataDir), filePath);
 }
 
-async function resolveObsidianTarget(filePath: string): Promise<FileEditorTargets["obsidian"] | null> {
+async function resolveObsidianTarget(
+  filePath: string,
+): Promise<FileEditorTargets["obsidian"] | null> {
   const vaultRoot = await findNearestObsidianVaultRoot(filePath);
   if (!vaultRoot) {
     return null;

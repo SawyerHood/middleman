@@ -22,7 +22,7 @@ function mapOperationRow(row: OperationRow): OperationRecord {
     resultJson: row.result_json,
     errorJson: row.error_json,
     createdAt: row.created_at,
-    completedAt: row.completed_at
+    completedAt: row.completed_at,
   };
 }
 
@@ -40,7 +40,8 @@ export class OperationRepo {
         error_json: string | null;
         created_at: string;
         completed_at: string | null;
-      }>(`
+      }>(
+        `
         INSERT INTO operations (
           id,
           session_id,
@@ -61,7 +62,8 @@ export class OperationRepo {
           @created_at,
           @completed_at
         )
-      `)
+      `,
+      )
       .run({
         id: op.id,
         session_id: op.sessionId,
@@ -70,7 +72,7 @@ export class OperationRepo {
         result_json: op.resultJson,
         error_json: op.errorJson,
         created_at: op.createdAt,
-        completed_at: op.completedAt
+        completed_at: op.completedAt,
       });
   }
 
@@ -87,7 +89,7 @@ export class OperationRepo {
           created_at,
           completed_at
         FROM operations
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .get({ id });
 
@@ -102,12 +104,12 @@ export class OperationRepo {
             result_json = @result_json,
             error_json = NULL,
             completed_at = @completed_at
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .run({
         id,
         result_json: serializeJson(result),
-        completed_at: nowTimestamp()
+        completed_at: nowTimestamp(),
       });
   }
 
@@ -119,12 +121,12 @@ export class OperationRepo {
             result_json = NULL,
             error_json = @error_json,
             completed_at = @completed_at
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .run({
         id,
         error_json: serializeJson(error),
-        completed_at: nowTimestamp()
+        completed_at: nowTimestamp(),
       });
   }
 
@@ -142,7 +144,7 @@ export class OperationRepo {
           completed_at
         FROM operations
         WHERE session_id = @session_id
-        ORDER BY created_at ASC`
+        ORDER BY created_at ASC`,
       )
       .all({ session_id: sessionId })
       .map(mapOperationRow);

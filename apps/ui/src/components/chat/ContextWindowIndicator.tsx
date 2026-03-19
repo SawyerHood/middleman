@@ -1,40 +1,37 @@
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ContextWindowIndicatorProps {
-  usedTokens: number
-  contextWindow: number
+  usedTokens: number;
+  contextWindow: number;
 }
 
-const RING_RADIUS = 7
-const RING_STROKE_WIDTH = 1.75
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+const RING_RADIUS = 7;
+const RING_STROKE_WIDTH = 1.75;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 function formatTokens(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    notation: 'compact',
-    compactDisplay: 'short',
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    compactDisplay: "short",
     maximumFractionDigits: 1,
-  }).format(Math.max(0, Math.round(value)))
+  }).format(Math.max(0, Math.round(value)));
 }
 
-export function ContextWindowIndicator({
-  usedTokens,
-  contextWindow,
-}: ContextWindowIndicatorProps) {
-  if (contextWindow <= 0) return null
+export function ContextWindowIndicator({ usedTokens, contextWindow }: ContextWindowIndicatorProps) {
+  if (contextWindow <= 0) return null;
 
-  const fillRatio = usedTokens / contextWindow
-  const clampedFillRatio = Math.min(Math.max(fillRatio, 0), 1)
-  const percentFull = Math.min(Math.max(Math.round(fillRatio * 100), 0), 100)
-  const progressOffset = RING_CIRCUMFERENCE * (1 - clampedFillRatio)
+  const fillRatio = usedTokens / contextWindow;
+  const clampedFillRatio = Math.min(Math.max(fillRatio, 0), 1);
+  const percentFull = Math.min(Math.max(Math.round(fillRatio * 100), 0), 100);
+  const progressOffset = RING_CIRCUMFERENCE * (1 - clampedFillRatio);
 
   const progressColorClass =
     fillRatio >= 0.95
-      ? 'stroke-red-500'
+      ? "stroke-red-500"
       : fillRatio >= 0.8
-        ? 'stroke-amber-500'
-        : 'stroke-emerald-500'
+        ? "stroke-amber-500"
+        : "stroke-emerald-500";
 
   return (
     <Tooltip>
@@ -48,12 +45,7 @@ export function ContextWindowIndicator({
           />
         }
       >
-        <svg
-          viewBox="0 0 20 20"
-          className="size-4 -rotate-90"
-          role="img"
-          aria-hidden="true"
-        >
+        <svg viewBox="0 0 20 20" className="size-4 -rotate-90" role="img" aria-hidden="true">
           <circle
             cx="10"
             cy="10"
@@ -82,5 +74,5 @@ export function ContextWindowIndicator({
         </p>
       </TooltipContent>
     </Tooltip>
-  )
+  );
 }

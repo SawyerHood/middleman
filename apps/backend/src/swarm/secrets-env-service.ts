@@ -5,7 +5,7 @@ import type {
   SettingsAuthProvider,
   SettingsAuthProviderName,
   SkillEnvRequirement,
-  SwarmConfig
+  SwarmConfig,
 } from "./types.js";
 
 const SETTINGS_ENV_MASK = "********";
@@ -17,12 +17,12 @@ const SETTINGS_AUTH_PROVIDER_DEFINITIONS: Array<{
 }> = [
   {
     provider: "anthropic",
-    storageProvider: "anthropic"
+    storageProvider: "anthropic",
   },
   {
     provider: "openai-codex",
-    storageProvider: "openai-codex"
-  }
+    storageProvider: "openai-codex",
+  },
 ];
 
 interface SkillMetadataForSettings {
@@ -59,7 +59,7 @@ export class SecretsEnvService {
           helpUrl: declaration.helpUrl,
           skillName: skill.skillName,
           isSet: typeof resolvedValue === "string" && resolvedValue.trim().length > 0,
-          maskedValue: resolvedValue ? SETTINGS_ENV_MASK : undefined
+          maskedValue: resolvedValue ? SETTINGS_ENV_MASK : undefined,
         });
       }
     }
@@ -68,12 +68,13 @@ export class SecretsEnvService {
       const codexApiKey = this.resolveEnvValue("CODEX_API_KEY");
       requirements.push({
         name: "CODEX_API_KEY",
-        description: "API key used by the codex-app runtime when no existing Codex login session is available.",
+        description:
+          "API key used by the codex-app runtime when no existing Codex login session is available.",
         required: false,
         helpUrl: "https://platform.openai.com/api-keys",
         skillName: "codex-app-runtime",
         isSet: typeof codexApiKey === "string" && codexApiKey.trim().length > 0,
-        maskedValue: codexApiKey ? SETTINGS_ENV_MASK : undefined
+        maskedValue: codexApiKey ? SETTINGS_ENV_MASK : undefined,
       });
     }
 
@@ -135,7 +136,7 @@ export class SecretsEnvService {
         provider: definition.provider,
         configured: typeof resolvedToken === "string" && resolvedToken.length > 0,
         authType: resolveAuthCredentialType(credential),
-        maskedValue: resolvedToken ? maskSettingsAuthValue(resolvedToken) : undefined
+        maskedValue: resolvedToken ? maskSettingsAuthValue(resolvedToken) : undefined,
       } satisfies SettingsAuthProvider;
     });
   }
@@ -164,7 +165,7 @@ export class SecretsEnvService {
         key: normalizedValue,
         access: normalizedValue,
         refresh: "",
-        expires: ""
+        expires: "",
       };
 
       authStorage.set(resolvedProvider.storageProvider, credential as unknown as AuthCredential);
@@ -236,7 +237,7 @@ export class SecretsEnvService {
 }
 
 function resolveSettingsAuthProvider(
-  provider: string
+  provider: string,
 ): { provider: SettingsAuthProviderName; storageProvider: string } | undefined {
   const normalizedProvider = provider.trim().toLowerCase();
   if (!normalizedProvider) {
@@ -244,7 +245,7 @@ function resolveSettingsAuthProvider(
   }
 
   const definition = SETTINGS_AUTH_PROVIDER_DEFINITIONS.find(
-    (entry) => entry.provider === normalizedProvider
+    (entry) => entry.provider === normalizedProvider,
   );
   if (!definition) {
     return undefined;
@@ -252,12 +253,12 @@ function resolveSettingsAuthProvider(
 
   return {
     provider: definition.provider,
-    storageProvider: definition.storageProvider
+    storageProvider: definition.storageProvider,
   };
 }
 
 function resolveAuthCredentialType(
-  credential: AuthCredential | undefined
+  credential: AuthCredential | undefined,
 ): SettingsAuthProvider["authType"] | undefined {
   if (!credential) {
     return undefined;

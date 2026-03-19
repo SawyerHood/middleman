@@ -154,27 +154,29 @@ export class MiddlemanAgentRepo {
          ORDER BY created_at ASC`,
       )
       .all()
-      .map((row: {
-        session_id: string;
-        role: "manager" | "worker";
-        manager_session_id: string;
-        archetype_id: string | null;
-        memory_owner_session_id: string;
-        reply_target_json: string | null;
-        created_at: string;
-        updated_at: string;
-      }) => ({
-        sessionId: row.session_id,
-        role: row.role,
-        managerSessionId: row.manager_session_id,
-        archetypeId: row.archetype_id ?? undefined,
-        memoryOwnerSessionId: row.memory_owner_session_id,
-        replyTarget: row.reply_target_json
-          ? (parseJsonObject(row.reply_target_json) as MessageTargetContext)
-          : undefined,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      .map(
+        (row: {
+          session_id: string;
+          role: "manager" | "worker";
+          manager_session_id: string;
+          archetype_id: string | null;
+          memory_owner_session_id: string;
+          reply_target_json: string | null;
+          created_at: string;
+          updated_at: string;
+        }) => ({
+          sessionId: row.session_id,
+          role: row.role,
+          managerSessionId: row.manager_session_id,
+          archetypeId: row.archetype_id ?? undefined,
+          memoryOwnerSessionId: row.memory_owner_session_id,
+          replyTarget: row.reply_target_json
+            ? (parseJsonObject(row.reply_target_json) as MessageTargetContext)
+            : undefined,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }),
+      );
   }
 
   get(sessionId: string): MiddlemanAgentRow | null {
@@ -252,9 +254,13 @@ export class MiddlemanAgentRepo {
   }
 
   delete(sessionId: string): void {
-    this.db.prepare<{ session_id: string }>("DELETE FROM middleman_agents WHERE session_id = @session_id").run({
-      session_id: sessionId,
-    });
+    this.db
+      .prepare<{
+        session_id: string;
+      }>("DELETE FROM middleman_agents WHERE session_id = @session_id")
+      .run({
+        session_id: sessionId,
+      });
   }
 }
 
@@ -321,9 +327,11 @@ export class MiddlemanManagerOrderRepo {
   }
 
   remove(managerId: string): void {
-    this.db.prepare<{ manager_session_id: string }>(
-      "DELETE FROM middleman_manager_order WHERE manager_session_id = @manager_session_id",
-    ).run({ manager_session_id: managerId });
+    this.db
+      .prepare<{
+        manager_session_id: string;
+      }>("DELETE FROM middleman_manager_order WHERE manager_session_id = @manager_session_id")
+      .run({ manager_session_id: managerId });
 
     this.reorder(this.list());
   }
@@ -559,9 +567,9 @@ export class MiddlemanScheduleRepo {
   deleteForManager(managerId: string): string[] {
     const scheduleIds = this.listForManager(managerId).map((schedule) => schedule.id);
     this.db
-      .prepare<{ manager_session_id: string }>(
-        "DELETE FROM middleman_schedules WHERE manager_session_id = @manager_session_id",
-      )
+      .prepare<{
+        manager_session_id: string;
+      }>("DELETE FROM middleman_schedules WHERE manager_session_id = @manager_session_id")
       .run({ manager_session_id: managerId });
     return scheduleIds;
   }
@@ -572,10 +580,7 @@ export class MiddlemanSettingsRepo {
 
   listNamespace(namespace: string): Array<{ key: string; value: unknown; updatedAt: string }> {
     return this.db
-      .prepare<
-        { namespace: string },
-        { key: string; value_json: string; updated_at: string }
-      >(
+      .prepare<{ namespace: string }, { key: string; value_json: string; updated_at: string }>(
         `SELECT key, value_json, updated_at
          FROM middleman_settings
          WHERE namespace = @namespace
@@ -620,17 +625,22 @@ export class MiddlemanSettingsRepo {
   }
 
   delete(namespace: string, key: string): void {
-    this.db.prepare<{ namespace: string; key: string }>(
-      `DELETE FROM middleman_settings
+    this.db
+      .prepare<{ namespace: string; key: string }>(
+        `DELETE FROM middleman_settings
        WHERE namespace = @namespace
          AND key = @key`,
-    ).run({ namespace, key });
+      )
+      .run({ namespace, key });
   }
 
   listEnv(): Record<string, string> {
     return Object.fromEntries(
       this.listNamespace("env")
-        .filter((entry): entry is { key: string; value: string; updatedAt: string } => typeof entry.value === "string")
+        .filter(
+          (entry): entry is { key: string; value: string; updatedAt: string } =>
+            typeof entry.value === "string",
+        )
         .map((entry) => [entry.key, entry.value]),
     );
   }

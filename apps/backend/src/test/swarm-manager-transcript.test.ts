@@ -2,15 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionRecord, SwarmdMessage, SwarmdCoreHandle } from "swarmd";
 
-import {
-  SwarmTranscriptService,
-  projectStoredMessage,
-} from "../swarm/swarm-manager-transcript.js";
+import { SwarmTranscriptService, projectStoredMessage } from "../swarm/swarm-manager-transcript.js";
 import type { AgentDescriptor } from "../swarm/types.js";
 
 function makeDescriptor(
-  overrides: Partial<AgentDescriptor> &
-    Pick<AgentDescriptor, "agentId" | "managerId" | "role">,
+  overrides: Partial<AgentDescriptor> & Pick<AgentDescriptor, "agentId" | "managerId" | "role">,
 ): AgentDescriptor {
   return {
     displayName: overrides.agentId,
@@ -28,8 +24,7 @@ function makeDescriptor(
 }
 
 function makeSession(
-  overrides: Partial<SessionRecord> &
-    Pick<SessionRecord, "id" | "backend" | "status">,
+  overrides: Partial<SessionRecord> & Pick<SessionRecord, "id" | "backend" | "status">,
 ): SessionRecord {
   return {
     displayName: overrides.id,
@@ -47,10 +42,7 @@ function makeSession(
 
 function makeMessage(
   overrides: Partial<SwarmdMessage> &
-    Pick<
-      SwarmdMessage,
-      "id" | "sessionId" | "source" | "kind" | "role" | "content" | "createdAt"
-    >,
+    Pick<SwarmdMessage, "id" | "sessionId" | "source" | "kind" | "role" | "content" | "createdAt">,
 ): SwarmdMessage {
   return {
     sourceMessageId: null,
@@ -78,9 +70,7 @@ describe("projectStoredMessage", () => {
             renderAs: "conversation_message",
             agentId: "manager-1",
             source: "user_input",
-            attachments: [
-              { type: "text", mimeType: "text/plain", fileName: "note.txt" },
-            ],
+            attachments: [{ type: "text", mimeType: "text/plain", fileName: "note.txt" }],
           },
         },
       }),
@@ -135,9 +125,7 @@ describe("projectStoredMessage", () => {
         content: {
           toolName: "speak_to_user",
           result: {
-            contentItems: [
-              { type: "inputText", text: "hello from content items" },
-            ],
+            contentItems: [{ type: "inputText", text: "hello from content items" }],
             details: {
               text: "hello from details",
               targetContext: { channel: "web" },
@@ -179,12 +167,9 @@ describe("projectStoredMessage", () => {
       agentId: "manager-1",
       role: "user",
       text: "hello manager",
-      attachments: [
-        { type: "text", mimeType: "text/plain", fileName: "note.txt" },
-      ],
+      attachments: [{ type: "text", mimeType: "text/plain", fileName: "note.txt" }],
       timestamp: "2026-03-15T00:00:01.000Z",
-      historyCursor:
-        "2026-03-15T00:00:01.000Z|manager-1|2026-03-15T00:00:01.000Z:user-1|user-1",
+      historyCursor: "2026-03-15T00:00:01.000Z|manager-1|2026-03-15T00:00:01.000Z:user-1|user-1",
       source: "user_input",
       sourceContext: undefined,
     });
@@ -217,8 +202,7 @@ describe("projectStoredMessage", () => {
       role: "assistant",
       text: "hello from details",
       timestamp: "2026-03-15T00:00:04.000Z",
-      historyCursor:
-        "2026-03-15T00:00:04.000Z|manager-1|2026-03-15T00:00:04.000Z:tool-1|tool-1",
+      historyCursor: "2026-03-15T00:00:04.000Z|manager-1|2026-03-15T00:00:04.000Z:tool-1|tool-1",
       source: "speak_to_user",
       sourceContext: { channel: "web" },
     });
@@ -226,8 +210,7 @@ describe("projectStoredMessage", () => {
       type: "agent_message",
       agentId: "manager-1",
       timestamp: "2026-03-15T00:00:05.000Z",
-      historyCursor:
-        "2026-03-15T00:00:05.000Z|worker-1|2026-03-15T00:00:05.000Z:agent-1|agent-1",
+      historyCursor: "2026-03-15T00:00:05.000Z|worker-1|2026-03-15T00:00:05.000Z:agent-1|agent-1",
       source: "agent_to_agent",
       fromAgentId: "manager-1",
       toAgentId: "worker-1",
@@ -305,8 +288,7 @@ describe("projectStoredMessage", () => {
       type: "conversation_log",
       agentId: "worker-1",
       timestamp: "2026-03-15T00:00:06.000Z",
-      historyCursor:
-        "2026-03-15T00:00:06.000Z|worker-1|2026-03-15T00:00:06.000Z:log-1|log-1",
+      historyCursor: "2026-03-15T00:00:06.000Z|worker-1|2026-03-15T00:00:06.000Z:log-1|log-1",
       source: "runtime_log",
       kind: "message_start",
       role: undefined,
@@ -443,8 +425,7 @@ describe("projectStoredMessage", () => {
       role: "assistant",
       text: "fallback text",
       timestamp: "2026-03-15T00:00:06.000Z",
-      historyCursor:
-        "2026-03-15T00:00:06.000Z|manager-1|2026-03-15T00:00:06.000Z:tool-2|tool-2",
+      historyCursor: "2026-03-15T00:00:06.000Z|manager-1|2026-03-15T00:00:06.000Z:tool-2|tool-2",
       source: "speak_to_user",
       sourceContext: undefined,
     });
@@ -537,9 +518,7 @@ describe("projectStoredMessage", () => {
       agentId: "manager-1",
       role: "user",
       text: "hello again",
-      attachments: [
-        { type: "text", mimeType: "text/plain", fileName: "note.txt" },
-      ],
+      attachments: [{ type: "text", mimeType: "text/plain", fileName: "note.txt" }],
       timestamp: "2026-03-15T00:00:10.000Z",
       historyCursor:
         "2026-03-15T00:00:10.000Z|manager-1|2026-03-15T00:00:10.000Z:user-invalid-metadata|user-invalid-metadata",
@@ -835,17 +814,13 @@ describe("SwarmTranscriptService", () => {
           },
         }) as unknown as SwarmdCoreHandle,
       getAgent: (agentId) =>
-        [manager, otherManager, worker].find(
-          (descriptor) => descriptor.agentId === agentId,
-        ),
+        [manager, otherManager, worker].find((descriptor) => descriptor.agentId === agentId),
       resolvePreferredManagerId: () => "manager-1",
       resolveRuntimeErrorMessage: () => "ignored",
     });
 
     const projectedEntries = transcript.projectConversationEntries("manager-1");
-    const managerAgentMessages = projectedEntries.filter(
-      (entry) => entry.type === "agent_message",
-    );
+    const managerAgentMessages = projectedEntries.filter((entry) => entry.type === "agent_message");
 
     expect(managerAgentMessages).toEqual([
       expect.objectContaining({
@@ -924,8 +899,7 @@ describe("SwarmTranscriptService", () => {
       getCore: () =>
         ({
           sessionService: {
-            getById: (sessionId: string) =>
-              sessionId === "worker-1" ? session : null,
+            getById: (sessionId: string) => (sessionId === "worker-1" ? session : null),
             list: () => [session],
           },
           messageStore: {
@@ -940,9 +914,7 @@ describe("SwarmTranscriptService", () => {
     expect(
       transcript
         .projectConversationEntries("worker-1", 2)
-        .map((entry) =>
-          entry.type === "conversation_message" ? entry.text : "",
-        ),
+        .map((entry) => (entry.type === "conversation_message" ? entry.text : "")),
     ).toEqual(["second", "third"]);
     expect(transcript.projectConversationEntries("missing")).toEqual([]);
     expect(transcript.getVisibleTranscript("missing")).toEqual([]);
@@ -1048,8 +1020,7 @@ describe("SwarmTranscriptService", () => {
       getCore: () =>
         ({
           sessionService: {
-            getById: (sessionId: string) =>
-              sessionId === "worker-1" ? session : null,
+            getById: (sessionId: string) => (sessionId === "worker-1" ? session : null),
             list: () => [session],
           },
           messageStore: {

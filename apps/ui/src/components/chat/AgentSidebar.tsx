@@ -6,23 +6,37 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from '@dnd-kit/core'
+} from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { useAtomValue } from 'jotai'
-import { ChevronDown, ChevronRight, CircleDashed, FileText, Settings, SquarePen, UserStar, X } from 'lucide-react'
-import { ViewHeader } from '@/components/ViewHeader'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
-import { useState } from 'react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { buildManagerTreeRows } from '@/lib/agent-hierarchy'
-import { isWorkingAgentStatus } from '@/lib/agent-status'
-import { moveVisibleManagersWithinOrder, normalizeManagerOrder } from '@/lib/manager-order'
-import { inferModelPreset } from '@/lib/model-preset'
+} from "@dnd-kit/sortable";
+import { useAtomValue } from "jotai";
+import {
+  ChevronDown,
+  ChevronRight,
+  CircleDashed,
+  FileText,
+  Settings,
+  SquarePen,
+  UserStar,
+  X,
+} from "lucide-react";
+import { ViewHeader } from "@/components/ViewHeader";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { useState } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { buildManagerTreeRows } from "@/lib/agent-hierarchy";
+import { isWorkingAgentStatus } from "@/lib/agent-status";
+import { moveVisibleManagersWithinOrder, normalizeManagerOrder } from "@/lib/manager-order";
+import { inferModelPreset } from "@/lib/model-preset";
 import {
   activeAgentIdAtom,
   activeWorkerCountByManagerAtomFamily,
@@ -31,161 +45,191 @@ import {
   managerOrderAtom,
   managerTreeAtom,
   statusEntryAtomFamily,
-} from '@/lib/ws-state'
-import { cn } from '@/lib/utils'
-import type {
-  AgentDescriptor,
-  AgentStatus,
-  ManagerModelPreset,
-} from '@middleman/protocol'
+} from "@/lib/ws-state";
+import { cn } from "@/lib/utils";
+import type { AgentDescriptor, AgentStatus, ManagerModelPreset } from "@middleman/protocol";
 
 interface AgentSidebarProps {
-  connected?: boolean
-  agents?: AgentDescriptor[]
-  managerOrder?: string[]
-  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>
-  selectedAgentId?: string | null
-  isSettingsActive: boolean
-  isNotesActive: boolean
-  isMobileOpen?: boolean
-  onMobileClose?: () => void
-  onAddManager: () => void
-  onSelectAgent: (agentId: string) => void
-  onDeleteAgent: (agentId: string) => void
-  onDeleteManager: (managerId: string) => void
-  onReorderManagers: (managerIds: string[]) => void
-  onOpenNotes: () => void
-  onOpenSettings: () => void
+  connected?: boolean;
+  agents?: AgentDescriptor[];
+  managerOrder?: string[];
+  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>;
+  selectedAgentId?: string | null;
+  isSettingsActive: boolean;
+  isNotesActive: boolean;
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
+  onAddManager: () => void;
+  onSelectAgent: (agentId: string) => void;
+  onDeleteAgent: (agentId: string) => void;
+  onDeleteManager: (managerId: string) => void;
+  onReorderManagers: (managerIds: string[]) => void;
+  onOpenNotes: () => void;
+  onOpenSettings: () => void;
 }
 
 type AgentLiveStatus = {
-  status: AgentStatus
-  pendingCount: number
-}
+  status: AgentStatus;
+  pendingCount: number;
+};
 
 function ClaudeCodeIconPair({ className }: { className?: string }) {
   return (
     <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-      <img src="/agents/claude-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain', className)} />
-      <img src="/agents/claude-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain opacity-70', className)} />
+      <img
+        src="/agents/claude-logo.svg"
+        alt=""
+        className={cn("size-3 shrink-0 object-contain", className)}
+      />
+      <img
+        src="/agents/claude-logo.svg"
+        alt=""
+        className={cn("size-3 shrink-0 object-contain opacity-70", className)}
+      />
     </span>
-  )
+  );
 }
 
 function getAgentLiveStatus(
   agent: AgentDescriptor,
   statuses: Record<string, { status: AgentStatus; pendingCount: number }> | undefined,
 ): AgentLiveStatus {
-  const live = statuses?.[agent.agentId]
+  const live = statuses?.[agent.agentId];
   return {
     status: live?.status ?? agent.status,
     pendingCount: live?.pendingCount ?? 0,
-  }
+  };
 }
 
 function useAgentLiveStatus(
   agent: AgentDescriptor,
   statusesOverride?: Record<string, { status: AgentStatus; pendingCount: number }>,
 ): AgentLiveStatus {
-  const liveStatusFromAtom = useAtomValue(statusEntryAtomFamily(agent.agentId))
+  const liveStatusFromAtom = useAtomValue(statusEntryAtomFamily(agent.agentId));
 
   return {
-    status:
-      statusesOverride?.[agent.agentId]?.status ??
-      liveStatusFromAtom?.status ??
-      agent.status,
+    status: statusesOverride?.[agent.agentId]?.status ?? liveStatusFromAtom?.status ?? agent.status,
     pendingCount:
-      statusesOverride?.[agent.agentId]?.pendingCount ??
-      liveStatusFromAtom?.pendingCount ??
-      0,
-  }
+      statusesOverride?.[agent.agentId]?.pendingCount ?? liveStatusFromAtom?.pendingCount ?? 0,
+  };
 }
 
 function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?: string }) {
-  const provider = agent.model.provider.toLowerCase()
-  const preset = inferModelPreset(agent)
+  const provider = agent.model.provider.toLowerCase();
+  const preset = inferModelPreset(agent);
 
-  if (preset === 'pi-opus') {
+  if (preset === "pi-opus") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-        <img src="/pi-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain dark:invert', className)} />
-        <img src="/agents/claude-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain', className)} />
+        <img
+          src="/pi-logo.svg"
+          alt=""
+          className={cn("size-3 shrink-0 object-contain dark:invert", className)}
+        />
+        <img
+          src="/agents/claude-logo.svg"
+          alt=""
+          className={cn("size-3 shrink-0 object-contain", className)}
+        />
       </span>
-    )
+    );
   }
 
-  if (preset === 'pi-codex') {
+  if (preset === "pi-codex") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-        <img src="/pi-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain dark:invert', className)} />
+        <img
+          src="/pi-logo.svg"
+          alt=""
+          className={cn("size-3 shrink-0 object-contain dark:invert", className)}
+        />
         <img
           src="/agents/codex-logo.svg"
           alt=""
-          className={cn('size-3 shrink-0 object-contain dark:invert', className)}
+          className={cn("size-3 shrink-0 object-contain dark:invert", className)}
         />
       </span>
-    )
+    );
   }
 
-  if (preset === 'codex-app') {
+  if (preset === "codex-app") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-        <img src="/agents/codex-app-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain dark:invert', className)} />
-        <img src="/agents/codex-logo.svg" alt="" className={cn('size-3 shrink-0 object-contain dark:invert', className)} />
+        <img
+          src="/agents/codex-app-logo.svg"
+          alt=""
+          className={cn("size-3 shrink-0 object-contain dark:invert", className)}
+        />
+        <img
+          src="/agents/codex-logo.svg"
+          alt=""
+          className={cn("size-3 shrink-0 object-contain dark:invert", className)}
+        />
       </span>
-    )
+    );
   }
 
-  if (preset === 'claude-code' || provider === 'anthropic-claude-code') {
-    return <ClaudeCodeIconPair className={className} />
+  if (preset === "claude-code" || provider === "anthropic-claude-code") {
+    return <ClaudeCodeIconPair className={className} />;
   }
 
-  if (provider.includes('anthropic') || provider.includes('claude')) {
-    return <img src="/agents/claude-logo.svg" alt="" aria-hidden="true" className={className} />
+  if (provider.includes("anthropic") || provider.includes("claude")) {
+    return <img src="/agents/claude-logo.svg" alt="" aria-hidden="true" className={className} />;
   }
 
-  if (provider.includes('openai')) {
-    return <img src="/agents/codex-logo.svg" alt="" aria-hidden="true" className={cn('dark:invert', className)} />
+  if (provider.includes("openai")) {
+    return (
+      <img
+        src="/agents/codex-logo.svg"
+        alt=""
+        aria-hidden="true"
+        className={cn("dark:invert", className)}
+      />
+    );
   }
 
-  return <span className={cn('inline-block size-1.5 rounded-full bg-current', className)} aria-hidden="true" />
+  return (
+    <span
+      className={cn("inline-block size-1.5 rounded-full bg-current", className)}
+      aria-hidden="true"
+    />
+  );
 }
 
 function getModelLabel(agent: AgentDescriptor, preset: ManagerModelPreset | undefined): string {
-  if (preset === 'pi-opus') {
-    return 'opus'
+  if (preset === "pi-opus") {
+    return "opus";
   }
 
-  if (preset === 'pi-codex' || preset === 'codex-app') {
-    return 'codex'
+  if (preset === "pi-codex" || preset === "codex-app") {
+    return "codex";
   }
 
-  if (preset === 'claude-code') {
-    return 'claude-code'
+  if (preset === "claude-code") {
+    return "claude-code";
   }
 
-  const modelId = agent.model.modelId.trim().toLowerCase()
+  const modelId = agent.model.modelId.trim().toLowerCase();
 
-  if (modelId.startsWith('claude-opus')) {
-    return 'opus'
+  if (modelId.startsWith("claude-opus")) {
+    return "opus";
   }
 
-  if (modelId.includes('codex')) {
-    return 'codex'
+  if (modelId.includes("codex")) {
+    return "codex";
   }
 
-  return agent.model.modelId
+  return agent.model.modelId;
 }
-
 
 function AgentActivitySlot({
   isActive,
   isSelected,
   streamingWorkerCount,
 }: {
-  isActive: boolean
-  isSelected: boolean
-  streamingWorkerCount?: number
+  isActive: boolean;
+  isSelected: boolean;
+  streamingWorkerCount?: number;
 }) {
   // When collapsed with active workers, show CircleDashed spinner with count inside
   if (streamingWorkerCount && streamingWorkerCount > 0) {
@@ -193,46 +237,48 @@ function AgentActivitySlot({
       <TooltipProvider delay={200}>
         <Tooltip>
           <TooltipTrigger
-            render={<span className="relative inline-flex size-3.5 shrink-0 items-center justify-center" />}
-            aria-label={`${streamingWorkerCount} active worker${streamingWorkerCount !== 1 ? 's' : ''}`}
+            render={
+              <span className="relative inline-flex size-3.5 shrink-0 items-center justify-center" />
+            }
+            aria-label={`${streamingWorkerCount} active worker${streamingWorkerCount !== 1 ? "s" : ""}`}
           >
             <CircleDashed
               className={cn(
-                'absolute inset-0 size-3.5 animate-spin',
-                isSelected ? 'text-sidebar-accent-foreground/80' : 'text-muted-foreground',
+                "absolute inset-0 size-3.5 animate-spin",
+                isSelected ? "text-sidebar-accent-foreground/80" : "text-muted-foreground",
               )}
               aria-hidden="true"
             />
             <span
               className={cn(
-                'relative text-[7px] font-bold leading-none',
-                isSelected ? 'text-sidebar-accent-foreground' : 'text-muted-foreground',
+                "relative text-[7px] font-bold leading-none",
+                isSelected ? "text-sidebar-accent-foreground" : "text-muted-foreground",
               )}
             >
               {streamingWorkerCount}
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={6} className="px-2 py-1 text-[10px]">
-            {streamingWorkerCount} worker{streamingWorkerCount !== 1 ? 's' : ''} active
+            {streamingWorkerCount} worker{streamingWorkerCount !== 1 ? "s" : ""} active
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-    )
+    );
   }
 
   if (!isActive) {
-    return <span className="inline-block size-3.5 shrink-0" aria-hidden="true" />
+    return <span className="inline-block size-3.5 shrink-0" aria-hidden="true" />;
   }
 
   return (
     <CircleDashed
       className={cn(
-        'size-3.5 shrink-0 animate-spin',
-        isSelected ? 'text-sidebar-accent-foreground/80' : 'text-muted-foreground',
+        "size-3.5 shrink-0 animate-spin",
+        isSelected ? "text-sidebar-accent-foreground/80" : "text-muted-foreground",
       )}
       aria-label="Active"
     />
-  )
+  );
 }
 
 function AgentRow({
@@ -245,29 +291,29 @@ function AgentRow({
   nameClassName,
   streamingWorkerCount,
 }: {
-  agent: AgentDescriptor
-  liveStatus: AgentLiveStatus
-  isSelected: boolean
-  onSelect: () => void
-  onDelete: () => void
-  className: string
-  nameClassName?: string
-  streamingWorkerCount?: number
+  agent: AgentDescriptor;
+  liveStatus: AgentLiveStatus;
+  isSelected: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+  className: string;
+  nameClassName?: string;
+  streamingWorkerCount?: number;
 }) {
-  const title = agent.displayName || agent.agentId
-  const isActive = isWorkingAgentStatus(liveStatus.status)
-  const preset = inferModelPreset(agent)
-  const modelLabel = getModelLabel(agent, preset)
-  const modelDescription = `${agent.model.provider}/${agent.model.modelId}`
+  const title = agent.displayName || agent.agentId;
+  const isActive = isWorkingAgentStatus(liveStatus.status);
+  const preset = inferModelPreset(agent);
+  const modelLabel = getModelLabel(agent, preset);
+  const modelDescription = `${agent.model.provider}/${agent.model.modelId}`;
 
   return (
     <ContextMenu>
       <ContextMenuTrigger
         className={cn(
-          'flex w-full items-center gap-1 rounded-md transition-colors',
+          "flex w-full items-center gap-1 rounded-md transition-colors",
           isSelected
-            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-            : 'text-sidebar-foreground/90 hover:bg-sidebar-accent/50',
+            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+            : "text-sidebar-foreground/90 hover:bg-sidebar-accent/50",
           className,
         )}
       >
@@ -277,8 +323,12 @@ function AgentRow({
           className="grid w-full min-w-0 grid-cols-[0.875rem_minmax(0,1fr)_2rem] items-center gap-x-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60"
           title={title}
         >
-          <AgentActivitySlot isActive={isActive} isSelected={isSelected} streamingWorkerCount={streamingWorkerCount} />
-          <span className={cn('min-w-0 truncate text-sm leading-5', nameClassName)}>{title}</span>
+          <AgentActivitySlot
+            isActive={isActive}
+            isSelected={isSelected}
+            streamingWorkerCount={streamingWorkerCount}
+          />
+          <span className={cn("min-w-0 truncate text-sm leading-5", nameClassName)}>{title}</span>
 
           <TooltipProvider delay={200}>
             <Tooltip>
@@ -286,8 +336,8 @@ function AgentRow({
                 render={
                   <span
                     className={cn(
-                      'inline-flex h-5 w-8 shrink-0 items-center justify-center justify-self-end rounded-sm border border-sidebar-border/80 bg-sidebar-accent/40 px-0.5',
-                      isSelected ? 'border-sidebar-ring/60 bg-sidebar-accent-foreground/10' : '',
+                      "inline-flex h-5 w-8 shrink-0 items-center justify-center justify-self-end rounded-sm border border-sidebar-border/80 bg-sidebar-accent/40 px-0.5",
+                      isSelected ? "border-sidebar-ring/60 bg-sidebar-accent-foreground/10" : "",
                     )}
                   />
                 }
@@ -308,7 +358,7 @@ function AgentRow({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  )
+  );
 }
 
 function WorkerAgentRow({
@@ -318,13 +368,13 @@ function WorkerAgentRow({
   onSelect,
   onDelete,
 }: {
-  agent: AgentDescriptor
-  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>
-  isSelected: boolean
-  onSelect: () => void
-  onDelete: () => void
+  agent: AgentDescriptor;
+  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>;
+  isSelected: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
 }) {
-  const liveStatus = useAgentLiveStatus(agent, statuses)
+  const liveStatus = useAgentLiveStatus(agent, statuses);
 
   return (
     <AgentRow
@@ -336,15 +386,15 @@ function WorkerAgentRow({
       nameClassName="font-normal"
       className="py-1.5 pl-7 pr-1.5"
     />
-  )
+  );
 }
 
 function toDragTransform(transform: { x: number; y: number } | null): string | undefined {
   if (!transform) {
-    return undefined
+    return undefined;
   }
 
-  return `translate3d(${transform.x}px, ${transform.y}px, 0)`
+  return `translate3d(${transform.x}px, ${transform.y}px, 0)`;
 }
 
 function SortableManagerRow({
@@ -361,42 +411,35 @@ function SortableManagerRow({
   onSelectWorker,
   onDeleteWorker,
 }: {
-  manager: AgentDescriptor
-  workers: AgentDescriptor[]
-  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>
-  selectedAgentId: string | null
-  isSelectionSuppressed: boolean
-  isCollapsed: boolean
-  isDragDisabled: boolean
-  onToggleCollapsed: () => void
-  onSelectManager: () => void
-  onDeleteManager: () => void
-  onSelectWorker: (agentId: string) => void
-  onDeleteWorker: (agentId: string) => void
+  manager: AgentDescriptor;
+  workers: AgentDescriptor[];
+  statuses?: Record<string, { status: AgentStatus; pendingCount: number }>;
+  selectedAgentId: string | null;
+  isSelectionSuppressed: boolean;
+  isCollapsed: boolean;
+  isDragDisabled: boolean;
+  onToggleCollapsed: () => void;
+  onSelectManager: () => void;
+  onDeleteManager: () => void;
+  onSelectWorker: (agentId: string) => void;
+  onDeleteWorker: (agentId: string) => void;
 }) {
-  const {
-    attributes,
-    isDragging,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: manager.agentId,
     disabled: isDragDisabled,
-  })
-  const managerLiveStatus = useAgentLiveStatus(manager, statuses)
-  const managerIsSelected = !isSelectionSuppressed && selectedAgentId === manager.agentId
+  });
+  const managerLiveStatus = useAgentLiveStatus(manager, statuses);
+  const managerIsSelected = !isSelectionSuppressed && selectedAgentId === manager.agentId;
   const streamingWorkerCountFromAtom = useAtomValue(
     activeWorkerCountByManagerAtomFamily(manager.agentId),
-  )
+  );
   const streamingWorkerCount = isCollapsed
     ? statuses
       ? workers.filter((worker) =>
           isWorkingAgentStatus(getAgentLiveStatus(worker, statuses).status),
         ).length
       : streamingWorkerCountFromAtom
-    : 0
+    : 0;
 
   return (
     <li
@@ -405,19 +448,17 @@ function SortableManagerRow({
         transform: toDragTransform(transform),
         transition,
       }}
-      className={cn(isDragging ? 'relative z-10' : undefined)}
+      className={cn(isDragging ? "relative z-10" : undefined)}
     >
       <div
         className={cn(
-          'relative',
-          isDragging ? 'rounded-md shadow-lg shadow-black/10 ring-1 ring-sidebar-ring/40' : undefined,
+          "relative",
+          isDragging
+            ? "rounded-md shadow-lg shadow-black/10 ring-1 ring-sidebar-ring/40"
+            : undefined,
         )}
       >
-        <div
-          className="relative flex items-center"
-          {...attributes}
-          {...listeners}
-        >
+        <div className="relative flex items-center" {...attributes} {...listeners}>
           <AgentRow
             agent={manager}
             liveStatus={managerLiveStatus}
@@ -432,12 +473,12 @@ function SortableManagerRow({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} manager ${manager.agentId}`}
+            aria-label={`${isCollapsed ? "Expand" : "Collapse"} manager ${manager.agentId}`}
             aria-expanded={!isCollapsed}
             className={cn(
-              'group absolute left-1 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground/70 transition',
-              'hover:text-sidebar-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
+              "group absolute left-1 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground/70 transition",
+              "hover:text-sidebar-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60",
             )}
           >
             <span className="relative flex h-3.5 w-3.5 items-center justify-center">
@@ -473,7 +514,8 @@ function SortableManagerRow({
             <div className="absolute bottom-1 left-3.5 top-0 w-px bg-sidebar-border/40" />
             <ul className="space-y-0.5">
               {workers.map((worker) => {
-                const workerIsSelected = !isSelectionSuppressed && selectedAgentId === worker.agentId
+                const workerIsSelected =
+                  !isSelectionSuppressed && selectedAgentId === worker.agentId;
 
                 return (
                   <li key={worker.agentId}>
@@ -485,14 +527,14 @@ function SortableManagerRow({
                       onDelete={() => onDeleteWorker(worker.agentId)}
                     />
                   </li>
-                )
+                );
               })}
             </ul>
           </div>
         ) : null}
       </div>
     </li>
-  )
+  );
 }
 
 export function AgentSidebar({
@@ -513,26 +555,23 @@ export function AgentSidebar({
   onOpenNotes,
   onOpenSettings,
 }: AgentSidebarProps) {
-  useAtomValue(connectedAtom)
-  const agentsFromAtom = useAtomValue(agentsAtom)
-  const managerOrderFromAtom = useAtomValue(managerOrderAtom)
-  const selectedAgentIdFromAtom = useAtomValue(activeAgentIdAtom)
-  const managerTreeFromAtom = useAtomValue(managerTreeAtom)
-  const resolvedAgents = agents ?? agentsFromAtom
-  const resolvedManagerOrder = managerOrder ?? managerOrderFromAtom
-  const resolvedSelectedAgentId = selectedAgentId ?? selectedAgentIdFromAtom
-  const normalizedManagerOrder = normalizeManagerOrder(
-    resolvedManagerOrder,
-    resolvedAgents,
-  )
+  useAtomValue(connectedAtom);
+  const agentsFromAtom = useAtomValue(agentsAtom);
+  const managerOrderFromAtom = useAtomValue(managerOrderAtom);
+  const selectedAgentIdFromAtom = useAtomValue(activeAgentIdAtom);
+  const managerTreeFromAtom = useAtomValue(managerTreeAtom);
+  const resolvedAgents = agents ?? agentsFromAtom;
+  const resolvedManagerOrder = managerOrder ?? managerOrderFromAtom;
+  const resolvedSelectedAgentId = selectedAgentId ?? selectedAgentIdFromAtom;
+  const normalizedManagerOrder = normalizeManagerOrder(resolvedManagerOrder, resolvedAgents);
   const { managerRows, orphanWorkers } =
     agents !== undefined || managerOrder !== undefined
       ? buildManagerTreeRows(resolvedAgents, normalizedManagerOrder)
-      : managerTreeFromAtom
-  const [expandedManagerIds, setExpandedManagerIds] = useState<Set<string>>(() => new Set())
-  const visibleManagerIds = managerRows.map(({ manager }) => manager.agentId)
-  const canDragManagers = visibleManagerIds.length > 1
-  const isSelectionSuppressed = isSettingsActive || isNotesActive
+      : managerTreeFromAtom;
+  const [expandedManagerIds, setExpandedManagerIds] = useState<Set<string>>(() => new Set());
+  const visibleManagerIds = managerRows.map(({ manager }) => manager.agentId);
+  const canDragManagers = visibleManagerIds.length > 1;
+  const isSelectionSuppressed = isSettingsActive || isNotesActive;
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -540,46 +579,46 @@ export function AgentSidebar({
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
-  )
+  );
 
   const toggleManagerCollapsed = (managerId: string) => {
     setExpandedManagerIds((previous) => {
-      const next = new Set(previous)
+      const next = new Set(previous);
 
       if (next.has(managerId)) {
-        next.delete(managerId)
+        next.delete(managerId);
       } else {
-        next.add(managerId)
+        next.add(managerId);
       }
 
-      return next
-    })
-  }
+      return next;
+    });
+  };
 
   const handleSelectAgent = (agentId: string) => {
-    onSelectAgent(agentId)
-    onMobileClose?.()
-  }
+    onSelectAgent(agentId);
+    onMobileClose?.();
+  };
 
   const handleOpenSettings = () => {
-    onOpenSettings()
-    onMobileClose?.()
-  }
+    onOpenSettings();
+    onMobileClose?.();
+  };
 
   const handleOpenNotes = () => {
-    onOpenNotes()
-    onMobileClose?.()
-  }
+    onOpenNotes();
+    onMobileClose?.();
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!canDragManagers || !event.over) {
-      return
+      return;
     }
 
-    const activeId = String(event.active.id)
-    const overId = String(event.over.id)
+    const activeId = String(event.active.id);
+    const overId = String(event.over.id);
     if (activeId === overId) {
-      return
+      return;
     }
 
     const nextManagerOrder = moveVisibleManagersWithinOrder({
@@ -588,19 +627,19 @@ export function AgentSidebar({
       visibleManagerIds,
       activeId,
       overId,
-    })
+    });
 
     if (nextManagerOrder.every((managerId, index) => managerId === normalizedManagerOrder[index])) {
-      return
+      return;
     }
 
-    onReorderManagers(nextManagerOrder)
-  }
+    onReorderManagers(nextManagerOrder);
+  };
 
   const sidebarContent = (
     <aside
       className={cn(
-        'flex h-full w-full min-w-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+        "flex h-full w-full min-w-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
       )}
     >
       <ViewHeader
@@ -640,8 +679,8 @@ export function AgentSidebar({
       <div
         className="flex-1 overflow-y-auto px-2 pb-2 [color-scheme:light] dark:[color-scheme:dark] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-sidebar-border [&::-webkit-scrollbar-thumb:hover]:bg-sidebar-border/80"
         style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'var(--sidebar-border) transparent',
+          scrollbarWidth: "thin",
+          scrollbarColor: "var(--sidebar-border) transparent",
         }}
       >
         {managerRows.length === 0 ? (
@@ -649,7 +688,11 @@ export function AgentSidebar({
             No agents yet.
           </p>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
             <SortableContext items={visibleManagerIds} strategy={verticalListSortingStrategy}>
               <ul className="space-y-0.5">
                 {managerRows.map(({ manager, workers }) => (
@@ -678,8 +721,7 @@ export function AgentSidebar({
                     <ul className="space-y-0.5">
                       {orphanWorkers.map((worker) => {
                         const workerIsSelected =
-                          !isSelectionSuppressed &&
-                          resolvedSelectedAgentId === worker.agentId
+                          !isSelectionSuppressed && resolvedSelectedAgentId === worker.agentId;
 
                         return (
                           <li key={worker.agentId}>
@@ -691,7 +733,7 @@ export function AgentSidebar({
                               onDelete={() => onDeleteAgent(worker.agentId)}
                             />
                           </li>
-                        )
+                        );
                       })}
                     </ul>
                   </li>
@@ -708,10 +750,10 @@ export function AgentSidebar({
             type="button"
             onClick={handleOpenNotes}
             className={cn(
-              'flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
+              "flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60",
               isNotesActive
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
             )}
             aria-pressed={isNotesActive}
           >
@@ -723,42 +765,38 @@ export function AgentSidebar({
             type="button"
             onClick={handleOpenSettings}
             className={cn(
-              'flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
+              "flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60",
               isSettingsActive
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
             )}
             aria-pressed={isSettingsActive}
           >
             <Settings aria-hidden="true" className="size-4" />
             <span>Settings</span>
           </button>
-
-
         </div>
       </div>
     </aside>
-  )
+  );
 
   return (
     <>
       {/* Desktop: render inline */}
-      <div className="hidden h-full min-w-0 md:flex md:w-full">
-        {sidebarContent}
-      </div>
+      <div className="hidden h-full min-w-0 md:flex md:w-full">{sidebarContent}</div>
 
       {/* Mobile: render as overlay */}
       <div
         className={cn(
-          'fixed inset-0 z-40 md:hidden',
-          isMobileOpen ? 'pointer-events-auto' : 'pointer-events-none',
+          "fixed inset-0 z-40 md:hidden",
+          isMobileOpen ? "pointer-events-auto" : "pointer-events-none",
         )}
       >
         {/* Backdrop */}
         <div
           className={cn(
-            'absolute inset-0 bg-black/50 transition-opacity duration-200',
-            isMobileOpen ? 'opacity-100' : 'opacity-0',
+            "absolute inset-0 bg-black/50 transition-opacity duration-200",
+            isMobileOpen ? "opacity-100" : "opacity-0",
           )}
           onClick={onMobileClose}
           aria-hidden="true"
@@ -766,13 +804,13 @@ export function AgentSidebar({
         {/* Sidebar panel */}
         <div
           className={cn(
-            'relative z-10 h-full w-[80vw] max-w-[20rem] transition-transform duration-200 ease-out',
-            isMobileOpen ? 'translate-x-0' : '-translate-x-full',
+            "relative z-10 h-full w-[80vw] max-w-[20rem] transition-transform duration-200 ease-out",
+            isMobileOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
           {sidebarContent}
         </div>
       </div>
     </>
-  )
+  );
 }

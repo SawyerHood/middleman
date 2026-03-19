@@ -1,16 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  createFileRoute,
-  useLocation,
-  useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   Group as ResizablePanelGroup,
   Panel as ResizablePanel,
@@ -18,22 +8,13 @@ import {
   usePanelRef,
 } from "react-resizable-panels";
 import { AgentSidebar } from "@/components/chat/AgentSidebar";
-import {
-  ArtifactPanel,
-  type ArtifactPanelSelection,
-} from "@/components/chat/ArtifactPanel";
+import { ArtifactPanel, type ArtifactPanelSelection } from "@/components/chat/ArtifactPanel";
 import { ArtifactsSidebar } from "@/components/chat/ArtifactsSidebar";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { CreateManagerDialog } from "@/components/chat/CreateManagerDialog";
 import { DeleteManagerDialog } from "@/components/chat/DeleteManagerDialog";
-import {
-  MessageInput,
-  type MessageInputHandle,
-} from "@/components/chat/MessageInput";
-import {
-  MessageList,
-  type MessageListHandle,
-} from "@/components/chat/MessageList";
+import { MessageInput, type MessageInputHandle } from "@/components/chat/MessageInput";
+import { MessageList, type MessageListHandle } from "@/components/chat/MessageList";
 import { SettingsPanel } from "@/components/chat/SettingsDialog";
 import { NotesView } from "@/components/notes/NotesView";
 import { writeStoredLastOpenNotePath } from "@/components/notes/notes-storage";
@@ -54,19 +35,13 @@ import {
   subscribedAgentIdAtom,
   targetAgentIdAtom,
 } from "@/lib/ws-state";
-import {
-  DEFAULT_MANAGER_AGENT_ID,
-  useRouteState,
-} from "@/hooks/index-page/use-route-state";
+import { DEFAULT_MANAGER_AGENT_ID, useRouteState } from "@/hooks/index-page/use-route-state";
 import { useWsConnection } from "@/hooks/index-page/use-ws-connection";
 import { useManagerActions } from "@/hooks/index-page/use-manager-actions";
 import { usePendingResponse } from "@/hooks/index-page/use-pending-response";
 import { useFileDrop } from "@/hooks/index-page/use-file-drop";
 import { useDynamicFavicon } from "@/hooks/index-page/use-dynamic-favicon";
-import type {
-  ConversationAttachment,
-  CreateManagerModelPreset,
-} from "@middleman/protocol";
+import type { ConversationAttachment, CreateManagerModelPreset } from "@middleman/protocol";
 
 export const Route = createFileRoute("/")({
   component: IndexPage,
@@ -96,10 +71,7 @@ function resolveDefaultWsUrl(): string {
 }
 
 function clampSidebarWidth(width: number): number {
-  return Math.min(
-    SIDEBAR_MAX_WIDTH,
-    Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)),
-  );
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
 }
 
 function parseStoredSidebarWidth(value: string | null): number | null {
@@ -140,10 +112,7 @@ function writeStoredSidebarWidth(width: number): void {
   }
 
   try {
-    window.localStorage.setItem(
-      SIDEBAR_WIDTH_STORAGE_KEY,
-      String(clampSidebarWidth(width)),
-    );
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(clampSidebarWidth(width)));
   } catch {
     // Ignore localStorage write failures in restricted environments.
   }
@@ -151,10 +120,7 @@ function writeStoredSidebarWidth(width: number): void {
 
 function useDesktopSidebarLayout(): boolean {
   const [matches, setMatches] = useState(() => {
-    if (
-      typeof window === "undefined" ||
-      typeof window.matchMedia !== "function"
-    ) {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
       return true;
     }
 
@@ -162,10 +128,7 @@ function useDesktopSidebarLayout(): boolean {
   });
 
   useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      typeof window.matchMedia !== "function"
-    ) {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
       return;
     }
 
@@ -220,9 +183,7 @@ export function IndexPage() {
   const isDesktopSidebarLayout = useDesktopSidebarLayout();
   const agents = useAtomValue(agentsAtom);
   const managerOrder = useAtomValue(managerOrderAtom);
-  const hasReceivedAgentsSnapshot = useAtomValue(
-    hasReceivedAgentsSnapshotAtom,
-  );
+  const hasReceivedAgentsSnapshot = useAtomValue(hasReceivedAgentsSnapshotAtom);
   const targetAgentId = useAtomValue(targetAgentIdAtom);
   const subscribedAgentId = useAtomValue(subscribedAgentIdAtom);
   const activeAgentId = useAtomValue(activeAgentIdAtom);
@@ -234,15 +195,13 @@ export function IndexPage() {
   const statusBannerText = useAtomValue(statusBannerTextAtom);
 
   const { clientRef } = useWsConnection(wsUrl);
-  const { routeState, activeView, hasExplicitAgentSelection, navigateToRoute } =
-    useRouteState({
-      pathname: location.pathname,
-      search: location.search,
-      navigate,
-    });
+  const { routeState, activeView, hasExplicitAgentSelection, navigateToRoute } = useRouteState({
+    pathname: location.pathname,
+    search: location.search,
+    navigate,
+  });
 
-  const [panelSelection, setPanelSelection] =
-    useState<ArtifactPanelSelection | null>(null);
+  const [panelSelection, setPanelSelection] = useState<ArtifactPanelSelection | null>(null);
   const [isArtifactsPanelOpen, setIsArtifactsPanelOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   useDynamicFavicon();
@@ -280,16 +239,11 @@ export function IndexPage() {
     navigateToRoute,
   });
 
-  const {
-    isDraggingFiles,
-    handleDragEnter,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-  } = useFileDrop({
-    activeView,
-    messageInputRef,
-  });
+  const { isDraggingFiles, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } =
+    useFileDrop({
+      activeView,
+      messageInputRef,
+    });
 
   useEffect(() => {
     setPanelSelection(null);
@@ -312,11 +266,8 @@ export function IndexPage() {
 
     const currentAgentId = targetAgentId ?? subscribedAgentId;
     const currentAgentExists =
-      currentAgentId !== null &&
-      agents.some((agent) => agent.agentId === currentAgentId);
-    const routeAgentExists = agents.some(
-      (agent) => agent.agentId === routeState.agentId,
-    );
+      currentAgentId !== null && agents.some((agent) => agent.agentId === currentAgentId);
+    const routeAgentExists = agents.some((agent) => agent.agentId === routeState.agentId);
 
     if (hasExplicitAgentSelection) {
       if (!routeAgentExists) {
@@ -324,10 +275,7 @@ export function IndexPage() {
           return;
         }
 
-        navigateToRoute(
-          { view: "chat", agentId: DEFAULT_MANAGER_AGENT_ID },
-          true,
-        );
+        navigateToRoute({ view: "chat", agentId: DEFAULT_MANAGER_AGENT_ID }, true);
         return;
       }
 
@@ -342,10 +290,7 @@ export function IndexPage() {
       return;
     }
 
-    const fallbackAgentId = chooseFallbackAgentId(
-      agents,
-      managerOrder,
-    );
+    const fallbackAgentId = chooseFallbackAgentId(agents, managerOrder);
     if (!fallbackAgentId || fallbackAgentId === currentAgentId) {
       return;
     }
@@ -384,10 +329,7 @@ export function IndexPage() {
   }, [isDesktopSidebarLayout]);
 
   const cancelSidebarRestoreFrame = useCallback(() => {
-    if (
-      typeof window === "undefined" ||
-      sidebarRestoreFrameRef.current === null
-    ) {
+    if (typeof window === "undefined" || sidebarRestoreFrameRef.current === null) {
       return;
     }
 
@@ -418,8 +360,7 @@ export function IndexPage() {
     const restoreSidebarWidth = () => {
       const sidebarPanel = sidebarPanelRef.current;
       if (!sidebarPanel) {
-        sidebarRestoreFrameRef.current =
-          window.requestAnimationFrame(restoreSidebarWidth);
+        sidebarRestoreFrameRef.current = window.requestAnimationFrame(restoreSidebarWidth);
         return;
       }
 
@@ -427,8 +368,7 @@ export function IndexPage() {
         const currentWidth = Math.round(sidebarPanel.getSize().inPixels);
         if (currentWidth !== Math.round(targetWidth)) {
           sidebarPanel.resize(targetWidth);
-          sidebarRestoreFrameRef.current =
-            window.requestAnimationFrame(restoreSidebarWidth);
+          sidebarRestoreFrameRef.current = window.requestAnimationFrame(restoreSidebarWidth);
           return;
         }
 
@@ -439,8 +379,7 @@ export function IndexPage() {
         }
         isRestoringSidebarWidthRef.current = false;
       } catch {
-        sidebarRestoreFrameRef.current =
-          window.requestAnimationFrame(restoreSidebarWidth);
+        sidebarRestoreFrameRef.current = window.requestAnimationFrame(restoreSidebarWidth);
       }
     };
 
@@ -594,9 +533,7 @@ export function IndexPage() {
                 agentId: activeAgentId ?? DEFAULT_MANAGER_AGENT_ID,
               })
             }
-            onToggleMobileSidebar={() =>
-              setIsMobileSidebarOpen((previous) => !previous)
-            }
+            onToggleMobileSidebar={() => setIsMobileSidebarOpen((previous) => !previous)}
           />
         ) : (
           <>
@@ -606,9 +543,7 @@ export function IndexPage() {
               onNewChat={handleNewChat}
               isArtifactsPanelOpen={isArtifactsPanelOpen}
               onToggleArtifactsPanel={handleToggleArtifactsPanel}
-              onToggleMobileSidebar={() =>
-                setIsMobileSidebarOpen((previous) => !previous)
-              }
+              onToggleMobileSidebar={() => setIsMobileSidebarOpen((previous) => !previous)}
             />
             {statusBanner}
 

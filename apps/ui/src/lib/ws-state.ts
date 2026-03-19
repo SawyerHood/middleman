@@ -53,9 +53,7 @@ export interface ManagerWsState {
   lastError: string | null;
 }
 
-export function createInitialManagerWsState(
-  targetAgentId: string | null,
-): ManagerWsState {
+export function createInitialManagerWsState(targetAgentId: string | null): ManagerWsState {
   return {
     connected: false,
     hasReceivedAgentsSnapshot: false,
@@ -112,30 +110,18 @@ function applyManagerWsStatePatch(
   set: Store["set"],
   patch: Partial<ManagerWsState>,
 ): void {
-  if (
-    "connected" in patch &&
-    !Object.is(get(connectedAtom), patch.connected)
-  ) {
+  if ("connected" in patch && !Object.is(get(connectedAtom), patch.connected)) {
     set(connectedAtom, patch.connected as boolean);
   }
 
   if (
     "hasReceivedAgentsSnapshot" in patch &&
-    !Object.is(
-      get(hasReceivedAgentsSnapshotAtom),
-      patch.hasReceivedAgentsSnapshot,
-    )
+    !Object.is(get(hasReceivedAgentsSnapshotAtom), patch.hasReceivedAgentsSnapshot)
   ) {
-    set(
-      hasReceivedAgentsSnapshotAtom,
-      patch.hasReceivedAgentsSnapshot as boolean,
-    );
+    set(hasReceivedAgentsSnapshotAtom, patch.hasReceivedAgentsSnapshot as boolean);
   }
 
-  if (
-    "targetAgentId" in patch &&
-    !Object.is(get(targetAgentIdAtom), patch.targetAgentId)
-  ) {
+  if ("targetAgentId" in patch && !Object.is(get(targetAgentIdAtom), patch.targetAgentId)) {
     set(targetAgentIdAtom, patch.targetAgentId as string | null);
   }
 
@@ -164,10 +150,7 @@ function applyManagerWsStatePatch(
     set(oldestHistoryCursorAtom, patch.oldestHistoryCursor as string | null);
   }
 
-  if (
-    "hasOlderHistory" in patch &&
-    !Object.is(get(hasOlderHistoryAtom), patch.hasOlderHistory)
-  ) {
+  if ("hasOlderHistory" in patch && !Object.is(get(hasOlderHistoryAtom), patch.hasOlderHistory)) {
     set(hasOlderHistoryAtom, patch.hasOlderHistory as boolean);
   }
 
@@ -189,10 +172,7 @@ function applyManagerWsStatePatch(
     set(agentsAtom, patch.agents as AgentDescriptor[]);
   }
 
-  if (
-    "managerOrder" in patch &&
-    !Object.is(get(managerOrderAtom), patch.managerOrder)
-  ) {
+  if ("managerOrder" in patch && !Object.is(get(managerOrderAtom), patch.managerOrder)) {
     set(managerOrderAtom, patch.managerOrder as string[]);
   }
 
@@ -212,12 +192,9 @@ export const applyManagerWsStatePatchAtom = atom(
   },
 );
 
-export const replaceManagerWsStateAtom = atom(
-  null,
-  (get, set, nextState: ManagerWsState) => {
-    applyManagerWsStatePatch(get, set, nextState);
-  },
-);
+export const replaceManagerWsStateAtom = atom(null, (get, set, nextState: ManagerWsState) => {
+  applyManagerWsStatePatch(get, set, nextState);
+});
 
 export function getManagerWsState(store: Store): ManagerWsState {
   return store.get(managerWsStateSnapshotAtom);
@@ -230,10 +207,7 @@ export function applyManagerWsStatePatchToStore(
   store.set(applyManagerWsStatePatchAtom, patch);
 }
 
-export function replaceManagerWsStateInStore(
-  store: Store,
-  nextState: ManagerWsState,
-): void {
+export function replaceManagerWsStateInStore(store: Store, nextState: ManagerWsState): void {
   store.set(replaceManagerWsStateAtom, nextState);
 }
 
@@ -265,15 +239,10 @@ export const activeAgentAtom = atom((get) => {
 export const activeAgentRoleAtom = atom((get) => get(activeAgentAtom)?.role ?? null);
 
 export const activeAgentLabelAtom = atom(
-  (get) =>
-    get(activeAgentAtom)?.displayName ??
-    get(activeAgentIdAtom) ??
-    "No active agent",
+  (get) => get(activeAgentAtom)?.displayName ?? get(activeAgentIdAtom) ?? "No active agent",
 );
 
-export const activeAgentArchetypeIdAtom = atom(
-  (get) => get(activeAgentAtom)?.archetypeId ?? null,
-);
+export const activeAgentArchetypeIdAtom = atom((get) => get(activeAgentAtom)?.archetypeId ?? null);
 
 export const activeAgentStatusAtom = atom((get) => {
   const activeAgentId = get(activeAgentIdAtom);
@@ -281,11 +250,7 @@ export const activeAgentStatusAtom = atom((get) => {
     return null;
   }
 
-  return (
-    get(statusEntryAtomFamily(activeAgentId))?.status ??
-    get(activeAgentAtom)?.status ??
-    null
-  );
+  return get(statusEntryAtomFamily(activeAgentId))?.status ?? get(activeAgentAtom)?.status ?? null;
 });
 
 export const activeManagerIdAtom = atom((get) => {
@@ -298,18 +263,12 @@ export const activeManagerIdAtom = atom((get) => {
     return activeAgent.managerId;
   }
 
-  return (
-    get(agentsAtom).find((agent) => agent.role === "manager")?.agentId ?? null
-  );
+  return get(agentsAtom).find((agent) => agent.role === "manager")?.agentId ?? null;
 });
 
-export const isActiveManagerAtom = atom(
-  (get) => get(activeAgentRoleAtom) === "manager",
-);
+export const isActiveManagerAtom = atom((get) => get(activeAgentRoleAtom) === "manager");
 
-export const isWorkerDetailViewAtom = atom(
-  (get) => get(activeAgentRoleAtom) === "worker",
-);
+export const isWorkerDetailViewAtom = atom((get) => get(activeAgentRoleAtom) === "worker");
 
 function areConversationEntryArraysEqual(
   previousEntries: ConversationEntry[],
@@ -398,8 +357,7 @@ function isAssistantResponseSignal(entry: ConversationEntry): boolean {
 
   if (entry.type === "conversation_log") {
     return (
-      entry.role === "assistant" &&
-      (entry.kind === "message_start" || entry.kind === "message_end")
+      entry.role === "assistant" && (entry.kind === "message_start" || entry.kind === "message_end")
     );
   }
 
@@ -434,36 +392,28 @@ export const pendingResponseAtom = atom((get) => {
   return hasAssistantResponse ? null : pendingResponseStart;
 });
 
-export const isAwaitingResponseStartAtom = atom(
-  (get) => get(pendingResponseAtom) !== null,
-);
+export const isAwaitingResponseStartAtom = atom((get) => get(pendingResponseAtom) !== null);
 
-export const markPendingResponseAtom = atom(
-  null,
-  (get, set, agentId?: string) => {
-    const nextAgentId = agentId ?? get(activeAgentIdAtom);
-    if (!nextAgentId) {
-      return;
-    }
+export const markPendingResponseAtom = atom(null, (get, set, agentId?: string) => {
+  const nextAgentId = agentId ?? get(activeAgentIdAtom);
+  if (!nextAgentId) {
+    return;
+  }
 
-    set(pendingResponseStartAtom, {
-      agentId: nextAgentId,
-      messageCount: get(messagesAtom).length,
-    });
-  },
-);
+  set(pendingResponseStartAtom, {
+    agentId: nextAgentId,
+    messageCount: get(messagesAtom).length,
+  });
+});
 
-export const clearPendingResponseForAgentAtom = atom(
-  null,
-  (get, set, agentId: string) => {
-    const pendingResponse = get(pendingResponseStartAtom);
-    if (pendingResponse?.agentId !== agentId) {
-      return;
-    }
+export const clearPendingResponseForAgentAtom = atom(null, (get, set, agentId: string) => {
+  const pendingResponse = get(pendingResponseStartAtom);
+  if (pendingResponse?.agentId !== agentId) {
+    return;
+  }
 
-    set(pendingResponseStartAtom, null);
-  },
-);
+  set(pendingResponseStartAtom, null);
+});
 
 export const resetPendingResponseAtom = atom(null, (_get, set) => {
   set(pendingResponseStartAtom, null);
@@ -480,8 +430,7 @@ export const isLoadingAtom = atom((get) => {
 export const canStopAllAgentsAtom = atom((get) => {
   const activeAgentStatus = get(activeAgentStatusAtom);
   return (
-    get(isActiveManagerAtom) &&
-    (activeAgentStatus ? isActiveAgentStatus(activeAgentStatus) : false)
+    get(isActiveManagerAtom) && (activeAgentStatus ? isActiveAgentStatus(activeAgentStatus) : false)
   );
 });
 
@@ -489,24 +438,22 @@ export const managerTreeAtom = atom((get) =>
   buildManagerTreeRows(get(agentsAtom), get(managerOrderAtom)),
 );
 
-export const activeWorkerCountByManagerAtomFamily = atomFamily(
-  (managerId: string) =>
-    atom((get) => {
-      let count = 0;
-      for (const agent of get(agentsAtom)) {
-        if (agent.role !== "worker" || agent.managerId !== managerId) {
-          continue;
-        }
-
-        const status =
-          get(statusEntryAtomFamily(agent.agentId))?.status ?? agent.status;
-        if (isWorkingAgentStatus(status)) {
-          count += 1;
-        }
+export const activeWorkerCountByManagerAtomFamily = atomFamily((managerId: string) =>
+  atom((get) => {
+    let count = 0;
+    for (const agent of get(agentsAtom)) {
+      if (agent.role !== "worker" || agent.managerId !== managerId) {
+        continue;
       }
 
-      return count;
-    }),
+      const status = get(statusEntryAtomFamily(agent.agentId))?.status ?? agent.status;
+      if (isWorkingAgentStatus(status)) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }),
 );
 
 export const artifactsAtom = selectAtom(

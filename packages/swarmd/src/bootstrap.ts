@@ -143,7 +143,12 @@ export async function createCore(
     eventBus,
     operationService,
   );
-  const messageService = new MessageService(sessionRepo, supervisor, operationService, messageStore);
+  const messageService = new MessageService(
+    sessionRepo,
+    supervisor,
+    operationService,
+    messageStore,
+  );
   const recoveryManager = new RecoveryManager({
     sessionRepo,
     sessionService,

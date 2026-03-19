@@ -1,14 +1,14 @@
-import { memo } from 'react'
-import { MarkdownMessage } from '@/components/chat/MarkdownMessage'
-import type { ArtifactReference } from '@/lib/artifacts'
-import { MessageAttachments } from './MessageAttachments'
-import { SourceBadge, formatTimestamp } from './message-row-utils'
-import type { ConversationMessageEntry } from './types'
+import { memo } from "react";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
+import type { ArtifactReference } from "@/lib/artifacts";
+import { MessageAttachments } from "./MessageAttachments";
+import { SourceBadge, formatTimestamp } from "./message-row-utils";
+import type { ConversationMessageEntry } from "./types";
 
 interface ConversationMessageRowProps {
-  message: ConversationMessageEntry
-  onArtifactClick?: (artifact: ArtifactReference) => void
-  wsUrl?: string
+  message: ConversationMessageEntry;
+  onArtifactClick?: (artifact: ArtifactReference) => void;
+  wsUrl?: string;
 }
 
 export const ConversationMessageRow = memo(function ConversationMessageRow({
@@ -16,18 +16,18 @@ export const ConversationMessageRow = memo(function ConversationMessageRow({
   onArtifactClick,
   wsUrl,
 }: ConversationMessageRowProps) {
-  const normalizedText = message.text.trim()
-  const hasText = normalizedText.length > 0 && normalizedText !== '.'
-  const attachments = message.attachments ?? []
+  const normalizedText = message.text.trim();
+  const hasText = normalizedText.length > 0 && normalizedText !== ".";
+  const attachments = message.attachments ?? [];
 
   if (!hasText && attachments.length === 0) {
-    return null
+    return null;
   }
 
-  const timestampLabel = formatTimestamp(message.timestamp)
-  const sourceContext = message.sourceContext
+  const timestampLabel = formatTimestamp(message.timestamp);
+  const sourceContext = message.sourceContext;
 
-  if (message.role === 'system') {
+  if (message.role === "system") {
     return (
       <div className="rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-sm text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
         <div className="text-[11px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300/90">
@@ -35,9 +35,7 @@ export const ConversationMessageRow = memo(function ConversationMessageRow({
         </div>
         <div className="mt-1 space-y-2">
           {hasText ? (
-            <p className="whitespace-pre-wrap break-words leading-relaxed">
-              {normalizedText}
-            </p>
+            <p className="whitespace-pre-wrap break-words leading-relaxed">{normalizedText}</p>
           ) : null}
           <MessageAttachments attachments={attachments} isUser={false} wsUrl={wsUrl} />
         </div>
@@ -48,10 +46,10 @@ export const ConversationMessageRow = memo(function ConversationMessageRow({
           </div>
         ) : null}
       </div>
-    )
+    );
   }
 
-  if (message.role === 'user') {
+  if (message.role === "user") {
     return (
       <div className="flex justify-end">
         <div className="user-message-bubble max-w-[85%] rounded-lg rounded-tr-sm px-3 py-2">
@@ -75,17 +73,13 @@ export const ConversationMessageRow = memo(function ConversationMessageRow({
           ) : null}
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-w-0 space-y-2 text-foreground">
       {hasText ? (
-        <MarkdownMessage
-          content={normalizedText}
-          onArtifactClick={onArtifactClick}
-          wsUrl={wsUrl}
-        />
+        <MarkdownMessage content={normalizedText} onArtifactClick={onArtifactClick} wsUrl={wsUrl} />
       ) : null}
       <MessageAttachments attachments={attachments} isUser={false} wsUrl={wsUrl} />
       {timestampLabel || sourceContext ? (
@@ -95,5 +89,5 @@ export const ConversationMessageRow = memo(function ConversationMessageRow({
         </div>
       ) : null}
     </div>
-  )
-})
+  );
+});

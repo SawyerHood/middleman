@@ -45,10 +45,7 @@ interface SupervisorMock {
   hasWorker(sessionId: string): boolean;
   sendCommand(sessionId: string, command: WorkerCommand): void;
   shutdownAll(): Promise<void>;
-  spawnWorker(
-    session: SessionRecord,
-    config: SessionRuntimeConfig,
-  ): Promise<unknown>;
+  spawnWorker(session: SessionRecord, config: SessionRuntimeConfig): Promise<unknown>;
   stopWorker(sessionId: string): Promise<void>;
   terminateWorker(sessionId: string): Promise<void>;
 }
@@ -283,10 +280,7 @@ function managerReportTexts(manager: SwarmManager, managerId: string): string[] 
     .map((entry) => entry.text);
 }
 
-async function waitForCondition(
-  predicate: () => boolean,
-  timeoutMs = 1_000,
-): Promise<void> {
+async function waitForCondition(predicate: () => boolean, timeoutMs = 1_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
@@ -342,9 +336,7 @@ describe("SwarmManager worker completion reports", () => {
     });
     harness.sessionService.applyRuntimeStatus("worker-1", "idle");
 
-    await waitForCondition(
-      () => managerReportTexts(harness.manager, "manager-1").length === 1,
-    );
+    await waitForCondition(() => managerReportTexts(harness.manager, "manager-1").length === 1);
 
     expect(managerReportTexts(harness.manager, "manager-1")).toEqual([
       [
@@ -387,9 +379,7 @@ describe("SwarmManager worker completion reports", () => {
 
     expect(harness.supervisor.sentCommands).toEqual([]);
     expect(
-      (harness.manager as any).pendingWorkerCompletionReportAgentIds.has(
-        "orphan-worker",
-      ),
+      (harness.manager as any).pendingWorkerCompletionReportAgentIds.has("orphan-worker"),
     ).toBe(false);
   });
 
@@ -416,9 +406,7 @@ describe("SwarmManager worker completion reports", () => {
       retryable: false,
     });
 
-    await waitForCondition(
-      () => managerReportTexts(harness.manager, "manager-1").length === 1,
-    );
+    await waitForCondition(() => managerReportTexts(harness.manager, "manager-1").length === 1);
 
     expect(managerReportTexts(harness.manager, "manager-1")).toEqual([
       "SYSTEM: Worker worker-1 errored: Missing authentication for anthropic. Configure credentials in Settings.",
@@ -448,17 +436,13 @@ describe("SwarmManager worker completion reports", () => {
       includeStarted: true,
     });
     harness.sessionService.applyRuntimeStatus("worker-1", "idle");
-    await waitForCondition(
-      () => managerReportTexts(harness.manager, "manager-1").length === 1,
-    );
+    await waitForCondition(() => managerReportTexts(harness.manager, "manager-1").length === 1);
 
     harness.sessionService.applyRuntimeStatus("worker-1", "busy");
     publishAssistantCompletionWithoutSummary(harness, "worker-1", "msg-2");
     harness.sessionService.applyRuntimeStatus("worker-1", "idle");
 
-    await waitForCondition(
-      () => managerReportTexts(harness.manager, "manager-1").length === 2,
-    );
+    await waitForCondition(() => managerReportTexts(harness.manager, "manager-1").length === 2);
 
     expect(managerReportTexts(harness.manager, "manager-1")).toEqual([
       [
@@ -495,9 +479,7 @@ describe("SwarmManager worker completion reports", () => {
     });
     harness.sessionService.applyRuntimeStatus("worker-1", "idle");
 
-    await waitForCondition(
-      () => managerReportTexts(harness.manager, "manager-1").length === 1,
-    );
+    await waitForCondition(() => managerReportTexts(harness.manager, "manager-1").length === 1);
 
     expect(harness.sessionService.getById("manager-1")?.status).toBe("idle");
     expect(harness.supervisor.spawnCalls).toContain("manager-1");

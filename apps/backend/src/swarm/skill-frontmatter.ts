@@ -52,7 +52,7 @@ export function parseSkillFrontmatter(markdown: string): {
   return {
     name: skillName,
     description: skillDescription,
-    env: parseSkillEnvDeclarations(lines)
+    env: parseSkillEnvDeclarations(lines),
   };
 }
 
@@ -100,7 +100,7 @@ function parseSkillEnvDeclarations(lines: string[]): ParsedSkillEnvDeclaration[]
       helpUrl:
         typeof current.helpUrl === "string" && current.helpUrl.trim().length > 0
           ? current.helpUrl.trim()
-          : undefined
+          : undefined,
     });
 
     current = undefined;
@@ -151,7 +151,11 @@ function parseSkillEnvDeclarations(lines: string[]): ParsedSkillEnvDeclaration[]
   return declarations;
 }
 
-function assignSkillEnvField(target: Partial<ParsedSkillEnvDeclaration>, key: string, value: string): void {
+function assignSkillEnvField(
+  target: Partial<ParsedSkillEnvDeclaration>,
+  key: string,
+  value: string,
+): void {
   switch (key) {
     case "name":
       target.name = parseYamlStringValue(value);
@@ -191,7 +195,7 @@ function parseYamlKeyValue(line: string): { key: string; value: string } | undef
 
   return {
     key,
-    value: line.slice(separatorIndex + 1).trim()
+    value: line.slice(separatorIndex + 1).trim(),
   };
 }
 
@@ -199,7 +203,7 @@ function parseYamlStringValue(value: string): string {
   const trimmed = value.trim();
 
   if (
-    (trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"))
   ) {
     return trimmed.slice(1, -1).trim();

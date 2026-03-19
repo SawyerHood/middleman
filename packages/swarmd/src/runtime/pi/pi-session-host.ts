@@ -67,11 +67,13 @@ export interface PiAgentSessionLike {
   followUp(message: string, images?: PiImageContent[]): Promise<void> | void;
   abort(): Promise<void>;
   compact(customInstructions?: string): Promise<unknown>;
-  getContextUsage?(): {
-    tokens: number | null;
-    contextWindow: number;
-    percent: number | null;
-  } | undefined;
+  getContextUsage?():
+    | {
+        tokens: number | null;
+        contextWindow: number;
+        percent: number | null;
+      }
+    | undefined;
   subscribe(listener: (event: PiSessionEvent) => void): () => void;
   dispose(): void;
   _baseSystemPrompt?: string;
@@ -99,15 +101,13 @@ export interface PiModuleLike {
   AuthStorage?: {
     create(authPath?: string): unknown;
   };
-  ModelRegistry?: new(authStorage: unknown, modelsJsonPath?: string) => unknown;
-  DefaultResourceLoader?: new(options: {
+  ModelRegistry?: new (authStorage: unknown, modelsJsonPath?: string) => unknown;
+  DefaultResourceLoader?: new (options: {
     cwd?: string;
     agentDir?: string;
     additionalSkillPaths?: string[];
     systemPrompt?: string;
-    agentsFilesOverride?: (base: {
-      agentsFiles: Array<{ path: string; content: string }>;
-    }) => {
+    agentsFilesOverride?: (base: { agentsFiles: Array<{ path: string; content: string }> }) => {
       agentsFiles: Array<{ path: string; content: string }>;
     };
     appendSystemPromptOverride?: (base: string[]) => string[];
@@ -281,7 +281,9 @@ function mergeRuntimeContextFiles(
   ];
 }
 
-function parseConfiguredModel(config: SessionRuntimeConfig): { provider: string; modelId: string } | null {
+function parseConfiguredModel(
+  config: SessionRuntimeConfig,
+): { provider: string; modelId: string } | null {
   const backendConfig = getPiBackendConfig(config);
   if (backendConfig.modelProvider && backendConfig.modelId) {
     return {
@@ -337,10 +339,7 @@ function convertUserInputToPiInput(input: UserInput): NormalizedUserInput {
 
   const text = textParts.join("\n");
   return {
-    text:
-      input.role === "system"
-        ? `System message:\n${text}`.trim()
-        : text,
+    text: input.role === "system" ? `System message:\n${text}`.trim() : text,
     images,
   };
 }
@@ -367,13 +366,18 @@ function buildSeedMessage(input: UserInput): PiMessage {
 
 function forcePersistSessionFile(manager: PiSessionManagerLike): void {
   if (typeof manager._rewriteFile !== "function") {
-    throw new Error("Pi SessionManager does not expose _rewriteFile(), so session persistence could not be forced.");
+    throw new Error(
+      "Pi SessionManager does not expose _rewriteFile(), so session persistence could not be forced.",
+    );
   }
 
   manager._rewriteFile();
 }
 
-function normalizeCheckpoint(checkpoint: PiCheckpoint, sessionManager: PiSessionManagerLike): PiCheckpoint {
+function normalizeCheckpoint(
+  checkpoint: PiCheckpoint,
+  sessionManager: PiSessionManagerLike,
+): PiCheckpoint {
   const sessionFile = sessionManager.getSessionFile();
   if (!sessionFile) {
     throw new Error("Pi session manager did not provide a session file path.");
@@ -498,7 +502,10 @@ export class PiSessionHost implements PiSessionHostLike {
     this.setStatus("busy");
 
     void session
-      .prompt(normalized.text, normalized.images.length > 0 ? { images: normalized.images } : undefined)
+      .prompt(
+        normalized.text,
+        normalized.images.length > 0 ? { images: normalized.images } : undefined,
+      )
       .catch((error) => {
         this.dispatchPending = false;
         const message = describePiRuntimeError(error);
@@ -548,7 +555,10 @@ export class PiSessionHost implements PiSessionHostLike {
     const session = this.requireSession();
     const normalized = convertUserInputToPiInput(input);
     await Promise.resolve(
-      session.followUp(normalized.text, normalized.images.length > 0 ? normalized.images : undefined),
+      session.followUp(
+        normalized.text,
+        normalized.images.length > 0 ? normalized.images : undefined,
+      ),
     );
   }
 
@@ -590,7 +600,10 @@ export class PiSessionHost implements PiSessionHostLike {
     await this.disposeCurrentSession({ abort: this.isBusy() });
     applyEnvOverrides(envOverrides);
 
-    const sessionManager = piModule.SessionManager.open(checkpoint.sessionFile, backendConfig.sessionDir);
+    const sessionManager = piModule.SessionManager.open(
+      checkpoint.sessionFile,
+      backendConfig.sessionDir,
+    );
     if (checkpoint.branchEntryId !== undefined) {
       sessionManager.branch(checkpoint.branchEntryId);
     }
@@ -598,9 +611,13 @@ export class PiSessionHost implements PiSessionHostLike {
     const model = await resolveModel(config);
     this.contextWindow = model?.contextWindow ?? null;
     if (model === undefined && parseConfiguredModel(config) !== null) {
-      this.callbacks.log("warn", "Unable to resolve configured Pi model; falling back to Pi defaults.", {
-        model: config.model,
-      });
+      this.callbacks.log(
+        "warn",
+        "Unable to resolve configured Pi model; falling back to Pi defaults.",
+        {
+          model: config.model,
+        },
+      );
     }
 
     const hostTools = this.resolveHostTools(config) ?? undefined;
@@ -623,12 +640,13 @@ export class PiSessionHost implements PiSessionHostLike {
           },
         })
       : undefined;
-    const memoryContextFile = backendConfig.memoryContextFile?.path && backendConfig.memoryContextFile?.content
-      ? {
-          path: backendConfig.memoryContextFile.path,
-          content: backendConfig.memoryContextFile.content,
-        }
-      : undefined;
+    const memoryContextFile =
+      backendConfig.memoryContextFile?.path && backendConfig.memoryContextFile?.content
+        ? {
+            path: backendConfig.memoryContextFile.path,
+            content: backendConfig.memoryContextFile.content,
+          }
+        : undefined;
     const swarmContextFiles = Array.isArray(backendConfig.swarmContextFiles)
       ? backendConfig.swarmContextFiles
           .map((entry) => {
@@ -639,33 +657,32 @@ export class PiSessionHost implements PiSessionHostLike {
           })
           .filter((entry): entry is { path: string; content: string } => entry !== null)
       : [];
-    const resourceLoader =
-      piModule.DefaultResourceLoader
-        ? new piModule.DefaultResourceLoader({
-            cwd: config.cwd,
-            agentDir: backendConfig.agentDir,
-            additionalSkillPaths: backendConfig.additionalSkillPaths,
-            ...(readString(backendConfig.middleman?.role) === "manager" && config.systemPrompt
-              ? {
-                  systemPrompt: config.systemPrompt,
-                  appendSystemPromptOverride: () => [],
-                }
-              : {
-                  appendSystemPromptOverride: (base) =>
-                    config.systemPrompt ? [...base, config.systemPrompt] : base,
-                }),
-            ...(memoryContextFile || swarmContextFiles.length > 0
-              ? {
-                  agentsFilesOverride: (base) => ({
-                    agentsFiles: mergeRuntimeContextFiles(base.agentsFiles, {
-                      memoryContextFile,
-                      swarmContextFiles,
-                    }),
+    const resourceLoader = piModule.DefaultResourceLoader
+      ? new piModule.DefaultResourceLoader({
+          cwd: config.cwd,
+          agentDir: backendConfig.agentDir,
+          additionalSkillPaths: backendConfig.additionalSkillPaths,
+          ...(readString(backendConfig.middleman?.role) === "manager" && config.systemPrompt
+            ? {
+                systemPrompt: config.systemPrompt,
+                appendSystemPromptOverride: () => [],
+              }
+            : {
+                appendSystemPromptOverride: (base) =>
+                  config.systemPrompt ? [...base, config.systemPrompt] : base,
+              }),
+          ...(memoryContextFile || swarmContextFiles.length > 0
+            ? {
+                agentsFilesOverride: (base) => ({
+                  agentsFiles: mergeRuntimeContextFiles(base.agentsFiles, {
+                    memoryContextFile,
+                    swarmContextFiles,
                   }),
-                }
-              : {}),
-          })
-        : undefined;
+                }),
+              }
+            : {}),
+        })
+      : undefined;
 
     await resourceLoader?.reload();
 

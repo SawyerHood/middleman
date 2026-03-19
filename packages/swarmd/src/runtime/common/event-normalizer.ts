@@ -120,7 +120,9 @@ export function turnCompletedEvent(input: TurnCompletedEventInput): Omit<EventEn
   });
 }
 
-export function messageStartedEvent(input: MessageStartedEventInput): Omit<EventEnvelope, "cursor"> {
+export function messageStartedEvent(
+  input: MessageStartedEventInput,
+): Omit<EventEnvelope, "cursor"> {
   return createNormalizedEvent({
     sessionId: input.sessionId,
     threadId: input.threadId,
@@ -146,7 +148,9 @@ export function messageDeltaEvent(input: MessageDeltaEventInput): Omit<EventEnve
   });
 }
 
-export function messageCompletedEvent(input: MessageCompletedEventInput): Omit<EventEnvelope, "cursor"> {
+export function messageCompletedEvent(
+  input: MessageCompletedEventInput,
+): Omit<EventEnvelope, "cursor"> {
   return createNormalizedEvent({
     sessionId: input.sessionId,
     threadId: input.threadId,

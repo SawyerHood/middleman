@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
-  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace;
-  --color-page: #F8F7F3;
-  --color-ink: #1A1917;
-  --color-muted: #6B6860;
-  --color-accent: #946D1D;
-  --color-rule: #E0DDD5;
-  --color-surface: #EDEAE3;
-  --color-focus: #946D1D;
+  --font-display: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+  --color-page: #f8f7f3;
+  --color-ink: #1a1917;
+  --color-muted: #6b6860;
+  --color-accent: #946d1d;
+  --color-rule: #e0ddd5;
+  --color-surface: #edeae3;
+  --color-focus: #946d1d;
 }
 
 :root {
@@ -90,7 +90,12 @@ button:focus-visible,
 }
 
 /* ── Headings ── */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   text-wrap: balance;
 }
 

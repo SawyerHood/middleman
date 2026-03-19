@@ -8,7 +8,7 @@ describe("pickDirectory", () => {
 
     const pickedPath = await pickDirectory({
       platform: "darwin",
-      execFileFn
+      execFileFn,
     });
 
     expect(pickedPath).toBe(resolve("/tmp/workspace"));
@@ -18,14 +18,14 @@ describe("pickDirectory", () => {
   it("returns null when the picker is cancelled", async () => {
     const canceledError = Object.assign(new Error("User canceled."), {
       code: 1,
-      stderr: "User canceled"
+      stderr: "User canceled",
     });
 
     const execFileFn = vi.fn().mockRejectedValue(canceledError);
 
     const pickedPath = await pickDirectory({
       platform: "darwin",
-      execFileFn
+      execFileFn,
     });
 
     expect(pickedPath).toBeNull();
@@ -33,7 +33,7 @@ describe("pickDirectory", () => {
 
   it("falls back to secondary commands when the first picker binary is missing", async () => {
     const missingBinaryError = Object.assign(new Error("Missing binary"), {
-      code: "ENOENT"
+      code: "ENOENT",
     });
 
     const execFileFn = vi
@@ -44,7 +44,7 @@ describe("pickDirectory", () => {
     const pickedPath = await pickDirectory({
       platform: "linux",
       execFileFn,
-      defaultPath: "/tmp"
+      defaultPath: "/tmp",
     });
 
     expect(pickedPath).toBe("/tmp/linux-project");
@@ -55,7 +55,7 @@ describe("pickDirectory", () => {
 
   it("throws a clear error when no picker command is available", async () => {
     const missingBinaryError = Object.assign(new Error("Missing binary"), {
-      code: "ENOENT"
+      code: "ENOENT",
     });
 
     const execFileFn = vi
@@ -66,16 +66,16 @@ describe("pickDirectory", () => {
     await expect(
       pickDirectory({
         platform: "linux",
-        execFileFn
-      })
+        execFileFn,
+      }),
     ).rejects.toThrow("Directory picker is not supported in this environment.");
   });
 
   it("throws on unsupported platforms", async () => {
     await expect(
       pickDirectory({
-        platform: "freebsd"
-      })
+        platform: "freebsd",
+      }),
     ).rejects.toThrow('Directory picker is not supported on platform "freebsd".');
   });
 });

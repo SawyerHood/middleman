@@ -17,11 +17,7 @@ export interface CodexHostToolBridge {
     description: string;
     inputSchema: Record<string, unknown>;
   }>;
-  handleToolCall(call: {
-    tool: string;
-    callId: string;
-    arguments: unknown;
-  }): Promise<{
+  handleToolCall(call: { tool: string; callId: string; arguments: unknown }): Promise<{
     contentItems: Array<{
       type: "inputText";
       text: string;
@@ -65,28 +61,40 @@ function toolSchemaForName(name: string): Record<string, unknown> {
         includeManagers: { type: "boolean" },
       });
     case "send_message_to_agent":
-      return objectSchema({
-        targetAgentId: { type: "string" },
-        message: { type: "string" },
-        delivery: { enum: [...DELIVERY_MODE_VALUES] },
-      }, ["targetAgentId", "message"]);
+      return objectSchema(
+        {
+          targetAgentId: { type: "string" },
+          message: { type: "string" },
+          delivery: { enum: [...DELIVERY_MODE_VALUES] },
+        },
+        ["targetAgentId", "message"],
+      );
     case "spawn_agent":
-      return objectSchema({
-        agentId: { type: "string" },
-        archetypeId: { type: "string" },
-        systemPrompt: { type: "string" },
-        model: { enum: [...SPAWN_MODEL_PRESET_VALUES] },
-        cwd: { type: "string" },
-        initialMessage: { type: "string" },
-      }, ["agentId"]);
+      return objectSchema(
+        {
+          agentId: { type: "string" },
+          archetypeId: { type: "string" },
+          systemPrompt: { type: "string" },
+          model: { enum: [...SPAWN_MODEL_PRESET_VALUES] },
+          cwd: { type: "string" },
+          initialMessage: { type: "string" },
+        },
+        ["agentId"],
+      );
     case "kill_agent":
-      return objectSchema({
-        targetAgentId: { type: "string" },
-      }, ["targetAgentId"]);
+      return objectSchema(
+        {
+          targetAgentId: { type: "string" },
+        },
+        ["targetAgentId"],
+      );
     case "speak_to_user":
-      return objectSchema({
-        text: { type: "string" },
-      }, ["text"]);
+      return objectSchema(
+        {
+          text: { type: "string" },
+        },
+        ["text"],
+      );
     default:
       return objectSchema({});
   }
@@ -202,7 +210,11 @@ async function callHostTool(
 }> {
   const result = await hostRpc.callTool(toolName, args);
 
-  if (result && typeof result === "object" && Array.isArray((result as { content?: unknown }).content)) {
+  if (
+    result &&
+    typeof result === "object" &&
+    Array.isArray((result as { content?: unknown }).content)
+  ) {
     return result as {
       content: Array<{ type: "text"; text: string }>;
       details?: unknown;
@@ -277,7 +289,11 @@ export function createCodexHostToolBridge(
     })),
     async handleToolCall(call) {
       try {
-        const result = await callHostTool(hostRpc, call.tool, normalizeToolArguments(call.arguments));
+        const result = await callHostTool(
+          hostRpc,
+          call.tool,
+          normalizeToolArguments(call.arguments),
+        );
         return {
           success: result.isError !== true,
           contentItems: [
@@ -315,7 +331,8 @@ export async function createClaudeHostToolServer(
       definition.name,
       definition.description ?? definition.label ?? `Run ${definition.name}`,
       zodShapeForToolName(definition.name),
-      async (args: unknown) => await callHostTool(hostRpc, definition.name, normalizeToolArguments(args)),
+      async (args: unknown) =>
+        await callHostTool(hostRpc, definition.name, normalizeToolArguments(args)),
     ),
   );
 
@@ -385,9 +402,11 @@ async function loadClaudeSdkMcpHelpers(): Promise<{
     }
 
     return {
-      createSdkMcpServer: maybeModule.createSdkMcpServer as (
-        config: { name: string; version: string; tools: unknown[] },
-      ) => unknown,
+      createSdkMcpServer: maybeModule.createSdkMcpServer as (config: {
+        name: string;
+        version: string;
+        tools: unknown[];
+      }) => unknown,
       tool: maybeModule.tool as (
         name: string,
         description: string,

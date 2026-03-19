@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -37,8 +37,7 @@
           radial-gradient(circle at top left, rgba(45, 111, 231, 0.12), transparent 32%),
           linear-gradient(180deg, #1b1b1b 0%, #171717 100%);
         color: var(--text);
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       button,
@@ -326,8 +325,7 @@
         flex-direction: column;
         min-width: 0;
         min-height: 100vh;
-        background:
-          linear-gradient(180deg, rgba(32, 32, 32, 0.94) 0%, rgba(24, 24, 24, 0.98) 100%);
+        background: linear-gradient(180deg, rgba(32, 32, 32, 0.94) 0%, rgba(24, 24, 24, 0.98) 100%);
       }
 
       .main-header {
@@ -381,8 +379,7 @@
 
       .meta-pill code {
         color: var(--text);
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
 
       .header-actions {
@@ -550,8 +547,7 @@
 
       .tool-title strong {
         font-size: 13px;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
 
       .tool-status {
@@ -587,8 +583,7 @@
         color: #d9d9d9;
         font-size: 12px;
         line-height: 1.5;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
 
       .event-row {
@@ -602,8 +597,12 @@
         position: sticky;
         bottom: 0;
         padding: 0 26px 24px;
-        background:
-          linear-gradient(180deg, rgba(24, 24, 24, 0) 0%, rgba(24, 24, 24, 0.94) 22%, rgba(24, 24, 24, 0.98) 100%);
+        background: linear-gradient(
+          180deg,
+          rgba(24, 24, 24, 0) 0%,
+          rgba(24, 24, 24, 0.94) 22%,
+          rgba(24, 24, 24, 0.98) 100%
+        );
       }
 
       .composer {
@@ -762,12 +761,16 @@
       <main class="main">
         <header class="main-header">
           <div class="header-copy">
-            <h1 id="header-title" class="header-title">Choose a session <span>to start chatting</span></h1>
+            <h1 id="header-title" class="header-title">
+              Choose a session <span>to start chatting</span>
+            </h1>
             <div id="header-meta" class="header-meta"></div>
           </div>
 
           <div class="header-actions">
-            <button id="start-session" class="secondary-button" type="button" disabled>Start</button>
+            <button id="start-session" class="secondary-button" type="button" disabled>
+              Start
+            </button>
             <button id="stop-session" class="secondary-button" type="button" disabled>Stop</button>
           </div>
         </header>
@@ -968,11 +971,7 @@
             const meta = document.createElement("div");
             meta.className = "session-meta";
             meta.textContent =
-              session.id +
-              " • " +
-              session.backend +
-              " • " +
-              humanizeStatus(session.status);
+              session.id + " • " + session.backend + " • " + humanizeStatus(session.status);
 
             copy.append(name, meta);
             button.append(dot, copy);
@@ -1026,24 +1025,29 @@
 
           if (!session) {
             elements.conversation.appendChild(
-              renderEmptyState("No session selected", "Pick a session from the sidebar or create a new one."),
+              renderEmptyState(
+                "No session selected",
+                "Pick a session from the sidebar or create a new one.",
+              ),
             );
             return;
           }
 
           if (state.loadingHistorySessionId === session.id) {
             elements.conversation.appendChild(
-              renderEmptyState("Loading conversation", "Fetching session history and preparing live events."),
+              renderEmptyState(
+                "Loading conversation",
+                "Fetching session history and preparing live events.",
+              ),
             );
             return;
           }
 
           const conversation = getConversationState(session.id).items;
           if (conversation.length === 0) {
-            const description =
-              canSend(session)
-                ? "Send the first message from the composer below."
-                : "Start the session to enable the composer and receive streamed events.";
+            const description = canSend(session)
+              ? "Send the first message from the composer below."
+              : "Start the session to enable the composer and receive streamed events.";
             elements.conversation.appendChild(renderEmptyState("No messages yet", description));
             return;
           }
@@ -1077,10 +1081,14 @@
             elements.composerStatus.textContent = "Sending message...";
           } else if (canSend(session)) {
             elements.composerStatus.textContent =
-              "Connected to " + session.backend + ". Press Enter to send, Shift+Enter for a newline.";
+              "Connected to " +
+              session.backend +
+              ". Press Enter to send, Shift+Enter for a newline.";
           } else {
             elements.composerStatus.textContent =
-              "Session is " + humanizeStatus(session.status) + ". Start it before sending a message.";
+              "Session is " +
+              humanizeStatus(session.status) +
+              ". Start it before sending a message.";
           }
 
           elements.messageInput.disabled = !enabled;
@@ -1194,7 +1202,9 @@
             body.appendChild(renderToolSection("Progress", item.progress));
           }
           if (item.result !== undefined) {
-            body.appendChild(renderToolSection(item.ok === false ? "Error" : "Result", item.result));
+            body.appendChild(
+              renderToolSection(item.ok === false ? "Error" : "Result", item.result),
+            );
           }
 
           details.appendChild(body);
@@ -1262,8 +1272,13 @@
           renderComposer();
 
           try {
-            const response = await requestJson("/v1/sessions/" + encodeURIComponent(sessionId) + "/history");
-            replaceConversationFromHistory(sessionId, Array.isArray(response.entries) ? response.entries : []);
+            const response = await requestJson(
+              "/v1/sessions/" + encodeURIComponent(sessionId) + "/history",
+            );
+            replaceConversationFromHistory(
+              sessionId,
+              Array.isArray(response.entries) ? response.entries : [],
+            );
           } catch (error) {
             replaceConversationFromHistory(sessionId, []);
             setBanner(error.message || "Failed to load history.", "error");
@@ -1498,8 +1513,10 @@
 
           switch (event.type) {
             case "message.started": {
-              const role = payload.role === "user" || payload.role === "system" ? payload.role : "assistant";
-              const messageId = typeof payload.messageId === "string" ? payload.messageId : event.id;
+              const role =
+                payload.role === "user" || payload.role === "system" ? payload.role : "assistant";
+              const messageId =
+                typeof payload.messageId === "string" ? payload.messageId : event.id;
 
               if (role !== "assistant" && typeof payload.text !== "string") {
                 break;
@@ -1526,7 +1543,8 @@
             }
 
             case "message.delta": {
-              const messageId = typeof payload.messageId === "string" ? payload.messageId : event.id;
+              const messageId =
+                typeof payload.messageId === "string" ? payload.messageId : event.id;
               const message = upsertItem(conversation, "message:" + messageId, () => ({
                 key: "message:" + messageId,
                 kind: "message",
@@ -1543,7 +1561,8 @@
             }
 
             case "message.completed": {
-              const messageId = typeof payload.messageId === "string" ? payload.messageId : event.id;
+              const messageId =
+                typeof payload.messageId === "string" ? payload.messageId : event.id;
               const message = upsertItem(conversation, "message:" + messageId, () => ({
                 key: "message:" + messageId,
                 kind: "message",
@@ -1573,8 +1592,10 @@
                 timestamp: event.timestamp,
               }));
 
-              tool.toolName = typeof payload.toolName === "string" ? payload.toolName : tool.toolName;
-              tool.toolCallId = typeof payload.toolCallId === "string" ? payload.toolCallId : tool.toolCallId;
+              tool.toolName =
+                typeof payload.toolName === "string" ? payload.toolName : tool.toolName;
+              tool.toolCallId =
+                typeof payload.toolCallId === "string" ? payload.toolCallId : tool.toolCallId;
               tool.input = payload.input;
               tool.status = "running";
               tool.timestamp = event.timestamp;
@@ -1642,7 +1663,10 @@
 
             case "session.status.changed":
               updateLocalSession(sessionId, {
-                status: typeof payload.status === "string" ? payload.status : currentSessionStatus(sessionId),
+                status:
+                  typeof payload.status === "string"
+                    ? payload.status
+                    : currentSessionStatus(sessionId),
               });
               pushEventLine(
                 conversation,
@@ -1759,7 +1783,9 @@
         }
 
         function currentSession() {
-          return state.selectedSessionId ? state.sessionMap.get(state.selectedSessionId) || null : null;
+          return state.selectedSessionId
+            ? state.sessionMap.get(state.selectedSessionId) || null
+            : null;
         }
 
         function currentSessionStatus(sessionId) {
@@ -1790,7 +1816,7 @@
         function canStop(session) {
           return Boolean(
             session &&
-              ["starting", "idle", "busy", "interrupting", "stopping"].includes(session.status),
+            ["starting", "idle", "busy", "interrupting", "stopping"].includes(session.status),
           );
         }
 
@@ -1863,7 +1889,12 @@
           const data = isJson ? await response.json() : await response.text();
 
           if (!response.ok) {
-            if (data && typeof data === "object" && data.error && typeof data.error.message === "string") {
+            if (
+              data &&
+              typeof data === "object" &&
+              data.error &&
+              typeof data.error.message === "string"
+            ) {
               throw new Error(data.error.message);
             }
             if (data && typeof data === "object" && typeof data.message === "string") {
@@ -1880,7 +1911,8 @@
 
         function autosizeComposer() {
           elements.messageInput.style.height = "auto";
-          elements.messageInput.style.height = Math.min(elements.messageInput.scrollHeight, 180) + "px";
+          elements.messageInput.style.height =
+            Math.min(elements.messageInput.scrollHeight, 180) + "px";
           renderComposer();
         }
 

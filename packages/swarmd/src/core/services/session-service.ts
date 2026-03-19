@@ -1,7 +1,12 @@
 import { generateEventId, generateSessionId } from "../ids.js";
 import type { EventBus } from "../events/index.js";
 import type { OperationService } from "./operation-service.js";
-import type { MessageRepo, OperationRepo, SessionBackendStateRepo, SessionRepo } from "../store/index.js";
+import type {
+  MessageRepo,
+  OperationRepo,
+  SessionBackendStateRepo,
+  SessionRepo,
+} from "../store/index.js";
 import type { RuntimeSupervisor } from "../supervisor/runtime-supervisor.js";
 import type {
   BackendCheckpoint,
@@ -240,9 +245,11 @@ export class SessionService {
     const activeSessions = this.sessionRepo.list({
       status: PERSISTED_ACTIVE_SESSION_STATUSES,
     });
-    const expectedShutdownErrors = this.sessionRepo.list({
-      status: ["errored"],
-    }).filter((session) => isExpectedShutdownSessionError(session.lastError));
+    const expectedShutdownErrors = this.sessionRepo
+      .list({
+        status: ["errored"],
+      })
+      .filter((session) => isExpectedShutdownSessionError(session.lastError));
 
     for (const session of activeSessions) {
       this.sessionRepo.updateStatus(session.id, "stopped", null, session.contextUsage);
@@ -303,7 +310,9 @@ export class SessionService {
     this.sessionRepo.delete(sessionId);
   }
 
-  getRuntimeConfig(sessionId: string): Pick<SessionRuntimeConfig, "deliveryDefaults" | "backendConfig"> {
+  getRuntimeConfig(
+    sessionId: string,
+  ): Pick<SessionRuntimeConfig, "deliveryDefaults" | "backendConfig"> {
     this.getOrThrow(sessionId);
     return this.sessionRepo.getRuntimeConfig(sessionId);
   }

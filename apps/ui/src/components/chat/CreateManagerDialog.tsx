@@ -1,42 +1,39 @@
-import type { FormEvent } from 'react'
-import { Button } from '@/components/ui/button'
+import type { FormEvent } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import {
-  CREATE_MANAGER_MODEL_PRESETS,
-  type CreateManagerModelPreset,
-} from '@middleman/protocol'
+} from "@/components/ui/select";
+import { CREATE_MANAGER_MODEL_PRESETS, type CreateManagerModelPreset } from "@middleman/protocol";
 
 interface CreateManagerDialogProps {
-  open: boolean
-  isCreatingManager: boolean
-  isValidatingDirectory: boolean
-  isPickingDirectory: boolean
-  newManagerName: string
-  newManagerCwd: string
-  newManagerModel: CreateManagerModelPreset
-  createManagerError: string | null
-  browseError: string | null
-  onOpenChange: (open: boolean) => void
-  onNameChange: (value: string) => void
-  onCwdChange: (value: string) => void
-  onModelChange: (value: CreateManagerModelPreset) => void
-  onBrowseDirectory: () => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  open: boolean;
+  isCreatingManager: boolean;
+  isValidatingDirectory: boolean;
+  isPickingDirectory: boolean;
+  newManagerName: string;
+  newManagerCwd: string;
+  newManagerModel: CreateManagerModelPreset;
+  createManagerError: string | null;
+  browseError: string | null;
+  onOpenChange: (open: boolean) => void;
+  onNameChange: (value: string) => void;
+  onCwdChange: (value: string) => void;
+  onModelChange: (value: CreateManagerModelPreset) => void;
+  onBrowseDirectory: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
 
 export function CreateManagerDialog({
@@ -98,13 +95,11 @@ export function CreateManagerDialog({
                 disabled={isPickingDirectory || isCreatingManager}
                 className="w-full sm:w-auto"
               >
-                {isPickingDirectory ? 'Browsing…' : 'Browse'}
+                {isPickingDirectory ? "Browsing…" : "Browse"}
               </Button>
             </div>
 
-            {browseError ? (
-              <p className="text-xs text-destructive">{browseError}</p>
-            ) : null}
+            {browseError ? <p className="text-xs text-destructive">{browseError}</p> : null}
 
             <p className="text-[11px] text-muted-foreground">
               Use Browse to open the native folder picker, or enter a path manually.
@@ -119,7 +114,7 @@ export function CreateManagerDialog({
               value={newManagerModel}
               onValueChange={(value) => {
                 if (value) {
-                  onModelChange(value as CreateManagerModelPreset)
+                  onModelChange(value as CreateManagerModelPreset);
                 }
               }}
               disabled={isCreatingManager || isPickingDirectory}
@@ -158,13 +153,13 @@ export function CreateManagerDialog({
             >
               {isCreatingManager
                 ? isValidatingDirectory
-                  ? 'Validating…'
-                  : 'Creating…'
-                : 'Create manager'}
+                  ? "Validating…"
+                  : "Creating…"
+                : "Create manager"}
             </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

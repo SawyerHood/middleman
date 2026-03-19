@@ -33,7 +33,7 @@ export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         created_at TEXT NOT NULL,
         completed_at TEXT
       );
-    `
+    `,
   },
   {
     id: "002_message_store",
@@ -57,7 +57,7 @@ export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
 
       CREATE INDEX IF NOT EXISTS idx_messages_source_msg
         ON messages(session_id, source_msg_id);
-    `
+    `,
   },
   {
     id: "003_session_backend_state",
@@ -68,20 +68,20 @@ export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         state_json TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
-    `
+    `,
   },
   {
     id: "004_session_context_usage",
     sql: `
       ALTER TABLE sessions
       ADD COLUMN context_usage_json TEXT;
-    `
+    `,
   },
   {
     id: "005_session_archived",
     sql: `
       ALTER TABLE sessions
       ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
-    `
-  }
+    `,
+  },
 ];

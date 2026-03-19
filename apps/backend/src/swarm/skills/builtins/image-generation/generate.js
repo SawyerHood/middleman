@@ -211,7 +211,9 @@ async function main() {
     const options = parseArgs(process.argv.slice(2));
     const ai = new GoogleGenAI({ apiKey });
 
-    const stream = await ai.models.generateContentStream(await buildGenerateContentRequest(options));
+    const stream = await ai.models.generateContentStream(
+      await buildGenerateContentRequest(options),
+    );
 
     const imageInlineData = await findFirstImageInlineData(stream);
     if (!imageInlineData) {

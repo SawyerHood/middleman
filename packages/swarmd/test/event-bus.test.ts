@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  EventBus,
-  type EventEnvelope,
-} from "../src/index.js";
+import { EventBus, type EventEnvelope } from "../src/index.js";
 
 function createEvent(id: string, type = "message.started"): EventEnvelope {
   return {

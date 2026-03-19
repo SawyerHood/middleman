@@ -1,54 +1,44 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { useCallback, useEffect, useState } from "react";
+import { Monitor, Moon, RotateCcw, Sun } from "lucide-react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import { SettingsSection, SettingsWithCTA } from './settings-row'
-import {
-  applyThemePreference,
-  readStoredThemePreference,
-  type ThemePreference,
-} from '@/lib/theme'
-import { resolveApiEndpoint } from '@/lib/api-endpoint'
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { SettingsSection, SettingsWithCTA } from "./settings-row";
+import { applyThemePreference, readStoredThemePreference, type ThemePreference } from "@/lib/theme";
+import { resolveApiEndpoint } from "@/lib/api-endpoint";
 
 interface SettingsGeneralProps {
-  wsUrl: string
+  wsUrl: string;
 }
 
 export function SettingsGeneral({ wsUrl }: SettingsGeneralProps) {
   const [themePreference, setThemePreference] = useState<ThemePreference>(() =>
     readStoredThemePreference(),
-  )
+  );
 
   useEffect(() => {
-    setThemePreference(readStoredThemePreference())
-  }, [])
+    setThemePreference(readStoredThemePreference());
+  }, []);
 
   const handleThemePreferenceChange = useCallback((nextPreference: ThemePreference) => {
-    setThemePreference(nextPreference)
-    applyThemePreference(nextPreference)
-  }, [])
+    setThemePreference(nextPreference);
+    applyThemePreference(nextPreference);
+  }, []);
 
   return (
     <div className="flex flex-col gap-8">
-      <SettingsSection
-        label="Appearance"
-        description="Customize how the app looks"
-      >
-        <SettingsWithCTA
-          label="Theme"
-          description="Choose between light, dark, or system theme"
-        >
+      <SettingsSection label="Appearance" description="Customize how the app looks">
+        <SettingsWithCTA label="Theme" description="Choose between light, dark, or system theme">
           <Select
             value={themePreference}
             onValueChange={(value) => {
-              if (value === 'light' || value === 'dark' || value === 'auto') {
-                handleThemePreferenceChange(value)
+              if (value === "light" || value === "dark" || value === "auto") {
+                handleThemePreferenceChange(value);
               }
             }}
           >
@@ -79,20 +69,14 @@ export function SettingsGeneral({ wsUrl }: SettingsGeneralProps) {
         </SettingsWithCTA>
       </SettingsSection>
 
-      <SettingsSection
-        label="System"
-        description="Manage the Middleman daemon"
-      >
-        <SettingsWithCTA
-          label="Reboot"
-          description="Restart the Middleman daemon and all agents"
-        >
+      <SettingsSection label="System" description="Manage the Middleman daemon">
+        <SettingsWithCTA label="Reboot" description="Restart the Middleman daemon and all agents">
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              const endpoint = resolveApiEndpoint(wsUrl, '/api/reboot')
-              void fetch(endpoint, { method: 'POST' }).catch(() => {})
+              const endpoint = resolveApiEndpoint(wsUrl, "/api/reboot");
+              void fetch(endpoint, { method: "POST" }).catch(() => {});
             }}
           >
             <RotateCcw className="size-3.5 mr-1.5" />
@@ -101,5 +85,5 @@ export function SettingsGeneral({ wsUrl }: SettingsGeneralProps) {
         </SettingsWithCTA>
       </SettingsSection>
     </div>
-  )
+  );
 }

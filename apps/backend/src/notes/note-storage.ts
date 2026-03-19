@@ -8,16 +8,11 @@ import {
   rm,
   stat,
   unlink,
-  writeFile
+  writeFile,
 } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
 import mime from "mime";
-import type {
-  NoteDocument,
-  NoteFolder,
-  NoteSummary,
-  NoteTreeNode,
-} from "@middleman/protocol";
+import type { NoteDocument, NoteFolder, NoteSummary, NoteTreeNode } from "@middleman/protocol";
 
 const NOTES_DIRECTORY_NAME = "notes";
 const NOTES_ATTACHMENTS_DIRECTORY_NAME = "attachments";
@@ -57,21 +52,18 @@ export async function readNote(dataDir: string, rawPath: string): Promise<NoteDo
   const notesDir = await ensureNotesDir(dataDir);
   const filePath = await resolveExistingEntryPath(notesDir, notePath, "file");
 
-  const [content, fileStats] = await Promise.all([
-    readFile(filePath, "utf8"),
-    stat(filePath)
-  ]);
+  const [content, fileStats] = await Promise.all([readFile(filePath, "utf8"), stat(filePath)]);
 
   return {
     ...toStoredNoteSummary(notePath.path, fileStats, content),
-    content
+    content,
   };
 }
 
 export async function saveNote(
   dataDir: string,
   rawPath: string,
-  content: string
+  content: string,
 ): Promise<{ created: boolean; note: NoteDocument }> {
   const notePath = normalizeNotePath(rawPath);
   const notesDir = await ensureNotesDir(dataDir);
@@ -100,14 +92,14 @@ export async function saveNote(
 
   return {
     created,
-    note: await readNote(dataDir, notePath.path)
+    note: await readNote(dataDir, notePath.path),
   };
 }
 
 export async function renameNote(
   dataDir: string,
   rawPath: string,
-  rawNewPath: string
+  rawNewPath: string,
 ): Promise<NoteDocument> {
   const currentPath = normalizeNotePath(rawPath);
   const nextPath = normalizeNotePath(rawNewPath, "newFilename");
@@ -136,7 +128,7 @@ export async function deleteNote(dataDir: string, rawPath: string): Promise<void
 
 export async function createFolder(
   dataDir: string,
-  rawPath: string
+  rawPath: string,
 ): Promise<{ created: boolean; folder: NoteFolder }> {
   const folderPath = normalizeFolderPath(rawPath);
   const notesDir = await ensureNotesDir(dataDir);
@@ -161,8 +153,8 @@ export async function createFolder(
       kind: "folder",
       path: folderPath.path,
       name: folderPath.name,
-      children: []
-    }
+      children: [],
+    },
   };
 }
 
@@ -179,7 +171,7 @@ export async function saveNoteAttachment(
     data: Buffer;
     fileName?: string;
     mimeType?: string;
-  }
+  },
 ): Promise<{ filename: string; path: string; filePath: string }> {
   const attachmentsDir = await ensureNoteAttachmentsDir(dataDir);
   const extension = resolveAttachmentExtension(options);
@@ -198,13 +190,13 @@ export async function saveNoteAttachment(
   return {
     filename: fileName,
     path: `${NOTES_ATTACHMENTS_DIRECTORY_NAME}/${fileName}`,
-    filePath
+    filePath,
   };
 }
 
 export async function readNoteAttachment(
   dataDir: string,
-  rawFilename: string
+  rawFilename: string,
 ): Promise<{ filename: string; path: string; filePath: string }> {
   const filename = normalizeAttachmentFileName(rawFilename);
   const attachmentsDir = await ensureNoteAttachmentsDir(dataDir);
@@ -223,55 +215,57 @@ export async function readNoteAttachment(
   return {
     filename,
     path: `${NOTES_ATTACHMENTS_DIRECTORY_NAME}/${filename}`,
-    filePath
+    filePath,
   };
 }
 
 async function listTreeEntries(
   directoryPath: string,
-  parentSegments: string[]
+  parentSegments: string[],
 ): Promise<NoteTreeNode[]> {
   const entries = await readdir(directoryPath, { withFileTypes: true });
-  const nodes = await Promise.all(entries.map(async (entry): Promise<NoteTreeNode | null> => {
-    const currentSegments = [...parentSegments, entry.name];
-    const currentPath = currentSegments.join("/");
-    const absolutePath = resolve(directoryPath, entry.name);
+  const nodes = await Promise.all(
+    entries.map(async (entry): Promise<NoteTreeNode | null> => {
+      const currentSegments = [...parentSegments, entry.name];
+      const currentPath = currentSegments.join("/");
+      const absolutePath = resolve(directoryPath, entry.name);
 
-    if (entry.isSymbolicLink()) {
-      return null;
-    }
+      if (entry.isSymbolicLink()) {
+        return null;
+      }
 
-    if (
-      parentSegments.length === 0 &&
-      entry.isDirectory() &&
-      entry.name === NOTES_ATTACHMENTS_DIRECTORY_NAME
-    ) {
-      return null;
-    }
+      if (
+        parentSegments.length === 0 &&
+        entry.isDirectory() &&
+        entry.name === NOTES_ATTACHMENTS_DIRECTORY_NAME
+      ) {
+        return null;
+      }
 
-    if (entry.isDirectory()) {
+      if (entry.isDirectory()) {
+        return {
+          kind: "folder",
+          path: currentPath,
+          name: entry.name,
+          children: await listTreeEntries(absolutePath, currentSegments),
+        };
+      }
+
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(MARKDOWN_EXTENSION)) {
+        return null;
+      }
+
+      const [content, fileStats] = await Promise.all([
+        readFile(absolutePath, "utf8"),
+        stat(absolutePath),
+      ]);
+
       return {
-        kind: "folder",
-        path: currentPath,
-        name: entry.name,
-        children: await listTreeEntries(absolutePath, currentSegments)
+        kind: "file",
+        ...toStoredNoteSummary(currentPath, fileStats, content),
       };
-    }
-
-    if (!entry.isFile() || !entry.name.toLowerCase().endsWith(MARKDOWN_EXTENSION)) {
-      return null;
-    }
-
-    const [content, fileStats] = await Promise.all([
-      readFile(absolutePath, "utf8"),
-      stat(absolutePath)
-    ]);
-
-    return {
-      kind: "file",
-      ...toStoredNoteSummary(currentPath, fileStats, content)
-    };
-  }));
+    }),
+  );
 
   return sortTreeNodes(nodes.filter((node): node is NoteTreeNode => node !== null));
 }
@@ -291,10 +285,7 @@ async function ensureNoteAttachmentsDir(dataDir: string): Promise<string> {
   return attachmentsDir;
 }
 
-async function ensureDirectoryChain(
-  notesDir: string,
-  segments: string[]
-): Promise<string> {
+async function ensureDirectoryChain(notesDir: string, segments: string[]): Promise<string> {
   let currentPath = notesDir;
   const walkedSegments: string[] = [];
 
@@ -322,7 +313,7 @@ async function ensureDirectoryChain(
 async function resolveExistingEntryPath(
   notesDir: string,
   normalizedPath: NormalizedNotePath,
-  expectedKind: "file" | "directory"
+  expectedKind: "file" | "directory",
 ): Promise<string> {
   let currentPath = notesDir;
   const walkedSegments: string[] = [];
@@ -361,13 +352,10 @@ async function resolveExistingEntryPath(
 async function assertRenameTargetAvailable(
   sourcePath: string,
   targetPath: string,
-  notePath: string
+  notePath: string,
 ): Promise<void> {
   try {
-    const [sourceStats, targetStats] = await Promise.all([
-      lstat(sourcePath),
-      lstat(targetPath)
-    ]);
+    const [sourceStats, targetStats] = await Promise.all([lstat(sourcePath), lstat(targetPath)]);
 
     if (sourceStats.dev === targetStats.dev && sourceStats.ino === targetStats.ino) {
       return;
@@ -406,7 +394,7 @@ async function assertRegularFile(filePath: string, label: string): Promise<void>
 async function assertRegularDirectory(
   directoryPath: string,
   relativePath: string,
-  isNotesRoot: boolean
+  isNotesRoot: boolean,
 ): Promise<void> {
   const directoryStats = await lstat(directoryPath);
   const directoryLabel = isNotesRoot ? "Notes directory" : `Folder "${relativePath}"`;
@@ -442,7 +430,10 @@ function normalizeRelativePath(rawPath: string, fieldLabel: string): NormalizedN
   }
 
   if (path.length > NOTE_PATH_MAX_LENGTH) {
-    throw new NoteStorageError(400, `${fieldLabel} must be at most ${NOTE_PATH_MAX_LENGTH} characters.`);
+    throw new NoteStorageError(
+      400,
+      `${fieldLabel} must be at most ${NOTE_PATH_MAX_LENGTH} characters.`,
+    );
   }
 
   if (path.includes("\\") || path.includes("\0")) {
@@ -463,7 +454,7 @@ function normalizeRelativePath(rawPath: string, fieldLabel: string): NormalizedN
     if (segment.length > NOTE_SEGMENT_MAX_LENGTH) {
       throw new NoteStorageError(
         400,
-        `Each ${fieldLabel} segment must be at most ${NOTE_SEGMENT_MAX_LENGTH} characters.`
+        `Each ${fieldLabel} segment must be at most ${NOTE_SEGMENT_MAX_LENGTH} characters.`,
       );
     }
   }
@@ -471,7 +462,7 @@ function normalizeRelativePath(rawPath: string, fieldLabel: string): NormalizedN
   if (segments[0]?.toLowerCase() === NOTES_ATTACHMENTS_DIRECTORY_NAME) {
     throw new NoteStorageError(
       400,
-      `${fieldLabel} must not use reserved top-level directory "${NOTES_ATTACHMENTS_DIRECTORY_NAME}".`
+      `${fieldLabel} must not use reserved top-level directory "${NOTES_ATTACHMENTS_DIRECTORY_NAME}".`,
     );
   }
 
@@ -479,14 +470,14 @@ function normalizeRelativePath(rawPath: string, fieldLabel: string): NormalizedN
     path: segments.join("/"),
     name: segments.at(-1) ?? path,
     segments,
-    parentSegments: segments.slice(0, -1)
+    parentSegments: segments.slice(0, -1),
   };
 }
 
 function toStoredNoteSummary(
   notePath: string,
   fileStats: { birthtime: Date; birthtimeMs: number; mtime: Date; size: number },
-  content: string
+  content: string,
 ): NoteSummary {
   const createdAt =
     fileStats.birthtimeMs > 0 ? fileStats.birthtime.toISOString() : fileStats.mtime.toISOString();
@@ -498,7 +489,7 @@ function toStoredNoteSummary(
     title: extractNoteTitle(noteName, content),
     createdAt,
     updatedAt: fileStats.mtime.toISOString(),
-    sizeBytes: fileStats.size
+    sizeBytes: fileStats.size,
   };
 }
 
@@ -531,7 +522,12 @@ function sortTreeNodes(nodes: NoteTreeNode[]): NoteTreeNode[] {
 }
 
 function isMissingFileError(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "ENOENT");
+  return Boolean(
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: string }).code === "ENOENT",
+  );
 }
 
 async function removeIfExists(filePath: string): Promise<void> {
@@ -554,7 +550,7 @@ function normalizeAttachmentFileName(rawFilename: string): string {
   if (filename.length > NOTE_SEGMENT_MAX_LENGTH) {
     throw new NoteStorageError(
       400,
-      `filename must be at most ${NOTE_SEGMENT_MAX_LENGTH} characters.`
+      `filename must be at most ${NOTE_SEGMENT_MAX_LENGTH} characters.`,
     );
   }
 
@@ -575,15 +571,15 @@ function buildAttachmentFileName(data: Buffer, extension: string): string {
   const hash = createHash("sha256").update(data).digest("hex").slice(0, 12);
   const uniqueSuffix = randomUUID().replace(/-/g, "").slice(0, 12);
   const safeExtension =
-    extension.trim().toLowerCase().replace(/[^a-z0-9]/g, "") || NOTE_ATTACHMENT_FALLBACK_EXTENSION;
+    extension
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "") || NOTE_ATTACHMENT_FALLBACK_EXTENSION;
 
   return `${Date.now()}-${hash}-${uniqueSuffix}.${safeExtension}`;
 }
 
-function resolveAttachmentExtension(options: {
-  fileName?: string;
-  mimeType?: string;
-}): string {
+function resolveAttachmentExtension(options: { fileName?: string; mimeType?: string }): string {
   const normalizedMimeType = options.mimeType?.trim().toLowerCase();
   const fromMimeType = normalizedMimeType ? mime.getExtension(normalizedMimeType) : undefined;
   if (fromMimeType) {

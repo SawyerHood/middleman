@@ -3,13 +3,16 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type { ConversationAttachment } from "../swarm/types.js";
 
-export async function parseMultipartFormData(rawBody: Buffer, contentType: string): Promise<FormData> {
+export async function parseMultipartFormData(
+  rawBody: Buffer,
+  contentType: string,
+): Promise<FormData> {
   const request = new Request("http://127.0.0.1/api/uploads", {
     method: "POST",
     headers: {
-      "content-type": contentType
+      "content-type": contentType,
     },
-    body: new Uint8Array(rawBody)
+    body: new Uint8Array(rawBody),
   });
 
   try {
@@ -30,7 +33,7 @@ export function normalizeMimeType(value: string): string {
 
 export function parseConversationAttachments(
   value: unknown,
-  fieldName: string
+  fieldName: string,
 ):
   | {
       ok: true;
@@ -86,21 +89,24 @@ export function parseConversationAttachments(
         type: "text",
         mimeType,
         text: maybe.text,
-        fileName: fileName || undefined
+        fileName: fileName || undefined,
       });
       continue;
     }
 
     if (attachmentType === "binary") {
       if (typeof maybe.data !== "string" || maybe.data.trim().length === 0) {
-        return { ok: false, error: `${fieldName}[${index}].data must be a non-empty base64 string` };
+        return {
+          ok: false,
+          error: `${fieldName}[${index}].data must be a non-empty base64 string`,
+        };
       }
 
       attachments.push({
         type: "binary",
         mimeType,
         data: maybe.data.trim(),
-        fileName: fileName || undefined
+        fileName: fileName || undefined,
       });
       continue;
     }
@@ -108,7 +114,7 @@ export function parseConversationAttachments(
     if (attachmentType !== "" && attachmentType !== "image") {
       return {
         ok: false,
-        error: `${fieldName}[${index}].type must be image|text|binary when provided`
+        error: `${fieldName}[${index}].type must be image|text|binary when provided`,
       };
     }
 
@@ -123,7 +129,7 @@ export function parseConversationAttachments(
     attachments.push({
       mimeType,
       data: maybe.data.trim(),
-      fileName: fileName || undefined
+      fileName: fileName || undefined,
     });
   }
 
@@ -132,7 +138,7 @@ export function parseConversationAttachments(
 
 export async function persistConversationAttachments(
   attachments: ConversationAttachment[],
-  uploadsDir: string
+  uploadsDir: string,
 ): Promise<ConversationAttachment[]> {
   if (attachments.length === 0) {
     return [];
@@ -146,13 +152,13 @@ export async function persistConversationAttachments(
       const extension = resolveAttachmentExtension({
         mimeType: attachment.mimeType,
         fileName: attachment.fileName,
-        fallbackExtension: "txt"
+        fallbackExtension: "txt",
       });
       const filePath = buildUploadFilePath(uploadsDir, extension);
       await writeFile(filePath, attachment.text, "utf8");
       persisted.push({
         ...attachment,
-        filePath
+        filePath,
       });
       continue;
     }
@@ -160,13 +166,13 @@ export async function persistConversationAttachments(
     const extension = resolveAttachmentExtension({
       mimeType: attachment.mimeType,
       fileName: attachment.fileName,
-      fallbackExtension: attachment.type === "binary" ? "bin" : "png"
+      fallbackExtension: attachment.type === "binary" ? "bin" : "png",
     });
     const filePath = buildUploadFilePath(uploadsDir, extension);
     await writeFile(filePath, Buffer.from(attachment.data, "base64"));
     persisted.push({
       ...attachment,
-      filePath
+      filePath,
     });
   }
 
@@ -174,7 +180,11 @@ export async function persistConversationAttachments(
 }
 
 function buildUploadFilePath(uploadsDir: string, extension: string): string {
-  const safeExtension = extension.trim().toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  const safeExtension =
+    extension
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "") || "bin";
   return join(uploadsDir, `${Date.now()}-${randomUUID()}.${safeExtension}`);
 }
 
@@ -214,7 +224,10 @@ function extensionFromMimeType(mimeType: string): string | undefined {
 
   const subtype = normalized.slice(slashIndex + 1);
   const plusIndex = subtype.indexOf("+");
-  const candidate = (plusIndex >= 0 ? subtype.slice(0, plusIndex) : subtype).replace(/[^a-z0-9]/g, "");
+  const candidate = (plusIndex >= 0 ? subtype.slice(0, plusIndex) : subtype).replace(
+    /[^a-z0-9]/g,
+    "",
+  );
   return candidate.length > 0 ? candidate : undefined;
 }
 
@@ -223,7 +236,11 @@ function extensionFromFileName(fileName: string | undefined): string | undefined
     return undefined;
   }
 
-  const extension = extname(fileName).trim().toLowerCase().replace(/^\./, "").replace(/[^a-z0-9]/g, "");
+  const extension = extname(fileName)
+    .trim()
+    .toLowerCase()
+    .replace(/^\./, "")
+    .replace(/[^a-z0-9]/g, "");
   return extension.length > 0 ? extension : undefined;
 }
 
@@ -248,5 +265,5 @@ const MIME_TYPE_EXTENSIONS: Record<string, string> = {
   "text/html": "html",
   "text/markdown": "md",
   "text/plain": "txt",
-  "text/xml": "xml"
+  "text/xml": "xml",
 };

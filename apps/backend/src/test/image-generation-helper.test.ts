@@ -27,10 +27,7 @@ type ImageGenerationHelperModule = {
     };
     contents: Array<{
       role: string;
-      parts: Array<
-        | { text: string }
-        | { inlineData: { mimeType: string; data: string } }
-      >;
+      parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>;
     }>;
   }>;
 };
@@ -39,7 +36,8 @@ let helper: ImageGenerationHelperModule;
 const tempDirs: string[] = [];
 
 beforeAll(async () => {
-  helper = (await import("../swarm/skills/builtins/image-generation/generate.js")) as ImageGenerationHelperModule;
+  helper =
+    (await import("../swarm/skills/builtins/image-generation/generate.js")) as ImageGenerationHelperModule;
 });
 
 afterEach(async () => {

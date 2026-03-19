@@ -16,11 +16,11 @@ function createService(registry?: ArchetypePromptRegistry) {
     cwdAllowlistRoots: [],
     skillMetadataService: {} as never,
     getArchetypePromptRegistry: () =>
-      (registry ??
-        ({
+      registry ??
+      ({
         resolvePrompt: () => undefined,
         listArchetypeIds: () => [],
-      } satisfies ArchetypePromptRegistry)),
+      } satisfies ArchetypePromptRegistry),
     getSettingsRepo: () =>
       ({
         listEnv: () => ({}),
@@ -73,7 +73,8 @@ describe("SwarmRuntimeContextService", () => {
 
   it("appends available archetype ids to manager system prompts", () => {
     const service = createService({
-      resolvePrompt: (archetypeId) => (archetypeId === "manager" ? "You are the manager." : undefined),
+      resolvePrompt: (archetypeId) =>
+        archetypeId === "manager" ? "You are the manager." : undefined,
       listArchetypeIds: () => ["manager", "merger"],
     });
 

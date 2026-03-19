@@ -12,15 +12,10 @@ export interface ConversationCommandRouteContext {
   logDebug: (message: string, details?: unknown) => void;
 }
 
-export async function handleConversationCommand(context: ConversationCommandRouteContext): Promise<boolean> {
-  const {
-    command,
-    socket,
-    subscribedAgentId,
-    swarmManager,
-    send,
-    logDebug
-  } = context;
+export async function handleConversationCommand(
+  context: ConversationCommandRouteContext,
+): Promise<boolean> {
+  const { command, socket, subscribedAgentId, swarmManager, send, logDebug } = context;
 
   if (command.type !== "user_message") {
     return false;
@@ -34,18 +29,18 @@ export async function handleConversationCommand(context: ConversationCommandRout
     targetAgentId,
     requestedDelivery: command.delivery ?? "auto",
     textPreview: previewForLog(command.text),
-    attachmentCount: command.attachments?.length ?? 0
+    attachmentCount: command.attachments?.length ?? 0,
   });
 
   const targetDescriptor = swarmManager.getAgent(targetAgentId);
   if (!targetDescriptor) {
     logDebug("user_message:rejected:unknown_agent", {
-      targetAgentId
+      targetAgentId,
     });
     send(socket, {
       type: "error",
       code: "UNKNOWN_AGENT",
-      message: `Agent ${targetAgentId} does not exist.`
+      message: `Agent ${targetAgentId} does not exist.`,
     });
     return true;
   }
@@ -53,7 +48,7 @@ export async function handleConversationCommand(context: ConversationCommandRout
   try {
     if (targetDescriptor.role === "manager" && command.text.trim() === "/new") {
       logDebug("user_message:manager_reset", {
-        targetAgentId: targetDescriptor.agentId
+        targetAgentId: targetDescriptor.agentId,
       });
       await swarmManager.resetManagerSession(targetDescriptor.agentId, "user_new_command");
       return true;
@@ -67,31 +62,31 @@ export async function handleConversationCommand(context: ConversationCommandRout
     logDebug("user_message:dispatch:start", {
       targetAgentId,
       targetRole: targetDescriptor.role,
-      persistedAttachmentCount: persistedAttachments?.length ?? 0
+      persistedAttachmentCount: persistedAttachments?.length ?? 0,
     });
 
     await swarmManager.handleUserMessage(command.text, {
       targetAgentId,
       delivery: command.delivery,
       attachments: persistedAttachments,
-      sourceContext: { channel: "web" }
+      sourceContext: { channel: "web" },
     });
 
     logDebug("user_message:dispatch:complete", {
       targetAgentId,
-      targetRole: targetDescriptor.role
+      targetRole: targetDescriptor.role,
     });
   } catch (error) {
     logDebug("user_message:dispatch:error", {
       targetAgentId,
       targetRole: targetDescriptor.role,
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     });
     send(socket, {
       type: "error",
       code: "USER_MESSAGE_FAILED",
-      message: error instanceof Error ? error.message : String(error)
+      message: error instanceof Error ? error.message : String(error),
     });
   }
 

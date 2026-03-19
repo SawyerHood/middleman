@@ -13,7 +13,7 @@ interface BuiltInArchetypeDefinition {
 
 const BUILTIN_ARCHETYPE_DEFINITIONS: readonly BuiltInArchetypeDefinition[] = [
   { id: "manager", fileName: "manager.md" },
-  { id: "merger", fileName: "merger.md" }
+  { id: "merger", fileName: "merger.md" },
 ] as const;
 
 export interface ArchetypePromptRegistry {
@@ -73,7 +73,7 @@ function resolveBuiltInPromptPath(builtInDir: string, fileName: string): string 
 }
 
 async function loadProjectOverridePrompts(
-  projectOverridesDir: string
+  projectOverridesDir: string,
 ): Promise<Map<AgentArchetypeId, string>> {
   const promptsById = new Map<AgentArchetypeId, string>();
 

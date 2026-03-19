@@ -1,15 +1,15 @@
 /** @vitest-environment jsdom */
 
-import { fireEvent, getByRole, getByText, queryByText, waitFor } from '@testing-library/dom'
-import { createElement } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
-import { flushSync } from 'react-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NotesView } from './NotesView'
+import { fireEvent, getByRole, getByText, queryByText, waitFor } from "@testing-library/dom";
+import { createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { flushSync } from "react-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NotesView } from "./NotesView";
 
-const NOTES_EXPLORER_COLLAPSED_STORAGE_KEY = 'middleman:notes:explorer-collapsed'
-const NOTES_EXPANDED_FOLDERS_STORAGE_KEY = 'middleman:notes:expanded-folders'
-const NOTES_LAST_OPEN_STORAGE_KEY = 'middleman:notes:last-open'
+const NOTES_EXPLORER_COLLAPSED_STORAGE_KEY = "middleman:notes:explorer-collapsed";
+const NOTES_EXPANDED_FOLDERS_STORAGE_KEY = "middleman:notes:expanded-folders";
+const NOTES_LAST_OPEN_STORAGE_KEY = "middleman:notes:last-open";
 
 const notesApiMocks = vi.hoisted(() => ({
   createFolder: vi.fn(),
@@ -19,19 +19,19 @@ const notesApiMocks = vi.hoisted(() => ({
   fetchNoteTree: vi.fn(),
   renameNote: vi.fn(),
   saveNote: vi.fn(),
-}))
+}));
 
-vi.mock('@/components/notes/notes-api', () => notesApiMocks)
+vi.mock("@/components/notes/notes-api", () => notesApiMocks);
 
-vi.mock('@/components/notes/NotesMarkdownEditor', () => ({
+vi.mock("@/components/notes/NotesMarkdownEditor", () => ({
   NotesMarkdownEditor: ({
     markdown,
   }: {
-    editorId: string
-    markdown: string
-    onChange: (value: string) => void
-  }) => createElement('div', { 'data-testid': 'notes-editor' }, markdown),
-}))
+    editorId: string;
+    markdown: string;
+    onChange: (value: string) => void;
+  }) => createElement("div", { "data-testid": "notes-editor" }, markdown),
+}));
 
 class ResizeObserverMock {
   constructor(_callback: ResizeObserverCallback) {}
@@ -44,77 +44,80 @@ class ResizeObserverMock {
 }
 
 function createNoteSummary(path: string) {
-  const name = path.split('/').at(-1) ?? path
-  const title = name.replace(/\.md$/i, '').replace(/[-_]/g, ' ')
+  const name = path.split("/").at(-1) ?? path;
+  const title = name.replace(/\.md$/i, "").replace(/[-_]/g, " ");
 
   return {
     path,
     name,
     title,
-    createdAt: '2026-03-12T00:00:00.000Z',
-    updatedAt: '2026-03-12T00:00:00.000Z',
+    createdAt: "2026-03-12T00:00:00.000Z",
+    updatedAt: "2026-03-12T00:00:00.000Z",
     sizeBytes: 18,
-  }
+  };
 }
 
 function createNoteDocument(path: string, content?: string) {
   return {
     ...createNoteSummary(path),
     content: content ?? `# ${path}\n`,
-  }
+  };
 }
 
 function createLocalStorageMock(): Storage {
-  const store = new Map<string, string>()
+  const store = new Map<string, string>();
 
   return {
     get length() {
-      return store.size
+      return store.size;
     },
     clear() {
-      store.clear()
+      store.clear();
     },
     getItem(key: string) {
-      return store.get(key) ?? null
+      return store.get(key) ?? null;
     },
     key(index: number) {
-      return Array.from(store.keys())[index] ?? null
+      return Array.from(store.keys())[index] ?? null;
     },
     removeItem(key: string) {
-      store.delete(key)
+      store.delete(key);
     },
     setItem(key: string, value: string) {
-      store.set(key, value)
+      store.set(key, value);
     },
-  }
+  };
 }
 
-let container!: HTMLDivElement
-let root: Root | null = null
+let container!: HTMLDivElement;
+let root: Root | null = null;
 
-const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
-const originalMatchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia')
-const originalResizeObserverDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver')
-const originalGetAnimations = Element.prototype.getAnimations
-const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
-let isDesktopLayout = true
+const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+const originalMatchMediaDescriptor = Object.getOwnPropertyDescriptor(window, "matchMedia");
+const originalResizeObserverDescriptor = Object.getOwnPropertyDescriptor(
+  globalThis,
+  "ResizeObserver",
+);
+const originalGetAnimations = Element.prototype.getAnimations;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+let isDesktopLayout = true;
 
 beforeEach(() => {
-  isDesktopLayout = true
-  const localStorageMock = createLocalStorageMock()
-  Object.defineProperty(window, 'localStorage', {
+  isDesktopLayout = true;
+  const localStorageMock = createLocalStorageMock();
+  Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: localStorageMock,
-  })
-  Object.defineProperty(globalThis, 'localStorage', {
+  });
+  Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
     value: localStorageMock,
-  })
-  Object.defineProperty(window, 'matchMedia', {
+  });
+  Object.defineProperty(window, "matchMedia", {
     configurable: true,
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query === '(min-width: 768px)' ? isDesktopLayout : false,
+      matches: query === "(min-width: 768px)" ? isDesktopLayout : false,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -123,422 +126,434 @@ beforeEach(() => {
       removeListener: vi.fn(),
       dispatchEvent: vi.fn(),
     })),
-  })
-  Object.defineProperty(window, 'ResizeObserver', {
+  });
+  Object.defineProperty(window, "ResizeObserver", {
     configurable: true,
     value: ResizeObserverMock,
-  })
-  Object.defineProperty(globalThis, 'ResizeObserver', {
+  });
+  Object.defineProperty(globalThis, "ResizeObserver", {
     configurable: true,
     value: ResizeObserverMock,
-  })
-  Object.defineProperty(Element.prototype, 'getAnimations', {
+  });
+  Object.defineProperty(Element.prototype, "getAnimations", {
     configurable: true,
     writable: true,
     value: vi.fn(() => []),
-  })
-  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+  });
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
     writable: true,
     value: vi.fn(),
-  })
+  });
 
   notesApiMocks.fetchNoteTree.mockResolvedValue([
     {
-      kind: 'file',
-      ...createNoteSummary('first.md'),
+      kind: "file",
+      ...createNoteSummary("first.md"),
     },
-  ])
+  ]);
   notesApiMocks.fetchNote.mockImplementation(async (_wsUrl: string, path: string) =>
-    createNoteDocument(path, path === 'first.md' ? '# First note\n' : `# ${path}\n`),
-  )
-  notesApiMocks.saveNote.mockImplementation(async (_wsUrl: string, path: string, content: string) => ({
-    path,
-    name: path.split('/').at(-1) ?? path,
-    title: 'Saved note',
-    createdAt: '2026-03-12T00:00:00.000Z',
-    updatedAt: '2026-03-12T00:00:00.000Z',
-    sizeBytes: content.length,
-    content,
-  }))
+    createNoteDocument(path, path === "first.md" ? "# First note\n" : `# ${path}\n`),
+  );
+  notesApiMocks.saveNote.mockImplementation(
+    async (_wsUrl: string, path: string, content: string) => ({
+      path,
+      name: path.split("/").at(-1) ?? path,
+      title: "Saved note",
+      createdAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      sizeBytes: content.length,
+      content,
+    }),
+  );
   notesApiMocks.createFolder.mockResolvedValue({
-    kind: 'folder',
-    path: 'new-folder',
-    name: 'new-folder',
+    kind: "folder",
+    path: "new-folder",
+    name: "new-folder",
     children: [],
-  })
+  });
   notesApiMocks.renameNote.mockResolvedValue({
-    path: 'first.md',
-    name: 'first.md',
-    title: 'First note',
-    createdAt: '2026-03-12T00:00:00.000Z',
-    updatedAt: '2026-03-12T00:00:00.000Z',
+    path: "first.md",
+    name: "first.md",
+    title: "First note",
+    createdAt: "2026-03-12T00:00:00.000Z",
+    updatedAt: "2026-03-12T00:00:00.000Z",
     sizeBytes: 18,
-    content: '# First note\n',
-  })
-  notesApiMocks.deleteNote.mockResolvedValue(undefined)
-  notesApiMocks.deleteFolder.mockResolvedValue(undefined)
+    content: "# First note\n",
+  });
+  notesApiMocks.deleteNote.mockResolvedValue(undefined);
+  notesApiMocks.deleteFolder.mockResolvedValue(undefined);
 
-  container = document.createElement('div')
-  document.body.appendChild(container)
-})
+  container = document.createElement("div");
+  document.body.appendChild(container);
+});
 
 afterEach(() => {
   if (root) {
     flushSync(() => {
-      root?.unmount()
-    })
+      root?.unmount();
+    });
   }
 
-  root = null
-  container.remove()
-  vi.clearAllMocks()
+  root = null;
+  container.remove();
+  vi.clearAllMocks();
 
   if (originalLocalStorageDescriptor) {
-    Object.defineProperty(window, 'localStorage', originalLocalStorageDescriptor)
-    Object.defineProperty(globalThis, 'localStorage', originalLocalStorageDescriptor)
+    Object.defineProperty(window, "localStorage", originalLocalStorageDescriptor);
+    Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
   }
 
   if (originalMatchMediaDescriptor) {
-    Object.defineProperty(window, 'matchMedia', originalMatchMediaDescriptor)
+    Object.defineProperty(window, "matchMedia", originalMatchMediaDescriptor);
   } else {
-    Reflect.deleteProperty(window, 'matchMedia')
+    Reflect.deleteProperty(window, "matchMedia");
   }
 
   if (originalResizeObserverDescriptor) {
-    Object.defineProperty(window, 'ResizeObserver', originalResizeObserverDescriptor)
-    Object.defineProperty(globalThis, 'ResizeObserver', originalResizeObserverDescriptor)
+    Object.defineProperty(window, "ResizeObserver", originalResizeObserverDescriptor);
+    Object.defineProperty(globalThis, "ResizeObserver", originalResizeObserverDescriptor);
   } else {
-    Reflect.deleteProperty(window, 'ResizeObserver')
-    Reflect.deleteProperty(globalThis, 'ResizeObserver')
+    Reflect.deleteProperty(window, "ResizeObserver");
+    Reflect.deleteProperty(globalThis, "ResizeObserver");
   }
 
-  Object.defineProperty(Element.prototype, 'getAnimations', {
+  Object.defineProperty(Element.prototype, "getAnimations", {
     configurable: true,
     writable: true,
     value: originalGetAnimations,
-  })
-  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+  });
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
     writable: true,
     value: originalScrollIntoView,
-  })
-})
+  });
+});
 
 function click(element: HTMLElement): void {
   flushSync(() => {
-    element.click()
-  })
+    element.click();
+  });
 }
 
 function setDesktopExplorerLayout(matches: boolean): void {
-  isDesktopLayout = matches
+  isDesktopLayout = matches;
 }
 
 function renderNotesView() {
-  root = createRoot(container)
+  root = createRoot(container);
 
   flushSync(() => {
     root?.render(
       createElement(NotesView, {
-        wsUrl: 'ws://127.0.0.1:47187',
+        wsUrl: "ws://127.0.0.1:47187",
         onBack: vi.fn(),
         onToggleMobileSidebar: vi.fn(),
       }),
-    )
-  })
+    );
+  });
 }
 
 function dispatchShortcut(options: { metaKey?: boolean; ctrlKey?: boolean }) {
   fireEvent.keyDown(document, {
-    key: 'p',
+    key: "p",
     bubbles: true,
     cancelable: true,
     metaKey: options.metaKey,
     ctrlKey: options.ctrlKey,
-  })
+  });
 }
 
-describe('NotesView', () => {
-  it('toggles the explorer from the header and persists collapse state', async () => {
-    renderNotesView()
+describe("NotesView", () => {
+  it("toggles the explorer from the header and persists collapse state", async () => {
+    renderNotesView();
 
     await waitFor(() => {
-      expect(getByText(container, 'first.md')).toBeTruthy()
-    })
+      expect(getByText(container, "first.md")).toBeTruthy();
+    });
 
-    const collapseButton = container.querySelector('button[aria-label="Collapse explorer"]')
-    expect(collapseButton).toBeTruthy()
-    expect(collapseButton?.getAttribute('aria-pressed')).toBe('true')
+    const collapseButton = container.querySelector('button[aria-label="Collapse explorer"]');
+    expect(collapseButton).toBeTruthy();
+    expect(collapseButton?.getAttribute("aria-pressed")).toBe("true");
 
-    click(collapseButton as HTMLButtonElement)
-
-    await waitFor(() => {
-      expect(window.localStorage.getItem(NOTES_EXPLORER_COLLAPSED_STORAGE_KEY)).toBe('true')
-    })
+    click(collapseButton as HTMLButtonElement);
 
     await waitFor(() => {
-      expect(queryByText(container, 'first.md')).toBeNull()
-      expect(container.querySelector('button[aria-label="Expand explorer"]')).toBeTruthy()
-    })
-
-    const expandButton = container.querySelector('button[aria-label="Expand explorer"]')
-    expect(expandButton?.getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('starts collapsed when the saved preference is present', async () => {
-    window.localStorage.setItem(NOTES_EXPLORER_COLLAPSED_STORAGE_KEY, 'true')
-
-    renderNotesView()
+      expect(window.localStorage.getItem(NOTES_EXPLORER_COLLAPSED_STORAGE_KEY)).toBe("true");
+    });
 
     await waitFor(() => {
-      expect(notesApiMocks.fetchNoteTree).toHaveBeenCalled()
-    })
+      expect(queryByText(container, "first.md")).toBeNull();
+      expect(container.querySelector('button[aria-label="Expand explorer"]')).toBeTruthy();
+    });
 
-    const expandButton = container.querySelector('button[aria-label="Expand explorer"]')
-    expect(expandButton).toBeTruthy()
-    expect(expandButton?.getAttribute('aria-pressed')).toBe('false')
-    expect(container.querySelector('button[aria-label="Collapse explorer"]')).toBeNull()
-    expect(queryByText(container, 'first.md')).toBeNull()
-  })
+    const expandButton = container.querySelector('button[aria-label="Expand explorer"]');
+    expect(expandButton?.getAttribute("aria-pressed")).toBe("false");
+  });
 
-  it('keeps the explorer tree inside a full-height scroll container', async () => {
-    renderNotesView()
+  it("starts collapsed when the saved preference is present", async () => {
+    window.localStorage.setItem(NOTES_EXPLORER_COLLAPSED_STORAGE_KEY, "true");
+
+    renderNotesView();
 
     await waitFor(() => {
-      expect(getByText(container, 'first.md')).toBeTruthy()
-    })
+      expect(notesApiMocks.fetchNoteTree).toHaveBeenCalled();
+    });
 
-    const explorerScrollArea = container.querySelector('[data-slot="scroll-area"]')
-    expect(explorerScrollArea).toBeTruthy()
-    expect(explorerScrollArea?.className).toContain('min-h-0')
-    expect(explorerScrollArea?.className).toContain('flex-1')
-  })
+    const expandButton = container.querySelector('button[aria-label="Expand explorer"]');
+    expect(expandButton).toBeTruthy();
+    expect(expandButton?.getAttribute("aria-pressed")).toBe("false");
+    expect(container.querySelector('button[aria-label="Collapse explorer"]')).toBeNull();
+    expect(queryByText(container, "first.md")).toBeNull();
+  });
 
-  it('persists collapsed folders across sessions', async () => {
+  it("keeps the explorer tree inside a full-height scroll container", async () => {
+    renderNotesView();
+
+    await waitFor(() => {
+      expect(getByText(container, "first.md")).toBeTruthy();
+    });
+
+    const explorerScrollArea = container.querySelector('[data-slot="scroll-area"]');
+    expect(explorerScrollArea).toBeTruthy();
+    expect(explorerScrollArea?.className).toContain("min-h-0");
+    expect(explorerScrollArea?.className).toContain("flex-1");
+  });
+
+  it("persists collapsed folders across sessions", async () => {
     notesApiMocks.fetchNoteTree.mockResolvedValue([
       {
-        kind: 'folder',
-        path: 'projects',
-        name: 'projects',
+        kind: "folder",
+        path: "projects",
+        name: "projects",
         children: [
           {
-            kind: 'file',
-            ...createNoteSummary('projects/roadmap.md'),
+            kind: "file",
+            ...createNoteSummary("projects/roadmap.md"),
           },
         ],
       },
-    ])
-    notesApiMocks.fetchNote.mockResolvedValue(createNoteDocument('projects/roadmap.md', '# Roadmap\n'))
+    ]);
+    notesApiMocks.fetchNote.mockResolvedValue(
+      createNoteDocument("projects/roadmap.md", "# Roadmap\n"),
+    );
 
-    renderNotesView()
-
-    await waitFor(() => {
-      expect(getByText(container, 'projects')).toBeTruthy()
-      expect(getByText(container, 'roadmap.md')).toBeTruthy()
-    })
-
-    const folderToggle = container.querySelector('button[title="projects"]')
-    expect(folderToggle).toBeTruthy()
-
-    click(folderToggle as HTMLButtonElement)
+    renderNotesView();
 
     await waitFor(() => {
-      expect(window.localStorage.getItem(NOTES_EXPANDED_FOLDERS_STORAGE_KEY)).toBe('[]')
-      expect(queryByText(container, 'roadmap.md')).toBeNull()
-    })
+      expect(getByText(container, "projects")).toBeTruthy();
+      expect(getByText(container, "roadmap.md")).toBeTruthy();
+    });
+
+    const folderToggle = container.querySelector('button[title="projects"]');
+    expect(folderToggle).toBeTruthy();
+
+    click(folderToggle as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(NOTES_EXPANDED_FOLDERS_STORAGE_KEY)).toBe("[]");
+      expect(queryByText(container, "roadmap.md")).toBeNull();
+    });
 
     flushSync(() => {
-      root?.unmount()
-      root = null
-    })
+      root?.unmount();
+      root = null;
+    });
 
-    renderNotesView()
-
-    await waitFor(() => {
-      expect(getByText(container, 'projects')).toBeTruthy()
-    })
-
-    expect(queryByText(container, 'roadmap.md')).toBeNull()
-  })
-
-  it('defaults to a hidden overlay explorer on mobile and closes it after note selection', async () => {
-    setDesktopExplorerLayout(false)
-
-    renderNotesView()
+    renderNotesView();
 
     await waitFor(() => {
-      expect(notesApiMocks.fetchNoteTree).toHaveBeenCalled()
-    })
+      expect(getByText(container, "projects")).toBeTruthy();
+    });
 
-    expect(container.querySelector('button[title="first.md"]')).toBeNull()
+    expect(queryByText(container, "roadmap.md")).toBeNull();
+  });
 
-    const openExplorerButton = container.querySelector('button[aria-label="Open notes explorer"]')
-    expect(openExplorerButton).toBeTruthy()
+  it("defaults to a hidden overlay explorer on mobile and closes it after note selection", async () => {
+    setDesktopExplorerLayout(false);
 
-    click(openExplorerButton as HTMLButtonElement)
+    renderNotesView();
 
     await waitFor(() => {
-      expect(container.querySelector('button[aria-label="Collapse explorer"]')).toBeTruthy()
-      expect(container.querySelector('button[title="first.md"]')).toBeTruthy()
-    })
+      expect(notesApiMocks.fetchNoteTree).toHaveBeenCalled();
+    });
 
-    click(container.querySelector('button[title="first.md"]') as HTMLButtonElement)
+    expect(container.querySelector('button[title="first.md"]')).toBeNull();
+
+    const openExplorerButton = container.querySelector('button[aria-label="Open notes explorer"]');
+    expect(openExplorerButton).toBeTruthy();
+
+    click(openExplorerButton as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(container.querySelector('button[aria-label="Collapse explorer"]')).toBeTruthy();
+      expect(container.querySelector('button[title="first.md"]')).toBeTruthy();
+    });
+
+    click(container.querySelector('button[title="first.md"]') as HTMLButtonElement);
 
     await waitFor(() => {
       expect(notesApiMocks.fetchNote).toHaveBeenCalledWith(
-        'ws://127.0.0.1:47187',
-        'first.md',
+        "ws://127.0.0.1:47187",
+        "first.md",
         expect.any(AbortSignal),
-      )
-    })
+      );
+    });
 
     await waitFor(() => {
-      expect(container.querySelector('button[aria-label="Open notes explorer"]')?.getAttribute('aria-pressed')).toBe(
-        'false',
-      )
-      expect(container.querySelector('button[title="first.md"]')).toBeNull()
-      expect(container.querySelector('[data-testid="notes-editor"]')?.textContent).toBe('# First note\n')
-    })
-  })
+      expect(
+        container
+          .querySelector('button[aria-label="Open notes explorer"]')
+          ?.getAttribute("aria-pressed"),
+      ).toBe("false");
+      expect(container.querySelector('button[title="first.md"]')).toBeNull();
+      expect(container.querySelector('[data-testid="notes-editor"]')?.textContent).toBe(
+        "# First note\n",
+      );
+    });
+  });
 
-  it('opens the search palette from the keyboard shortcut and selects a matching note', async () => {
+  it("opens the search palette from the keyboard shortcut and selects a matching note", async () => {
     notesApiMocks.fetchNoteTree.mockResolvedValue([
       {
-        kind: 'folder',
-        path: 'projects',
-        name: 'projects',
+        kind: "folder",
+        path: "projects",
+        name: "projects",
         children: [
           {
-            kind: 'file',
-            ...createNoteSummary('projects/roadmap.md'),
+            kind: "file",
+            ...createNoteSummary("projects/roadmap.md"),
           },
         ],
       },
       {
-        kind: 'file',
-        ...createNoteSummary('first.md'),
+        kind: "file",
+        ...createNoteSummary("first.md"),
       },
-    ])
+    ]);
     notesApiMocks.fetchNote.mockImplementation(async (_wsUrl: string, path: string) =>
-      createNoteDocument(path, path === 'projects/roadmap.md' ? '# Roadmap\n' : '# First note\n'),
-    )
+      createNoteDocument(path, path === "projects/roadmap.md" ? "# Roadmap\n" : "# First note\n"),
+    );
 
-    renderNotesView()
-
-    await waitFor(() => {
-      expect(getByText(container, 'first.md')).toBeTruthy()
-    })
-
-    dispatchShortcut({ ctrlKey: true })
+    renderNotesView();
 
     await waitFor(() => {
-      expect(document.body.querySelector('input[aria-label="Search notes"]')).toBeTruthy()
-    })
+      expect(getByText(container, "first.md")).toBeTruthy();
+    });
 
-    const input = document.body.querySelector('input[aria-label="Search notes"]')
+    dispatchShortcut({ ctrlKey: true });
+
+    await waitFor(() => {
+      expect(document.body.querySelector('input[aria-label="Search notes"]')).toBeTruthy();
+    });
+
+    const input = document.body.querySelector('input[aria-label="Search notes"]');
     if (!(input instanceof HTMLInputElement)) {
-      throw new Error('Expected the note search input to be rendered.')
+      throw new Error("Expected the note search input to be rendered.");
     }
-    fireEvent.input(input, { target: { value: 'road' } })
+    fireEvent.input(input, { target: { value: "road" } });
 
     await waitFor(() => {
-      expect(getByRole(document.body, 'option', { name: /roadmap/i })).toBeTruthy()
-    })
+      expect(getByRole(document.body, "option", { name: /roadmap/i })).toBeTruthy();
+    });
 
-    fireEvent.keyDown(input, { key: 'Enter', bubbles: true })
+    fireEvent.keyDown(input, { key: "Enter", bubbles: true });
 
     await waitFor(() => {
       expect(notesApiMocks.fetchNote).toHaveBeenCalledWith(
-        'ws://127.0.0.1:47187',
-        'projects/roadmap.md',
+        "ws://127.0.0.1:47187",
+        "projects/roadmap.md",
         expect.any(AbortSignal),
-      )
-    })
+      );
+    });
 
     await waitFor(() => {
-      expect(container.querySelector('[data-testid="notes-editor"]')?.textContent).toBe('# Roadmap\n')
-    })
+      expect(container.querySelector('[data-testid="notes-editor"]')?.textContent).toBe(
+        "# Roadmap\n",
+      );
+    });
 
-    expect(getByText(container, 'projects')).toBeTruthy()
-    expect(document.body.querySelector('[data-slot="dialog-content"][data-open]')).toBeNull()
-  })
+    expect(getByText(container, "projects")).toBeTruthy();
+    expect(document.body.querySelector('[data-slot="dialog-content"][data-open]')).toBeNull();
+  });
 
-  it('opens the search palette from the explorer button and dismisses it with escape', async () => {
-    renderNotesView()
+  it("opens the search palette from the explorer button and dismisses it with escape", async () => {
+    renderNotesView();
 
     await waitFor(() => {
-      expect(getByText(container, 'first.md')).toBeTruthy()
-    })
+      expect(getByText(container, "first.md")).toBeTruthy();
+    });
 
-    const searchButton = container.querySelector('button[aria-label="Search notes"]')
-    expect(searchButton).toBeTruthy()
+    const searchButton = container.querySelector('button[aria-label="Search notes"]');
+    expect(searchButton).toBeTruthy();
 
-    click(searchButton as HTMLButtonElement)
+    click(searchButton as HTMLButtonElement);
 
-    const input = document.body.querySelector('input[aria-label="Search notes"]')
-    expect(input).toBeTruthy()
+    const input = document.body.querySelector('input[aria-label="Search notes"]');
+    expect(input).toBeTruthy();
     if (!(input instanceof HTMLInputElement)) {
-      throw new Error('Expected the note search input to be rendered.')
+      throw new Error("Expected the note search input to be rendered.");
     }
 
-    fireEvent.keyDown(input, { key: 'Escape', bubbles: true })
+    fireEvent.keyDown(input, { key: "Escape", bubbles: true });
 
     await waitFor(() => {
-      expect(document.body.querySelector('input[aria-label="Search notes"]')).toBeNull()
-    })
-  })
+      expect(document.body.querySelector('input[aria-label="Search notes"]')).toBeNull();
+    });
+  });
 
-  it('restores the last opened note when the saved path still exists', async () => {
+  it("restores the last opened note when the saved path still exists", async () => {
     notesApiMocks.fetchNoteTree.mockResolvedValue([
       {
-        kind: 'file',
-        ...createNoteSummary('first.md'),
+        kind: "file",
+        ...createNoteSummary("first.md"),
       },
       {
-        kind: 'file',
-        ...createNoteSummary('second.md'),
+        kind: "file",
+        ...createNoteSummary("second.md"),
       },
-    ])
+    ]);
     notesApiMocks.fetchNote.mockImplementation(async (_wsUrl: string, path: string) =>
-      createNoteDocument(path, path === 'second.md' ? '# Second note\n' : '# First note\n'),
-    )
-    window.localStorage.setItem(NOTES_LAST_OPEN_STORAGE_KEY, 'second.md')
+      createNoteDocument(path, path === "second.md" ? "# Second note\n" : "# First note\n"),
+    );
+    window.localStorage.setItem(NOTES_LAST_OPEN_STORAGE_KEY, "second.md");
 
-    renderNotesView()
+    renderNotesView();
 
     await waitFor(() => {
       expect(notesApiMocks.fetchNote).toHaveBeenCalledWith(
-        'ws://127.0.0.1:47187',
-        'second.md',
+        "ws://127.0.0.1:47187",
+        "second.md",
         expect.any(AbortSignal),
-      )
-    })
+      );
+    });
 
     await waitFor(() => {
-      expect(container.querySelector('[data-testid="notes-editor"]')?.textContent).toBe('# Second note\n')
-    })
+      expect(container.querySelector('[data-testid="notes-editor"]')?.textContent).toBe(
+        "# Second note\n",
+      );
+    });
 
-    expect(window.localStorage.getItem(NOTES_LAST_OPEN_STORAGE_KEY)).toBe('second.md')
-  })
+    expect(window.localStorage.getItem(NOTES_LAST_OPEN_STORAGE_KEY)).toBe("second.md");
+  });
 
-  it('shows the empty state when the saved last-open note no longer exists', async () => {
+  it("shows the empty state when the saved last-open note no longer exists", async () => {
     notesApiMocks.fetchNoteTree.mockResolvedValue([
       {
-        kind: 'file',
-        ...createNoteSummary('first.md'),
+        kind: "file",
+        ...createNoteSummary("first.md"),
       },
-    ])
-    window.localStorage.setItem(NOTES_LAST_OPEN_STORAGE_KEY, 'missing.md')
+    ]);
+    window.localStorage.setItem(NOTES_LAST_OPEN_STORAGE_KEY, "missing.md");
 
-    renderNotesView()
+    renderNotesView();
 
     await waitFor(() => {
-      expect(getByText(container, 'first.md')).toBeTruthy()
-    })
+      expect(getByText(container, "first.md")).toBeTruthy();
+    });
 
-    expect(notesApiMocks.fetchNote).not.toHaveBeenCalled()
-    expect(getByText(container, 'Choose a note to start writing')).toBeTruthy()
-    expect(window.localStorage.getItem(NOTES_LAST_OPEN_STORAGE_KEY)).toBeNull()
-  })
-})
+    expect(notesApiMocks.fetchNote).not.toHaveBeenCalled();
+    expect(getByText(container, "Choose a note to start writing")).toBeTruthy();
+    expect(window.localStorage.getItem(NOTES_LAST_OPEN_STORAGE_KEY)).toBeNull();
+  });
+});

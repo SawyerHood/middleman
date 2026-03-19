@@ -23,7 +23,11 @@ export function normalizeScheduleTimezone(timezone: string | undefined): string 
   return normalized;
 }
 
-export function resolveScheduleName(input: { name?: string; description?: string; message: string }): string {
+export function resolveScheduleName(input: {
+  name?: string;
+  description?: string;
+  message: string;
+}): string {
   const explicitName = normalizeOptionalScheduleText(input.name);
   if (explicitName) {
     return explicitName;

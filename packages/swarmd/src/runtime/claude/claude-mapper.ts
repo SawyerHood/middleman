@@ -335,7 +335,7 @@ export class ClaudeEventMapper {
 
     return readNonEmptyString(event.task_id)
       ? `task:${event.task_id}`
-      : toolCallId ?? "claude-tool";
+      : (toolCallId ?? "claude-tool");
   }
 }
 
@@ -460,7 +460,9 @@ function readNonEmptyString(value: unknown): string | undefined {
 }
 
 function readObject(value: unknown): UnknownRecord | undefined {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as UnknownRecord) : undefined;
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as UnknownRecord)
+    : undefined;
 }
 
 function withDefinedFields(input: Record<string, unknown>): Record<string, unknown> {

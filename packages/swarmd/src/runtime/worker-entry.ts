@@ -10,10 +10,7 @@ import { WorkerProtocolClient } from "../core/supervisor/worker-protocol.js";
 import type { AdapterCallbacks, BackendAdapter, HostRpcClient } from "./common/adapter.js";
 import { createClaudeBackendAdapter } from "./claude/index.js";
 import { createCodexBackendAdapter } from "./codex/index.js";
-import {
-  hasMockRuntimeConfig,
-  ScriptedBackendAdapter,
-} from "./common/scripted-backend-adapter.js";
+import { hasMockRuntimeConfig, ScriptedBackendAdapter } from "./common/scripted-backend-adapter.js";
 import { PiBackendAdapter } from "./pi/index.js";
 
 function toSessionErrorInfo(error: unknown): SessionErrorInfo {
@@ -190,7 +187,9 @@ async function main(): Promise<void> {
         break;
       }
       case "send_input":
-        await withAdapter(cmd, async (activeAdapter) => activeAdapter.sendInput(cmd.input, cmd.delivery));
+        await withAdapter(cmd, async (activeAdapter) =>
+          activeAdapter.sendInput(cmd.input, cmd.delivery),
+        );
         break;
       case "interrupt":
         await withAdapter(cmd, async (activeAdapter) => {

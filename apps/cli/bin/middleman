@@ -1,63 +1,67 @@
 #!/usr/bin/env node
 
-import { existsSync, realpathSync } from 'node:fs'
-import { spawn } from 'node:child_process'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { existsSync, realpathSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const scriptDir = dirname(fileURLToPath(import.meta.url))
+const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 if (process.argv[1]) {
   try {
-    process.env.MIDDLEMAN_CLI_BIN_DIR ??= dirname(realpathSync(process.argv[1]))
+    process.env.MIDDLEMAN_CLI_BIN_DIR ??= dirname(realpathSync(process.argv[1]));
   } catch {
-    process.env.MIDDLEMAN_CLI_BIN_DIR ??= dirname(resolve(process.argv[1]))
+    process.env.MIDDLEMAN_CLI_BIN_DIR ??= dirname(resolve(process.argv[1]));
   }
 }
 
 const compiledEntrypoints = [
-  resolve(scriptDir, '../dist/cli/index.js'),
-  resolve(scriptDir, '../dist/index.js'),
-]
+  resolve(scriptDir, "../dist/cli/index.js"),
+  resolve(scriptDir, "../dist/index.js"),
+];
 
-let executedCompiledEntrypoint = false
+let executedCompiledEntrypoint = false;
 
 for (const entrypoint of compiledEntrypoints) {
   if (!existsSync(entrypoint)) {
-    continue
+    continue;
   }
 
   try {
-    const module = await import(pathToFileURL(entrypoint).href)
-    await module.runCli(process.argv.slice(2))
+    const module = await import(pathToFileURL(entrypoint).href);
+    await module.runCli(process.argv.slice(2));
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    process.stderr.write(`${message}\n`)
-    process.exit(1)
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${message}\n`);
+    process.exit(1);
   }
 
-  executedCompiledEntrypoint = true
-  break
+  executedCompiledEntrypoint = true;
+  break;
 }
 
 if (!executedCompiledEntrypoint) {
-  const sourceEntrypoint = resolve(scriptDir, '../src/index.ts')
+  const sourceEntrypoint = resolve(scriptDir, "../src/index.ts");
   if (!existsSync(sourceEntrypoint)) {
-    process.stderr.write('Unable to locate the Middleman CLI entrypoint.\n')
-    process.exit(1)
+    process.stderr.write("Unable to locate the Middleman CLI entrypoint.\n");
+    process.exit(1);
   }
 
-  const cliDir = resolve(scriptDir, '..')
-  const child = spawn('pnpm', ['--dir', cliDir, 'exec', 'tsx', sourceEntrypoint, ...process.argv.slice(2)], {
-    stdio: 'inherit',
-  })
+  const cliDir = resolve(scriptDir, "..");
+  const child = spawn(
+    "pnpm",
+    ["--dir", cliDir, "exec", "tsx", sourceEntrypoint, ...process.argv.slice(2)],
+    {
+      stdio: "inherit",
+    },
+  );
 
-  child.on('exit', (code, signal) => {
+  child.on("exit", (code, signal) => {
     if (signal) {
-      process.kill(process.pid, signal)
-      return
+      process.kill(process.pid, signal);
+      return;
     }
 
-    process.exit(code ?? 0)
-  })
+    process.exit(code ?? 0);
+  });
 }

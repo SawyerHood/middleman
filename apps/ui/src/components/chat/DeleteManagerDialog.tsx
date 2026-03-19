@@ -1,19 +1,19 @@
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import type { AgentDescriptor } from '@middleman/protocol'
+} from "@/components/ui/dialog";
+import type { AgentDescriptor } from "@middleman/protocol";
 
 interface DeleteManagerDialogProps {
-  managerToDelete: AgentDescriptor | null
-  deleteManagerError: string | null
-  isDeletingManager: boolean
-  onClose: () => void
-  onConfirm: () => void
+  managerToDelete: AgentDescriptor | null;
+  deleteManagerError: string | null;
+  isDeletingManager: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
 }
 
 export function DeleteManagerDialog({
@@ -28,7 +28,7 @@ export function DeleteManagerDialog({
       open={Boolean(managerToDelete)}
       onOpenChange={(open) => {
         if (!open) {
-          onClose()
+          onClose();
         }
       }}
     >
@@ -48,24 +48,15 @@ export function DeleteManagerDialog({
           ) : null}
 
           <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isDeletingManager}
-            >
+            <Button type="button" variant="outline" onClick={onClose} disabled={isDeletingManager}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={onConfirm}
-              disabled={isDeletingManager}
-            >
-              {isDeletingManager ? 'Deleting...' : 'Delete manager'}
+            <Button type="button" onClick={onConfirm} disabled={isDeletingManager}>
+              {isDeletingManager ? "Deleting..." : "Delete manager"}
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

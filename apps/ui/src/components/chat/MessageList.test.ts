@@ -2,16 +2,7 @@
 
 import { createElement, createRef, type RefObject } from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AgentDescriptor,
   ConversationEntry,
@@ -113,12 +104,7 @@ function buildConversationMessage(
     role,
     text,
     timestamp: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
-    source:
-      role === "assistant"
-        ? "speak_to_user"
-        : role === "system"
-          ? "system"
-          : "user_input",
+    source: role === "assistant" ? "speak_to_user" : role === "system" ? "system" : "user_input",
   };
 }
 
@@ -255,27 +241,15 @@ afterAll(() => {
   });
 
   if (originalScrollTopDescriptor) {
-    Object.defineProperty(
-      HTMLElement.prototype,
-      "scrollTop",
-      originalScrollTopDescriptor,
-    );
+    Object.defineProperty(HTMLElement.prototype, "scrollTop", originalScrollTopDescriptor);
   }
 
   if (originalScrollHeightDescriptor) {
-    Object.defineProperty(
-      HTMLElement.prototype,
-      "scrollHeight",
-      originalScrollHeightDescriptor,
-    );
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", originalScrollHeightDescriptor);
   }
 
   if (originalClientHeightDescriptor) {
-    Object.defineProperty(
-      HTMLElement.prototype,
-      "clientHeight",
-      originalClientHeightDescriptor,
-    );
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", originalClientHeightDescriptor);
   }
 });
 
@@ -338,9 +312,7 @@ describe("MessageList", () => {
     expect(indicator.className).toContain("mt-3");
     expect(indicator.className).toContain("min-h-5");
     expect(indicator.className).toContain("items-center");
-    expect(
-      screen.getByTestId("message-list-scroller").contains(indicator),
-    ).toBe(true);
+    expect(screen.getByTestId("message-list-scroller").contains(indicator)).toBe(true);
   });
 
   it("shows a loading indicator instead of the empty state while history is loading", () => {
@@ -415,22 +387,19 @@ describe("MessageList", () => {
       ],
     });
 
+    expect(findRowSpacingWrapper(screen.getByText("follow-up reply"))?.className ?? "").toContain(
+      "pt-[var(--chat-block-gap)]",
+    );
     expect(
-      findRowSpacingWrapper(screen.getByText("follow-up reply"))?.className ??
-        "",
-    ).toContain("pt-[var(--chat-block-gap)]");
-    expect(
-      findRowSpacingWrapper(
-        screen.getByRole("button", { name: /manager → worker-1/i }),
-      )?.className ?? "",
+      findRowSpacingWrapper(screen.getByRole("button", { name: /manager → worker-1/i }))
+        ?.className ?? "",
     ).toContain("pt-[var(--chat-tool-assistant-gap)]");
     expect(
-      findRowSpacingWrapper(
-        screen.getByRole("button", { name: /calling read tool/i }),
-      )?.className ?? "",
+      findRowSpacingWrapper(screen.getByRole("button", { name: /calling read tool/i }))
+        ?.className ?? "",
     ).toContain("pt-1.5");
-    expect(
-      findRowSpacingWrapper(screen.getByText("Runtime error"))?.className ?? "",
-    ).toContain("pt-1.5");
+    expect(findRowSpacingWrapper(screen.getByText("Runtime error"))?.className ?? "").toContain(
+      "pt-1.5",
+    );
   });
 });

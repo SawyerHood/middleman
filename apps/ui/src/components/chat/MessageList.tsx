@@ -82,9 +82,7 @@ type DisplayEntry =
       entry: ConversationLogEntry;
     };
 
-function isToolExecutionLog(
-  entry: ConversationLogEntry,
-): entry is ToolExecutionLogEntry {
+function isToolExecutionLog(entry: ConversationLogEntry): entry is ToolExecutionLogEntry {
   return (
     entry.kind === "tool_execution_start" ||
     entry.kind === "tool_execution_update" ||
@@ -92,9 +90,7 @@ function isToolExecutionLog(
   );
 }
 
-function isToolExecutionEvent(
-  entry: ConversationEntry,
-): entry is ToolExecutionEvent {
+function isToolExecutionEvent(entry: ConversationEntry): entry is ToolExecutionEvent {
   if (entry.type === "agent_tool_call") {
     return true;
   }
@@ -102,9 +98,7 @@ function isToolExecutionEvent(
   return entry.type === "conversation_log" && isToolExecutionLog(entry);
 }
 
-function resolveToolExecutionEventActorAgentId(
-  event: ToolExecutionEvent,
-): string {
+function resolveToolExecutionEventActorAgentId(event: ToolExecutionEvent): string {
   return event.type === "agent_tool_call" ? event.actorAgentId : event.agentId;
 }
 
@@ -128,10 +122,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
-function getDurationMs(
-  startedAt?: string,
-  endedAt?: string,
-): number | undefined {
+function getDurationMs(startedAt?: string, endedAt?: string): number | undefined {
   if (!startedAt || !endedAt) {
     return undefined;
   }
@@ -353,10 +344,7 @@ function getDisplayEntrySpacingClass(
   const previousIsExecution = isExecutionScaffoldEntry(previousEntry);
   const currentIsExecution = isExecutionScaffoldEntry(entry);
 
-  if (
-    previousEntry.type === "tool_execution" &&
-    entry.type === "tool_execution"
-  ) {
+  if (previousEntry.type === "tool_execution" && entry.type === "tool_execution") {
     return "pt-1";
   }
 
@@ -390,11 +378,7 @@ function LoadingIndicator() {
 
 function OlderHistoryLoadingIndicator() {
   return (
-    <div
-      className="flex justify-center pb-2 pt-1"
-      role="status"
-      aria-live="polite"
-    >
+    <div className="flex justify-center pb-2 pt-1" role="status" aria-live="polite">
       <div className="rounded-full border border-border/70 bg-background/90 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground shadow-sm backdrop-blur-sm">
         Loading earlier messages
       </div>
@@ -409,17 +393,10 @@ function HistoryLoadingState() {
       role="status"
       aria-live="polite"
     >
-      <Loader2
-        className="size-5 animate-spin text-muted-foreground"
-        aria-hidden="true"
-      />
+      <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden="true" />
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">
-          Loading conversation
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Fetching message history...
-        </p>
+        <p className="text-sm font-medium text-foreground">Loading conversation</p>
+        <p className="text-xs text-muted-foreground">Fetching message history...</p>
       </div>
     </div>
   );
@@ -520,27 +497,15 @@ function areMessageListRowPropsEqual(
       return previousEntry.message === nextEntry.message;
     }
 
-    if (
-      previousEntry.type === "agent_message" &&
-      nextEntry.type === "agent_message"
-    ) {
+    if (previousEntry.type === "agent_message" && nextEntry.type === "agent_message") {
       return previousEntry.message === nextEntry.message;
     }
 
-    if (
-      previousEntry.type === "tool_execution" &&
-      nextEntry.type === "tool_execution"
-    ) {
-      return areToolExecutionDisplayEntriesEqual(
-        previousEntry.entry,
-        nextEntry.entry,
-      );
+    if (previousEntry.type === "tool_execution" && nextEntry.type === "tool_execution") {
+      return areToolExecutionDisplayEntriesEqual(previousEntry.entry, nextEntry.entry);
     }
 
-    if (
-      previousEntry.type === "runtime_error_log" &&
-      nextEntry.type === "runtime_error_log"
-    ) {
+    if (previousEntry.type === "runtime_error_log" && nextEntry.type === "runtime_error_log") {
       return previousEntry.entry === nextEntry.entry;
     }
   }
@@ -549,169 +514,79 @@ function areMessageListRowPropsEqual(
 }
 
 function getDistanceFromBottom(container: HTMLDivElement): number {
-  return Math.max(
-    0,
-    container.scrollHeight - container.clientHeight - container.scrollTop,
-  );
+  return Math.max(0, container.scrollHeight - container.clientHeight - container.scrollTop);
 }
 
 function isNearBottom(container: HTMLDivElement): boolean {
   return getDistanceFromBottom(container) <= AUTO_SCROLL_THRESHOLD_PX;
 }
 
-const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
-  function MessageList(
-    {
-      messages,
-      agents,
-      isLoading,
-      isLoadingHistory,
-      canLoadOlderHistory,
-      isLoadingOlderHistory,
-      activeAgentId,
-      isWorkerDetailView,
-      onLoadOlderHistory,
-      onSuggestionClick,
-      onArtifactClick,
-      wsUrl,
-    },
-    ref,
-  ) {
-    const messagesFromAtom = useAtomValue(visibleMessagesAtom);
-    const agentsFromAtom = useAtomValue(agentsAtom);
-    const isLoadingFromAtom = useAtomValue(isLoadingAtom);
-    const isLoadingHistoryFromAtom = useAtomValue(isLoadingHistoryAtom);
-    const canLoadOlderHistoryFromAtom = useAtomValue(hasOlderHistoryAtom);
-    const isLoadingOlderHistoryFromAtom = useAtomValue(
-      isLoadingOlderHistoryAtom,
-    );
-    const activeAgentIdFromAtom = useAtomValue(activeAgentIdAtom);
-    const activeAgentRole = useAtomValue(activeAgentRoleAtom);
-    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-    const previousAgentIdRef = useRef<string | null>(null);
-    const previousFirstEntryIdRef = useRef<string | null>(null);
-    const previousEntryCountRef = useRef(0);
-    const previousMessagesRef = useRef<ConversationEntry[] | undefined>(
-      undefined,
-    );
-    const pendingAgentHistorySwapRef = useRef<string | null>(null);
-    const settleScrollFrameRef = useRef<number | null>(null);
-    const settleScrollInnerFrameRef = useRef<number | null>(null);
-    const hasScrolledRef = useRef(false);
-    const isAtBottomRef = useRef(true);
-    const pendingOlderHistoryScrollRef = useRef<{
-      previousFirstEntryId: string | null;
-      previousEntryCount: number;
-      previousScrollHeight: number;
-      previousScrollTop: number;
-    } | null>(null);
-    const didPrependHistoryRef = useRef(false);
-    const [isScrollSettled, setIsScrollSettled] = useState(true);
-    const [showScrollButton, setShowScrollButton] = useState(false);
-    const resolvedMessages = messages ?? messagesFromAtom;
-    const resolvedAgents = agents ?? agentsFromAtom;
-    const resolvedIsLoading = isLoading ?? isLoadingFromAtom;
-    const resolvedIsLoadingHistory =
-      isLoadingHistory ?? isLoadingHistoryFromAtom;
-    const resolvedCanLoadOlderHistory =
-      canLoadOlderHistory ?? canLoadOlderHistoryFromAtom;
-    const resolvedIsLoadingOlderHistory =
-      isLoadingOlderHistory ?? isLoadingOlderHistoryFromAtom;
-    const resolvedActiveAgentId = activeAgentId ?? activeAgentIdFromAtom;
-    const resolvedIsWorkerDetailView =
-      isWorkerDetailView ?? activeAgentRole === "worker";
+const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(function MessageList(
+  {
+    messages,
+    agents,
+    isLoading,
+    isLoadingHistory,
+    canLoadOlderHistory,
+    isLoadingOlderHistory,
+    activeAgentId,
+    isWorkerDetailView,
+    onLoadOlderHistory,
+    onSuggestionClick,
+    onArtifactClick,
+    wsUrl,
+  },
+  ref,
+) {
+  const messagesFromAtom = useAtomValue(visibleMessagesAtom);
+  const agentsFromAtom = useAtomValue(agentsAtom);
+  const isLoadingFromAtom = useAtomValue(isLoadingAtom);
+  const isLoadingHistoryFromAtom = useAtomValue(isLoadingHistoryAtom);
+  const canLoadOlderHistoryFromAtom = useAtomValue(hasOlderHistoryAtom);
+  const isLoadingOlderHistoryFromAtom = useAtomValue(isLoadingOlderHistoryAtom);
+  const activeAgentIdFromAtom = useAtomValue(activeAgentIdAtom);
+  const activeAgentRole = useAtomValue(activeAgentRoleAtom);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const previousAgentIdRef = useRef<string | null>(null);
+  const previousFirstEntryIdRef = useRef<string | null>(null);
+  const previousEntryCountRef = useRef(0);
+  const previousMessagesRef = useRef<ConversationEntry[] | undefined>(undefined);
+  const pendingAgentHistorySwapRef = useRef<string | null>(null);
+  const settleScrollFrameRef = useRef<number | null>(null);
+  const settleScrollInnerFrameRef = useRef<number | null>(null);
+  const hasScrolledRef = useRef(false);
+  const isAtBottomRef = useRef(true);
+  const pendingOlderHistoryScrollRef = useRef<{
+    previousFirstEntryId: string | null;
+    previousEntryCount: number;
+    previousScrollHeight: number;
+    previousScrollTop: number;
+  } | null>(null);
+  const didPrependHistoryRef = useRef(false);
+  const [isScrollSettled, setIsScrollSettled] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const resolvedMessages = messages ?? messagesFromAtom;
+  const resolvedAgents = agents ?? agentsFromAtom;
+  const resolvedIsLoading = isLoading ?? isLoadingFromAtom;
+  const resolvedIsLoadingHistory = isLoadingHistory ?? isLoadingHistoryFromAtom;
+  const resolvedCanLoadOlderHistory = canLoadOlderHistory ?? canLoadOlderHistoryFromAtom;
+  const resolvedIsLoadingOlderHistory = isLoadingOlderHistory ?? isLoadingOlderHistoryFromAtom;
+  const resolvedActiveAgentId = activeAgentId ?? activeAgentIdFromAtom;
+  const resolvedIsWorkerDetailView = isWorkerDetailView ?? activeAgentRole === "worker";
 
-    const displayEntries = useMemo(
-      () => buildDisplayEntries(resolvedMessages),
-      [resolvedMessages],
-    );
-    const agentLookup = useMemo(
-      () => buildAgentLookup(resolvedAgents),
-      [resolvedAgents],
-    );
+  const displayEntries = useMemo(() => buildDisplayEntries(resolvedMessages), [resolvedMessages]);
+  const agentLookup = useMemo(() => buildAgentLookup(resolvedAgents), [resolvedAgents]);
 
-    const syncScrollState = useCallback((container: HTMLDivElement) => {
-      const atBottom = isNearBottom(container);
-      isAtBottomRef.current = atBottom;
-      setShowScrollButton(!atBottom);
-      return atBottom;
-    }, []);
+  const syncScrollState = useCallback((container: HTMLDivElement) => {
+    const atBottom = isNearBottom(container);
+    isAtBottomRef.current = atBottom;
+    setShowScrollButton(!atBottom);
+    return atBottom;
+  }, []);
 
-    const scrollToBottom = useCallback(
-      (behavior: ScrollBehavior = "auto") => {
-        if (displayEntries.length === 0) {
-          return;
-        }
-
-        const container = scrollContainerRef.current;
-        if (!container) {
-          return;
-        }
-
-        if (behavior === "smooth" && typeof container.scrollTo === "function") {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: "smooth",
-          });
-        } else {
-          container.scrollTop = container.scrollHeight;
-        }
-
-        isAtBottomRef.current = true;
-        setShowScrollButton(false);
-      },
-      [displayEntries.length],
-    );
-
-    const cancelPendingScrollSettle = useCallback(() => {
-      if (typeof window === "undefined") {
-        return;
-      }
-
-      if (settleScrollFrameRef.current !== null) {
-        window.cancelAnimationFrame(settleScrollFrameRef.current);
-        settleScrollFrameRef.current = null;
-      }
-
-      if (settleScrollInnerFrameRef.current !== null) {
-        window.cancelAnimationFrame(settleScrollInnerFrameRef.current);
-        settleScrollInnerFrameRef.current = null;
-      }
-    }, []);
-
-    const scheduleScrollSettled = useCallback(() => {
-      if (typeof window === "undefined") {
-        setIsScrollSettled(true);
-        return;
-      }
-
-      cancelPendingScrollSettle();
-      settleScrollFrameRef.current = window.requestAnimationFrame(() => {
-        settleScrollFrameRef.current = null;
-        settleScrollInnerFrameRef.current = window.requestAnimationFrame(() => {
-          settleScrollInnerFrameRef.current = null;
-          setIsScrollSettled(true);
-        });
-      });
-    }, [cancelPendingScrollSettle]);
-
-    useEffect(() => cancelPendingScrollSettle, [cancelPendingScrollSettle]);
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        scrollToBottom,
-      }),
-      [scrollToBottom],
-    );
-
-    const requestOlderHistory = useCallback(() => {
-      if (
-        !onLoadOlderHistory ||
-        !resolvedCanLoadOlderHistory ||
-        resolvedIsLoadingOlderHistory ||
-        pendingOlderHistoryScrollRef.current
-      ) {
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      if (displayEntries.length === 0) {
         return;
       }
 
@@ -720,278 +595,341 @@ const MessageListBase = forwardRef<MessageListHandle, MessageListProps>(
         return;
       }
 
-      pendingOlderHistoryScrollRef.current = {
-        previousFirstEntryId: displayEntries[0]?.id ?? null,
-        previousEntryCount: displayEntries.length,
-        previousScrollHeight: container.scrollHeight,
-        previousScrollTop: container.scrollTop,
-      };
+      if (behavior === "smooth" && typeof container.scrollTo === "function") {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: "smooth",
+        });
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
 
-      onLoadOlderHistory();
-    }, [
-      resolvedCanLoadOlderHistory,
-      displayEntries,
-      resolvedIsLoadingOlderHistory,
-      onLoadOlderHistory,
-    ]);
+      isAtBottomRef.current = true;
+      setShowScrollButton(false);
+    },
+    [displayEntries.length],
+  );
 
-    useLayoutEffect(() => {
+  const cancelPendingScrollSettle = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (settleScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(settleScrollFrameRef.current);
+      settleScrollFrameRef.current = null;
+    }
+
+    if (settleScrollInnerFrameRef.current !== null) {
+      window.cancelAnimationFrame(settleScrollInnerFrameRef.current);
+      settleScrollInnerFrameRef.current = null;
+    }
+  }, []);
+
+  const scheduleScrollSettled = useCallback(() => {
+    if (typeof window === "undefined") {
+      setIsScrollSettled(true);
+      return;
+    }
+
+    cancelPendingScrollSettle();
+    settleScrollFrameRef.current = window.requestAnimationFrame(() => {
+      settleScrollFrameRef.current = null;
+      settleScrollInnerFrameRef.current = window.requestAnimationFrame(() => {
+        settleScrollInnerFrameRef.current = null;
+        setIsScrollSettled(true);
+      });
+    });
+  }, [cancelPendingScrollSettle]);
+
+  useEffect(() => cancelPendingScrollSettle, [cancelPendingScrollSettle]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToBottom,
+    }),
+    [scrollToBottom],
+  );
+
+  const requestOlderHistory = useCallback(() => {
+    if (
+      !onLoadOlderHistory ||
+      !resolvedCanLoadOlderHistory ||
+      resolvedIsLoadingOlderHistory ||
+      pendingOlderHistoryScrollRef.current
+    ) {
+      return;
+    }
+
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    pendingOlderHistoryScrollRef.current = {
+      previousFirstEntryId: displayEntries[0]?.id ?? null,
+      previousEntryCount: displayEntries.length,
+      previousScrollHeight: container.scrollHeight,
+      previousScrollTop: container.scrollTop,
+    };
+
+    onLoadOlderHistory();
+  }, [
+    resolvedCanLoadOlderHistory,
+    displayEntries,
+    resolvedIsLoadingOlderHistory,
+    onLoadOlderHistory,
+  ]);
+
+  useLayoutEffect(() => {
+    didPrependHistoryRef.current = false;
+
+    const pendingRestore = pendingOlderHistoryScrollRef.current;
+    if (!pendingRestore) {
+      return;
+    }
+
+    const currentFirstEntryId = displayEntries[0]?.id ?? null;
+    const didPrependHistory =
+      currentFirstEntryId !== pendingRestore.previousFirstEntryId &&
+      displayEntries.length > pendingRestore.previousEntryCount;
+
+    if (didPrependHistory) {
+      const container = scrollContainerRef.current;
+      if (container) {
+        const heightDelta = container.scrollHeight - pendingRestore.previousScrollHeight;
+        container.scrollTop = pendingRestore.previousScrollTop + heightDelta;
+        syncScrollState(container);
+      }
+      didPrependHistoryRef.current = true;
+    }
+
+    if (didPrependHistory || !resolvedIsLoadingOlderHistory) {
+      pendingOlderHistoryScrollRef.current = null;
+    }
+  }, [displayEntries, resolvedIsLoadingOlderHistory, syncScrollState]);
+
+  useLayoutEffect(() => {
+    const nextAgentId = resolvedActiveAgentId ?? null;
+    const nextFirstEntryId = displayEntries[0]?.id ?? null;
+    const nextEntryCount = displayEntries.length;
+    const didPrependHistory = didPrependHistoryRef.current;
+
+    if (didPrependHistory) {
       didPrependHistoryRef.current = false;
-
-      const pendingRestore = pendingOlderHistoryScrollRef.current;
-      if (!pendingRestore) {
-        return;
-      }
-
-      const currentFirstEntryId = displayEntries[0]?.id ?? null;
-      const didPrependHistory =
-        currentFirstEntryId !== pendingRestore.previousFirstEntryId &&
-        displayEntries.length > pendingRestore.previousEntryCount;
-
-      if (didPrependHistory) {
-        const container = scrollContainerRef.current;
-        if (container) {
-          const heightDelta =
-            container.scrollHeight - pendingRestore.previousScrollHeight;
-          container.scrollTop = pendingRestore.previousScrollTop + heightDelta;
-          syncScrollState(container);
-        }
-        didPrependHistoryRef.current = true;
-      }
-
-      if (didPrependHistory || !resolvedIsLoadingOlderHistory) {
-        pendingOlderHistoryScrollRef.current = null;
-      }
-    }, [displayEntries, resolvedIsLoadingOlderHistory, syncScrollState]);
-
-    useLayoutEffect(() => {
-      const nextAgentId = resolvedActiveAgentId ?? null;
-      const nextFirstEntryId = displayEntries[0]?.id ?? null;
-      const nextEntryCount = displayEntries.length;
-      const didPrependHistory = didPrependHistoryRef.current;
-
-      if (didPrependHistory) {
-        didPrependHistoryRef.current = false;
-        hasScrolledRef.current = true;
-        previousAgentIdRef.current = nextAgentId;
-        previousFirstEntryIdRef.current = nextFirstEntryId;
-        previousEntryCountRef.current = nextEntryCount;
-        previousMessagesRef.current = resolvedMessages;
-        return;
-      }
-
-      const isInitialScroll = !hasScrolledRef.current;
-      const didAgentChange = previousAgentIdRef.current !== nextAgentId;
-      if (didAgentChange) {
-        pendingOlderHistoryScrollRef.current = null;
-      }
-      const isPendingAgentHistorySwap =
-        didAgentChange &&
-        resolvedIsLoadingHistory &&
-        previousEntryCountRef.current > 0 &&
-        nextEntryCount > 0;
-      if (isPendingAgentHistorySwap) {
-        pendingAgentHistorySwapRef.current = nextAgentId;
-      } else if (didAgentChange) {
-        pendingAgentHistorySwapRef.current = null;
-      }
-      const didConversationReset =
-        previousEntryCountRef.current > 0 &&
-        (nextEntryCount === 0 ||
-          previousFirstEntryIdRef.current !== nextFirstEntryId ||
-          nextEntryCount < previousEntryCountRef.current);
-      const didInitialConversationLoad =
-        previousEntryCountRef.current === 0 && nextEntryCount > 0;
-
-      const shouldForceScroll =
-        isInitialScroll ||
-        (didAgentChange && !isPendingAgentHistorySwap) ||
-        didConversationReset ||
-        didInitialConversationLoad;
-      const shouldHideUntilScrollSettled =
-        nextEntryCount > 0 &&
-        (isInitialScroll ||
-          (didAgentChange && !isPendingAgentHistorySwap) ||
-          pendingAgentHistorySwapRef.current === nextAgentId);
-
-      if (shouldForceScroll) {
-        if (shouldHideUntilScrollSettled) {
-          setIsScrollSettled(false);
-        }
-
-        scrollToBottom("auto");
-
-        if (shouldHideUntilScrollSettled) {
-          pendingAgentHistorySwapRef.current = null;
-          scheduleScrollSettled();
-        }
-      } else if (
-        nextEntryCount > 0 &&
-        previousMessagesRef.current !== resolvedMessages &&
-        !pendingOlderHistoryScrollRef.current &&
-        isAtBottomRef.current
-      ) {
-        scrollToBottom("smooth");
-      }
-
       hasScrolledRef.current = true;
       previousAgentIdRef.current = nextAgentId;
       previousFirstEntryIdRef.current = nextFirstEntryId;
       previousEntryCountRef.current = nextEntryCount;
       previousMessagesRef.current = resolvedMessages;
-    }, [
-      displayEntries,
-      resolvedActiveAgentId,
-      resolvedIsLoadingHistory,
-      resolvedMessages,
-      scheduleScrollSettled,
-      scrollToBottom,
-    ]);
+      return;
+    }
 
-    const handleScroll = useCallback(() => {
-      const container = scrollContainerRef.current;
-      if (!container) {
-        return;
+    const isInitialScroll = !hasScrolledRef.current;
+    const didAgentChange = previousAgentIdRef.current !== nextAgentId;
+    if (didAgentChange) {
+      pendingOlderHistoryScrollRef.current = null;
+    }
+    const isPendingAgentHistorySwap =
+      didAgentChange &&
+      resolvedIsLoadingHistory &&
+      previousEntryCountRef.current > 0 &&
+      nextEntryCount > 0;
+    if (isPendingAgentHistorySwap) {
+      pendingAgentHistorySwapRef.current = nextAgentId;
+    } else if (didAgentChange) {
+      pendingAgentHistorySwapRef.current = null;
+    }
+    const didConversationReset =
+      previousEntryCountRef.current > 0 &&
+      (nextEntryCount === 0 ||
+        previousFirstEntryIdRef.current !== nextFirstEntryId ||
+        nextEntryCount < previousEntryCountRef.current);
+    const didInitialConversationLoad = previousEntryCountRef.current === 0 && nextEntryCount > 0;
+
+    const shouldForceScroll =
+      isInitialScroll ||
+      (didAgentChange && !isPendingAgentHistorySwap) ||
+      didConversationReset ||
+      didInitialConversationLoad;
+    const shouldHideUntilScrollSettled =
+      nextEntryCount > 0 &&
+      (isInitialScroll ||
+        (didAgentChange && !isPendingAgentHistorySwap) ||
+        pendingAgentHistorySwapRef.current === nextAgentId);
+
+    if (shouldForceScroll) {
+      if (shouldHideUntilScrollSettled) {
+        setIsScrollSettled(false);
       }
 
-      syncScrollState(container);
+      scrollToBottom("auto");
 
-      if (container.scrollTop <= LOAD_OLDER_HISTORY_THRESHOLD_PX) {
-        requestOlderHistory();
+      if (shouldHideUntilScrollSettled) {
+        pendingAgentHistorySwapRef.current = null;
+        scheduleScrollSettled();
       }
-    }, [requestOlderHistory, syncScrollState]);
-
-    useEffect(() => {
-      const container = scrollContainerRef.current;
-      if (!container) {
-        return;
-      }
-
-      const handleContainerScroll = () => {
-        handleScroll();
-      };
-
-      container.addEventListener("scroll", handleContainerScroll, {
-        passive: true,
-      });
-      handleScroll();
-
-      return () => {
-        container.removeEventListener("scroll", handleContainerScroll);
-      };
-    }, [handleScroll]);
-
-    useEffect(() => {
-      const container = scrollContainerRef.current;
-      if (
-        !container ||
-        !resolvedCanLoadOlderHistory ||
-        resolvedIsLoadingOlderHistory ||
-        displayEntries.length === 0
-      ) {
-        return;
-      }
-
-      if (container.scrollHeight > container.clientHeight) {
-        return;
-      }
-
-      requestOlderHistory();
-    }, [
-      resolvedCanLoadOlderHistory,
-      displayEntries.length,
-      resolvedIsLoadingOlderHistory,
-      requestOlderHistory,
-    ]);
-
-    const handleScrollToBottom = () => {
+    } else if (
+      nextEntryCount > 0 &&
+      previousMessagesRef.current !== resolvedMessages &&
+      !pendingOlderHistoryScrollRef.current &&
+      isAtBottomRef.current
+    ) {
       scrollToBottom("smooth");
+    }
+
+    hasScrolledRef.current = true;
+    previousAgentIdRef.current = nextAgentId;
+    previousFirstEntryIdRef.current = nextFirstEntryId;
+    previousEntryCountRef.current = nextEntryCount;
+    previousMessagesRef.current = resolvedMessages;
+  }, [
+    displayEntries,
+    resolvedActiveAgentId,
+    resolvedIsLoadingHistory,
+    resolvedMessages,
+    scheduleScrollSettled,
+    scrollToBottom,
+  ]);
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    syncScrollState(container);
+
+    if (container.scrollTop <= LOAD_OLDER_HISTORY_THRESHOLD_PX) {
+      requestOlderHistory();
+    }
+  }, [requestOlderHistory, syncScrollState]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const handleContainerScroll = () => {
+      handleScroll();
     };
 
-    return (
-      <div className="relative min-h-0 flex flex-1 flex-col overflow-hidden">
-        {displayEntries.length === 0 && resolvedIsLoadingHistory ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <HistoryLoadingState />
+    container.addEventListener("scroll", handleContainerScroll, {
+      passive: true,
+    });
+    handleScroll();
+
+    return () => {
+      container.removeEventListener("scroll", handleContainerScroll);
+    };
+  }, [handleScroll]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (
+      !container ||
+      !resolvedCanLoadOlderHistory ||
+      resolvedIsLoadingOlderHistory ||
+      displayEntries.length === 0
+    ) {
+      return;
+    }
+
+    if (container.scrollHeight > container.clientHeight) {
+      return;
+    }
+
+    requestOlderHistory();
+  }, [
+    resolvedCanLoadOlderHistory,
+    displayEntries.length,
+    resolvedIsLoadingOlderHistory,
+    requestOlderHistory,
+  ]);
+
+  const handleScrollToBottom = () => {
+    scrollToBottom("smooth");
+  };
+
+  return (
+    <div className="relative min-h-0 flex flex-1 flex-col overflow-hidden">
+      {displayEntries.length === 0 && resolvedIsLoadingHistory ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <HistoryLoadingState />
+        </div>
+      ) : displayEntries.length === 0 && !resolvedIsLoading ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <EmptyState activeAgentId={resolvedActiveAgentId} onSuggestionClick={onSuggestionClick} />
+        </div>
+      ) : (
+        <>
+          <div
+            ref={scrollContainerRef}
+            data-testid="message-list-scroller"
+            className={cn(
+              "app-scroll-area min-h-0 flex-1 overflow-y-auto pt-1",
+              "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
+              "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent",
+              "[scrollbar-width:thin] [scrollbar-color:transparent_transparent]",
+              "hover:[&::-webkit-scrollbar-thumb]:bg-border hover:[scrollbar-color:var(--color-border)_transparent]",
+            )}
+            style={{
+              opacity: isScrollSettled ? 1 : 0,
+            }}
+          >
+            <div className="px-2 pb-2 md:px-3 md:pb-3">
+              {resolvedIsLoadingOlderHistory ? <OlderHistoryLoadingIndicator /> : null}
+
+              {displayEntries.map((entry, index) => {
+                const previousEntry = index > 0 ? displayEntries[index - 1] : undefined;
+                const rowSpacingClass = getDisplayEntrySpacingClass(
+                  entry,
+                  previousEntry,
+                  resolvedIsWorkerDetailView,
+                );
+
+                return (
+                  <MessageListRow
+                    key={entry.id}
+                    entry={entry}
+                    rowSpacingClass={rowSpacingClass}
+                    agentLookup={agentLookup}
+                    onArtifactClick={onArtifactClick}
+                    wsUrl={wsUrl}
+                  />
+                );
+              })}
+
+              {resolvedIsLoading ? <LoadingIndicator /> : null}
+            </div>
           </div>
-        ) : displayEntries.length === 0 && !resolvedIsLoading ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <EmptyState
-              activeAgentId={resolvedActiveAgentId}
-              onSuggestionClick={onSuggestionClick}
-            />
-          </div>
-        ) : (
-          <>
-            <div
-              ref={scrollContainerRef}
-              data-testid="message-list-scroller"
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
+            <Button
+              type="button"
+              size="icon"
+              tabIndex={showScrollButton ? 0 : -1}
+              aria-hidden={!showScrollButton}
+              aria-label="Scroll to latest message"
+              onClick={handleScrollToBottom}
               className={cn(
-                "app-scroll-area min-h-0 flex-1 overflow-y-auto pt-1",
-                "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
-                "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent",
-                "[scrollbar-width:thin] [scrollbar-color:transparent_transparent]",
-                "hover:[&::-webkit-scrollbar-thumb]:bg-border hover:[scrollbar-color:var(--color-border)_transparent]",
+                "size-9 rounded-full bg-background/80 text-foreground shadow-md ring-1 ring-border backdrop-blur-sm",
+                "transition-opacity transition-transform duration-200",
+                showScrollButton
+                  ? "pointer-events-auto translate-y-0 opacity-100"
+                  : "pointer-events-none translate-y-2 opacity-0",
               )}
-              style={{
-                opacity: isScrollSettled ? 1 : 0,
-              }}
             >
-              <div className="px-2 pb-2 md:px-3 md:pb-3">
-                {resolvedIsLoadingOlderHistory ? (
-                  <OlderHistoryLoadingIndicator />
-                ) : null}
-
-                {displayEntries.map((entry, index) => {
-                  const previousEntry =
-                    index > 0 ? displayEntries[index - 1] : undefined;
-                  const rowSpacingClass = getDisplayEntrySpacingClass(
-                    entry,
-                    previousEntry,
-                    resolvedIsWorkerDetailView,
-                  );
-
-                  return (
-                    <MessageListRow
-                      key={entry.id}
-                      entry={entry}
-                      rowSpacingClass={rowSpacingClass}
-                      agentLookup={agentLookup}
-                      onArtifactClick={onArtifactClick}
-                      wsUrl={wsUrl}
-                    />
-                  );
-                })}
-
-                {resolvedIsLoading ? <LoadingIndicator /> : null}
-              </div>
-            </div>
-
-            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
-              <Button
-                type="button"
-                size="icon"
-                tabIndex={showScrollButton ? 0 : -1}
-                aria-hidden={!showScrollButton}
-                aria-label="Scroll to latest message"
-                onClick={handleScrollToBottom}
-                className={cn(
-                  "size-9 rounded-full bg-background/80 text-foreground shadow-md ring-1 ring-border backdrop-blur-sm",
-                  "transition-opacity transition-transform duration-200",
-                  showScrollButton
-                    ? "pointer-events-auto translate-y-0 opacity-100"
-                    : "pointer-events-none translate-y-2 opacity-0",
-                )}
-              >
-                <ChevronDown className="size-4" aria-hidden="true" />
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  },
-);
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+});
 
 MessageListBase.displayName = "MessageList";
 

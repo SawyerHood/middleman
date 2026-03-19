@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -9,18 +9,18 @@ import {
   Loader2,
   Save,
   Trash2,
-} from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { SettingsSection } from './settings-row'
-import type { SettingsEnvVariable } from './settings-types'
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SettingsSection } from "./settings-row";
+import type { SettingsEnvVariable } from "./settings-types";
 import {
   fetchSettingsEnvVariables,
   updateSettingsEnvVariables,
   deleteSettingsEnvVariable,
   toErrorMessage,
-} from './settings-api'
+} from "./settings-api";
 
 /* ------------------------------------------------------------------ */
 /*  Sub-components                                                    */
@@ -36,7 +36,7 @@ function StatusBadge({ isSet }: { isSet: boolean }) {
         <Check className="size-3" />
         Set
       </Badge>
-    )
+    );
   }
   return (
     <Badge
@@ -46,7 +46,7 @@ function StatusBadge({ isSet }: { isSet: boolean }) {
       <AlertTriangle className="size-3" />
       Missing
     </Badge>
-  )
+  );
 }
 
 function EnvVariableRow({
@@ -60,17 +60,17 @@ function EnvVariableRow({
   onSave,
   onDelete,
 }: {
-  variable: SettingsEnvVariable
-  draftValue: string
-  isRevealed: boolean
-  isSaving: boolean
-  isDeleting: boolean
-  onDraftChange: (value: string) => void
-  onToggleReveal: () => void
-  onSave: () => void
-  onDelete: () => void
+  variable: SettingsEnvVariable;
+  draftValue: string;
+  isRevealed: boolean;
+  isSaving: boolean;
+  isDeleting: boolean;
+  onDraftChange: (value: string) => void;
+  onToggleReveal: () => void;
+  onSave: () => void;
+  onDelete: () => void;
 }) {
-  const busy = isSaving || isDeleting
+  const busy = isSaving || isDeleting;
 
   return (
     <div className="rounded-lg border border-border bg-card/50 p-4 transition-colors hover:bg-card/80">
@@ -111,8 +111,8 @@ function EnvVariableRow({
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative w-full flex-1">
           <Input
-            type={isRevealed ? 'text' : 'password'}
-            placeholder={variable.isSet ? (variable.maskedValue ?? '••••••••') : 'Enter value…'}
+            type={isRevealed ? "text" : "password"}
+            placeholder={variable.isSet ? (variable.maskedValue ?? "••••••••") : "Enter value…"}
             value={draftValue}
             onChange={(event) => onDraftChange(event.target.value)}
             className="pr-9 font-mono text-xs"
@@ -127,7 +127,7 @@ function EnvVariableRow({
             onClick={onToggleReveal}
             disabled={busy}
             className="absolute right-1 top-1/2 size-7 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground"
-            title={isRevealed ? 'Hide value' : 'Show value'}
+            title={isRevealed ? "Hide value" : "Show value"}
           >
             {isRevealed ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
           </Button>
@@ -140,8 +140,12 @@ function EnvVariableRow({
             disabled={!draftValue.trim() || busy}
             className="flex-1 gap-1.5 sm:flex-none"
           >
-            {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-            {isSaving ? 'Saving' : 'Save'}
+            {isSaving ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Save className="size-3.5" />
+            )}
+            {isSaving ? "Saving" : "Save"}
           </Button>
 
           {variable.isSet ? (
@@ -153,14 +157,18 @@ function EnvVariableRow({
               disabled={busy}
               className="flex-1 gap-1.5 text-muted-foreground hover:text-destructive sm:flex-none"
             >
-              {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-              {isDeleting ? 'Removing' : 'Remove'}
+              {isDeleting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              {isDeleting ? "Removing" : "Remove"}
             </Button>
           ) : null}
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -168,75 +176,75 @@ function EnvVariableRow({
 /* ------------------------------------------------------------------ */
 
 interface SettingsSkillsProps {
-  wsUrl: string
+  wsUrl: string;
 }
 
 export function SettingsSkills({ wsUrl }: SettingsSkillsProps) {
-  const [envVariables, setEnvVariables] = useState<SettingsEnvVariable[]>([])
-  const [draftByName, setDraftByName] = useState<Record<string, string>>({})
-  const [revealByName, setRevealByName] = useState<Record<string, boolean>>({})
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [savingVar, setSavingVar] = useState<string | null>(null)
-  const [deletingVar, setDeletingVar] = useState<string | null>(null)
+  const [envVariables, setEnvVariables] = useState<SettingsEnvVariable[]>([]);
+  const [draftByName, setDraftByName] = useState<Record<string, string>>({});
+  const [revealByName, setRevealByName] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [savingVar, setSavingVar] = useState<string | null>(null);
+  const [deletingVar, setDeletingVar] = useState<string | null>(null);
 
   const loadVariables = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
     try {
-      const result = await fetchSettingsEnvVariables(wsUrl)
-      setEnvVariables(result)
+      const result = await fetchSettingsEnvVariables(wsUrl);
+      setEnvVariables(result);
     } catch (err) {
-      setError(toErrorMessage(err))
+      setError(toErrorMessage(err));
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [wsUrl])
+  }, [wsUrl]);
 
   useEffect(() => {
-    void loadVariables()
-  }, [loadVariables])
+    void loadVariables();
+  }, [loadVariables]);
 
   const handleSave = async (variableName: string) => {
-    const value = draftByName[variableName]?.trim() ?? ''
+    const value = draftByName[variableName]?.trim() ?? "";
     if (!value) {
-      setError(`Enter a value for ${variableName} before saving.`)
-      return
+      setError(`Enter a value for ${variableName} before saving.`);
+      return;
     }
-    setError(null)
-    setSuccess(null)
-    setSavingVar(variableName)
+    setError(null);
+    setSuccess(null);
+    setSavingVar(variableName);
     try {
-      await updateSettingsEnvVariables(wsUrl, { [variableName]: value })
-      setDraftByName((prev) => ({ ...prev, [variableName]: '' }))
-      setSuccess(`${variableName} saved successfully.`)
-      await loadVariables()
+      await updateSettingsEnvVariables(wsUrl, { [variableName]: value });
+      setDraftByName((prev) => ({ ...prev, [variableName]: "" }));
+      setSuccess(`${variableName} saved successfully.`);
+      await loadVariables();
     } catch (err) {
-      setError(toErrorMessage(err))
+      setError(toErrorMessage(err));
     } finally {
-      setSavingVar(null)
+      setSavingVar(null);
     }
-  }
+  };
 
   const handleDelete = async (variableName: string) => {
-    setError(null)
-    setSuccess(null)
-    setDeletingVar(variableName)
+    setError(null);
+    setSuccess(null);
+    setDeletingVar(variableName);
     try {
-      await deleteSettingsEnvVariable(wsUrl, variableName)
-      setDraftByName((prev) => ({ ...prev, [variableName]: '' }))
-      setSuccess(`${variableName} removed.`)
-      await loadVariables()
+      await deleteSettingsEnvVariable(wsUrl, variableName);
+      setDraftByName((prev) => ({ ...prev, [variableName]: "" }));
+      setSuccess(`${variableName} removed.`);
+      await loadVariables();
     } catch (err) {
-      setError(toErrorMessage(err))
+      setError(toErrorMessage(err));
     } finally {
-      setDeletingVar(null)
+      setDeletingVar(null);
     }
-  }
+  };
 
-  const setCount = envVariables.filter((v) => v.isSet).length
-  const totalCount = envVariables.length
+  const setCount = envVariables.filter((v) => v.isSet).length;
+  const totalCount = envVariables.length;
 
   return (
     <div className="flex flex-col gap-8">
@@ -245,7 +253,7 @@ export function SettingsSkills({ wsUrl }: SettingsSkillsProps) {
         description={
           !isLoading && totalCount > 0
             ? `${setCount} of ${totalCount} configured`
-            : 'API keys and secrets required by installed skills'
+            : "API keys and secrets required by installed skills"
         }
       >
         {error ? (
@@ -280,14 +288,14 @@ export function SettingsSkills({ wsUrl }: SettingsSkillsProps) {
               <EnvVariableRow
                 key={`${variable.skillName}:${variable.name}`}
                 variable={variable}
-                draftValue={draftByName[variable.name] ?? ''}
+                draftValue={draftByName[variable.name] ?? ""}
                 isRevealed={revealByName[variable.name] === true}
                 isSaving={savingVar === variable.name}
                 isDeleting={deletingVar === variable.name}
                 onDraftChange={(value) => {
-                  setDraftByName((prev) => ({ ...prev, [variable.name]: value }))
-                  setError(null)
-                  setSuccess(null)
+                  setDraftByName((prev) => ({ ...prev, [variable.name]: value }));
+                  setError(null);
+                  setSuccess(null);
                 }}
                 onToggleReveal={() =>
                   setRevealByName((prev) => ({ ...prev, [variable.name]: !prev[variable.name] }))
@@ -300,5 +308,5 @@ export function SettingsSkills({ wsUrl }: SettingsSkillsProps) {
         )}
       </SettingsSection>
     </div>
-  )
+  );
 }

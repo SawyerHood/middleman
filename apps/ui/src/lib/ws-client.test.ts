@@ -48,10 +48,7 @@ function emitServerEvent(socket: FakeWebSocket, event: unknown): void {
   });
 }
 
-function managerDescriptor(
-  agentId: string,
-  createdAt: string,
-): AgentDescriptor {
+function managerDescriptor(agentId: string, createdAt: string): AgentDescriptor {
   return {
     agentId,
     managerId: agentId,
@@ -412,9 +409,7 @@ describe("ManagerWsClient", () => {
       snapshots
         .at(-1)
         ?.messages.some(
-          (message) =>
-            message.type === "conversation_message" &&
-            message.text === "manager output",
+          (message) => message.type === "conversation_message" && message.text === "manager output",
         ),
     ).toBe(false);
 
@@ -496,9 +491,7 @@ describe("ManagerWsClient", () => {
     const switchingState = snapshots.at(-1);
     expect(switchingState?.targetAgentId).toBe("worker-1");
     expect(switchingState?.messages).toEqual(loadedState?.messages ?? []);
-    expect(switchingState?.activityMessages).toEqual(
-      loadedState?.activityMessages ?? [],
-    );
+    expect(switchingState?.activityMessages).toEqual(loadedState?.activityMessages ?? []);
     expect(switchingState?.oldestHistoryCursor).toBeNull();
     expect(switchingState?.hasOlderHistory).toBe(false);
     expect(switchingState?.isLoadingHistory).toBe(true);
@@ -673,10 +666,7 @@ describe("ManagerWsClient", () => {
       ],
     });
 
-    expect(client.getState().messages.map((entry) => entry.text)).toEqual([
-      "older",
-      "newer",
-    ]);
+    expect(client.getState().messages.map((entry) => entry.text)).toEqual(["older", "newer"]);
     expect(client.getState().oldestHistoryCursor).toBe(
       "2026-03-14T00:00:01.000Z|manager|message-1",
     );
@@ -718,9 +708,7 @@ describe("ManagerWsClient", () => {
 
     reconnectedSocket.emit("open");
 
-    const reconnectPayloads = reconnectedSocket.sentPayloads.map((payload) =>
-      JSON.parse(payload),
-    );
+    const reconnectPayloads = reconnectedSocket.sentPayloads.map((payload) => JSON.parse(payload));
     expect(reconnectPayloads).toEqual([
       { type: "subscribe", agentId: "manager" },
       { type: "subscribe_agent_detail", agentId: "worker-1" },
@@ -752,8 +740,7 @@ describe("ManagerWsClient", () => {
       role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
       text: `message-${index}`,
       timestamp: new Date(baseTime + index).toISOString(),
-      source:
-        index % 2 === 0 ? ("user_input" as const) : ("speak_to_user" as const),
+      source: index % 2 === 0 ? ("user_input" as const) : ("speak_to_user" as const),
     }));
 
     const toolMessages = Array.from({ length: 480 }, (_, index) => ({
@@ -777,9 +764,7 @@ describe("ManagerWsClient", () => {
     expect(state.messages).toHaveLength(120);
     expect(state.activityMessages).toHaveLength(480);
     expect(
-      state.messages.filter(
-        (message) => message.type === "conversation_message",
-      ),
+      state.messages.filter((message) => message.type === "conversation_message"),
     ).toHaveLength(120);
 
     client.destroy();
@@ -923,9 +908,7 @@ describe("ManagerWsClient", () => {
       isError: true,
     });
 
-    expect(client.getState().lastError).toBe(
-      "Worker exited with code null, signal SIGINT",
-    );
+    expect(client.getState().lastError).toBe("Worker exited with code null, signal SIGINT");
 
     emitServerEvent(socket, {
       type: "agent_status",
@@ -944,9 +927,7 @@ describe("ManagerWsClient", () => {
     const snapshots: ReturnType<typeof client.getState>[] = [];
     const pendingFrameCallbacks = new Map<number, FrameRequestCallback>();
     let nextFrameHandle = 1;
-    (globalThis as any).window.requestAnimationFrame = (
-      callback: FrameRequestCallback,
-    ) => {
+    (globalThis as any).window.requestAnimationFrame = (callback: FrameRequestCallback) => {
       const handle = nextFrameHandle++;
       pendingFrameCallbacks.set(handle, callback);
       return handle;
@@ -1033,9 +1014,7 @@ describe("ManagerWsClient", () => {
     const client = new ManagerWsClient("ws://127.0.0.1:8787", "manager");
     const pendingFrameCallbacks = new Map<number, FrameRequestCallback>();
     let nextFrameHandle = 1;
-    (globalThis as any).window.requestAnimationFrame = (
-      callback: FrameRequestCallback,
-    ) => {
+    (globalThis as any).window.requestAnimationFrame = (callback: FrameRequestCallback) => {
       const handle = nextFrameHandle++;
       pendingFrameCallbacks.set(handle, callback);
       return handle;
@@ -1400,11 +1379,9 @@ describe("ManagerWsClient", () => {
     await expect(creationPromise).resolves.toMatchObject({
       agentId: "release-manager",
     });
-    expect(
-      client
-        .getState()
-        .agents.some((agent) => agent.agentId === "release-manager"),
-    ).toBe(true);
+    expect(client.getState().agents.some((agent) => agent.agentId === "release-manager")).toBe(
+      true,
+    );
 
     client.destroy();
   });
@@ -1485,22 +1462,14 @@ describe("ManagerWsClient", () => {
       ],
     });
 
-    expect(client.getState().managerOrder).toEqual([
-      "manager",
-      "manager-2",
-      "manager-3",
-    ]);
+    expect(client.getState().managerOrder).toEqual(["manager", "manager-2", "manager-3"]);
 
     emitServerEvent(socket, {
       type: "manager_order_updated",
       managerIds: ["manager-3", "manager", "manager-2"],
     });
 
-    expect(client.getState().managerOrder).toEqual([
-      "manager-3",
-      "manager",
-      "manager-2",
-    ]);
+    expect(client.getState().managerOrder).toEqual(["manager-3", "manager", "manager-2"]);
     expect(
       client
         .getState()
@@ -1536,22 +1505,14 @@ describe("ManagerWsClient", () => {
       ],
     });
 
-    const reorderPromise = client.reorderManagers([
-      "manager-3",
-      "manager",
-      "manager-2",
-    ]);
+    const reorderPromise = client.reorderManagers(["manager-3", "manager", "manager-2"]);
     const reorderPayload = JSON.parse(socket.sentPayloads.at(-1) ?? "{}");
 
     expect(reorderPayload).toMatchObject({
       type: "reorder_managers",
       managerIds: ["manager-3", "manager", "manager-2"],
     });
-    expect(client.getState().managerOrder).toEqual([
-      "manager-3",
-      "manager",
-      "manager-2",
-    ]);
+    expect(client.getState().managerOrder).toEqual(["manager-3", "manager", "manager-2"]);
 
     emitServerEvent(socket, {
       type: "error",
@@ -1563,11 +1524,7 @@ describe("ManagerWsClient", () => {
     await expect(reorderPromise).rejects.toThrow(
       "REORDER_MANAGERS_FAILED: Unable to persist order.",
     );
-    expect(client.getState().managerOrder).toEqual([
-      "manager",
-      "manager-2",
-      "manager-3",
-    ]);
+    expect(client.getState().managerOrder).toEqual(["manager", "manager-2", "manager-3"]);
 
     client.destroy();
   });

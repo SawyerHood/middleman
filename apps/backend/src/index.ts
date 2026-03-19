@@ -10,7 +10,7 @@ import {
   getControlPidFilePath,
   RESTART_PARENT_PID_ENV_VAR,
   RESTART_SIGNAL,
-  SUPPRESS_OPEN_ON_RESTART_ENV_VAR
+  SUPPRESS_OPEN_ON_RESTART_ENV_VAR,
 } from "./reboot/control-pid.js";
 import { CronSchedulerService } from "./scheduler/cron-scheduler-service.js";
 import { SwarmManager } from "./swarm/swarm-manager.js";
@@ -27,7 +27,9 @@ export interface StartedMiddlemanServer {
   stop: () => Promise<void>;
 }
 
-export async function startServer(options: StartServerOptions = {}): Promise<StartedMiddlemanServer> {
+export async function startServer(
+  options: StartServerOptions = {},
+): Promise<StartedMiddlemanServer> {
   await waitForRestartParentToExit();
 
   const projectRoot = resolveProjectRootOption(options.projectRoot);
@@ -40,7 +42,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
   const config = createConfig({
     ...options,
     projectRoot,
-    dataDir
+    dataDir,
   });
 
   const swarmManager = new SwarmManager(config);
@@ -76,11 +78,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
   const queueSchedulerSync = (managerIds: Set<string>): Promise<void> => {
     const next = schedulerLifecycle.then(
       () => syncSchedulers(managerIds),
-      () => syncSchedulers(managerIds)
+      () => syncSchedulers(managerIds),
     );
     schedulerLifecycle = next.then(
       () => undefined,
-      () => undefined
+      () => undefined,
     );
     return next;
   };
@@ -124,7 +126,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
     swarmManager,
     host: config.host,
     port: config.port,
-    uiDir: config.paths.uiDir
+    uiDir: config.paths.uiDir,
   });
   await wsServer.start();
 
@@ -207,7 +209,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
 
   return {
     config,
-    stop
+    stop,
   };
 }
 
@@ -354,14 +356,14 @@ async function spawnReplacementProcess(): Promise<void> {
   const replacementEnv = {
     ...process.env,
     [RESTART_PARENT_PID_ENV_VAR]: `${process.pid}`,
-    [SUPPRESS_OPEN_ON_RESTART_ENV_VAR]: "1"
+    [SUPPRESS_OPEN_ON_RESTART_ENV_VAR]: "1",
   };
 
   await new Promise<void>((resolveSpawn, reject) => {
     const child = spawn(process.execPath, replacementArgs, {
       cwd: process.cwd(),
       env: replacementEnv,
-      stdio: "inherit"
+      stdio: "inherit",
     });
 
     child.once("error", reject);
@@ -391,7 +393,7 @@ if (import.meta.url === new URL(process.argv[1] ?? "", "file://").href) {
       const config = createConfig();
       console.error(
         `Failed to start backend: http://${config.host}:${config.port} is already in use. ` +
-          `Stop the other process or run with MIDDLEMAN_PORT=<port>.`
+          `Stop the other process or run with MIDDLEMAN_PORT=<port>.`,
       );
     } else {
       console.error(error);

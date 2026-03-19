@@ -2,8 +2,7 @@ import { execSync } from "node:child_process";
 
 export function resolveBuildHash(): string {
   const envBuildHash =
-    process.env.MIDDLEMAN_BUILD_HASH?.trim() ||
-    process.env.VITE_BUILD_HASH?.trim();
+    process.env.MIDDLEMAN_BUILD_HASH?.trim() || process.env.VITE_BUILD_HASH?.trim();
   if (envBuildHash) {
     return envBuildHash;
   }

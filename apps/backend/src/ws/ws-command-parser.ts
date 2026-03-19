@@ -42,10 +42,7 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
   }
 
   if (maybe.type === "subscribe_agent_detail") {
-    if (
-      typeof maybe.agentId !== "string" ||
-      maybe.agentId.trim().length === 0
-    ) {
+    if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
       return {
         ok: false,
         error: "subscribe_agent_detail.agentId must be a non-empty string",
@@ -62,10 +59,7 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
   }
 
   if (maybe.type === "unsubscribe_agent_detail") {
-    if (
-      typeof maybe.agentId !== "string" ||
-      maybe.agentId.trim().length === 0
-    ) {
+    if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
       return {
         ok: false,
         error: "unsubscribe_agent_detail.agentId must be a non-empty string",
@@ -84,10 +78,7 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
   if (maybe.type === "load_older_history") {
     const before = (maybe as { before?: unknown }).before;
 
-    if (
-      typeof maybe.agentId !== "string" ||
-      maybe.agentId.trim().length === 0
-    ) {
+    if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
       return {
         ok: false,
         error: "load_older_history.agentId must be a non-empty string",
@@ -122,15 +113,11 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
       };
     }
     if (
-      managerIds.some(
-        (managerId) =>
-          typeof managerId !== "string" || managerId.trim().length === 0,
-      )
+      managerIds.some((managerId) => typeof managerId !== "string" || managerId.trim().length === 0)
     ) {
       return {
         ok: false,
-        error:
-          "reorder_managers.managerIds must contain only non-empty strings",
+        error: "reorder_managers.managerIds must contain only non-empty strings",
       };
     }
     if (requestId !== undefined && typeof requestId !== "string") {
@@ -151,10 +138,7 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
   }
 
   if (maybe.type === "kill_agent") {
-    if (
-      typeof maybe.agentId !== "string" ||
-      maybe.agentId.trim().length === 0
-    ) {
+    if (typeof maybe.agentId !== "string" || maybe.agentId.trim().length === 0) {
       return {
         ok: false,
         error: "kill_agent.agentId must be a non-empty string",
@@ -365,8 +349,7 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
     if (!normalizedText && parsedAttachments.attachments.length === 0) {
       return {
         ok: false,
-        error:
-          "user_message must include non-empty text or at least one attachment",
+        error: "user_message must include non-empty text or at least one attachment",
       };
     }
 
@@ -395,9 +378,7 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
         type: "user_message",
         text: normalizedText,
         attachments:
-          parsedAttachments.attachments.length > 0
-            ? parsedAttachments.attachments
-            : undefined,
+          parsedAttachments.attachments.length > 0 ? parsedAttachments.attachments : undefined,
         agentId: maybe.agentId,
         delivery: maybe.delivery,
       },

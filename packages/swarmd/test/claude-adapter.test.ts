@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { EventEnvelope, SessionRuntimeConfig, SessionStatus, UserInput } from "../src/index.js";
+import type {
+  EventEnvelope,
+  SessionRuntimeConfig,
+  SessionStatus,
+  UserInput,
+} from "../src/index.js";
 import {
   ClaudeEventMapper,
   createClaudeBackendAdapter,
@@ -514,7 +519,9 @@ describe("ClaudeQuerySession", () => {
     });
     expect(session.getStatus()).toBe("idle");
 
-    await expect(session.sendInput(createUserInput("turn-1", "First message"), "auto")).resolves.toEqual({
+    await expect(
+      session.sendInput(createUserInput("turn-1", "First message"), "auto"),
+    ).resolves.toEqual({
       acceptedDelivery: "auto",
       queued: false,
     });
@@ -531,7 +538,9 @@ describe("ClaudeQuerySession", () => {
       },
     });
 
-    await expect(session.sendInput(createUserInput("turn-2", "Second message"), "auto")).resolves.toEqual({
+    await expect(
+      session.sendInput(createUserInput("turn-2", "Second message"), "auto"),
+    ).resolves.toEqual({
       acceptedDelivery: "interrupt",
       queued: false,
     });
@@ -578,9 +587,13 @@ describe("ClaudeQuerySession", () => {
       },
     ]);
     expect(callbacks.events.map((event) => event.type)).toContain("turn.started");
-    expect(callbacks.events.map((event) => event.type).filter((type) => type === "turn.completed")).toHaveLength(2);
     expect(
-      callbacks.events.filter((event) => event.type === "turn.started").map((event) => event.payload),
+      callbacks.events.map((event) => event.type).filter((type) => type === "turn.completed"),
+    ).toHaveLength(2);
+    expect(
+      callbacks.events
+        .filter((event) => event.type === "turn.started")
+        .map((event) => event.payload),
     ).toEqual([
       {
         turnId: "turn-1",
@@ -622,7 +635,9 @@ describe("ClaudeQuerySession", () => {
     });
 
     await startPromise;
-    await expect(session.sendInput(createSystemInput("turn-system", "Assigned task"), "auto")).resolves.toEqual({
+    await expect(
+      session.sendInput(createSystemInput("turn-system", "Assigned task"), "auto"),
+    ).resolves.toEqual({
       acceptedDelivery: "auto",
       queued: false,
     });
@@ -638,7 +653,9 @@ describe("ClaudeQuerySession", () => {
       },
     });
     expect(
-      callbacks.events.filter((event) => event.type === "turn.started").map((event) => event.payload),
+      callbacks.events
+        .filter((event) => event.type === "turn.started")
+        .map((event) => event.payload),
     ).toEqual([
       {
         turnId: "turn-system",

@@ -1,8 +1,4 @@
-import type {
-  AdapterCallbacks,
-  BackendAdapter,
-  HostRpcClient,
-} from "../common/adapter.js";
+import type { AdapterCallbacks, BackendAdapter, HostRpcClient } from "../common/adapter.js";
 import type {
   BackendCapabilities,
   BackendCheckpoint,
@@ -11,11 +7,7 @@ import type {
   UserInput,
 } from "../../core/types/index.js";
 import { validateCheckpoint } from "../common/checkpoint.js";
-import {
-  PiSessionHost,
-  type PiModuleLoader,
-  type PiSessionHostLike,
-} from "./pi-session-host.js";
+import { PiSessionHost, type PiModuleLoader, type PiSessionHostLike } from "./pi-session-host.js";
 
 type PiCheckpoint = Extract<BackendCheckpoint, { backend: "pi" }>;
 
@@ -148,7 +140,10 @@ export class PiBackendAdapter implements BackendAdapter {
     return checkpoint;
   }
 
-  async forkThread(source: BackendCheckpoint, sourceMessageId?: string): Promise<BackendCheckpoint> {
+  async forkThread(
+    source: BackendCheckpoint,
+    sourceMessageId?: string,
+  ): Promise<BackendCheckpoint> {
     const checkpoint = await this.host.forkThread(this.assertPiCheckpoint(source), sourceMessageId);
     this.callbacks.emitCheckpoint(checkpoint);
     return checkpoint;

@@ -67,10 +67,12 @@ export class SwarmLifecycleService {
     replyTarget?: MessageTargetContext;
     preserveMiddlemanRow?: boolean;
   }): Promise<AgentDescriptor> {
-    const basePrompt = input.systemPrompt?.trim() || this.options.runtimeContext.resolveSystemPromptForDescriptor({
-      role: input.role,
-      archetypeId: input.archetypeId,
-    });
+    const basePrompt =
+      input.systemPrompt?.trim() ||
+      this.options.runtimeContext.resolveSystemPromptForDescriptor({
+        role: input.role,
+        archetypeId: input.archetypeId,
+      });
     const resources = await this.options.runtimeContext.resolveRuntimeContextResources({
       agentId: input.agentId,
       role: input.role,
@@ -79,14 +81,17 @@ export class SwarmLifecycleService {
       model: input.model,
       memoryOwnerAgentId: input.memoryOwnerAgentId,
     });
-    const runtimeConfig = this.options.runtimeContext.buildRuntimeConfig({
-      agentId: input.agentId,
-      role: input.role,
-      managerId: input.managerId,
-      cwd: input.cwd,
-      model: input.model,
-      memoryOwnerAgentId: input.memoryOwnerAgentId,
-    }, resources);
+    const runtimeConfig = this.options.runtimeContext.buildRuntimeConfig(
+      {
+        agentId: input.agentId,
+        role: input.role,
+        managerId: input.managerId,
+        cwd: input.cwd,
+        model: input.model,
+        memoryOwnerAgentId: input.memoryOwnerAgentId,
+      },
+      resources,
+    );
     const prompt = this.options.runtimeContext.buildSessionSystemPrompt(
       basePrompt,
       runtimeConfig.backend,
@@ -121,7 +126,10 @@ export class SwarmLifecycleService {
     return this.requireDescriptor(input.agentId);
   }
 
-  async deleteAgentSession(agentId: string, options?: { preserveMiddlemanRow?: boolean }): Promise<void> {
+  async deleteAgentSession(
+    agentId: string,
+    options?: { preserveMiddlemanRow?: boolean },
+  ): Promise<void> {
     const session = this.options.getCore().sessionService.getById(agentId);
     if (session) {
       if (session.status !== "terminated" && session.status !== "stopped") {
@@ -155,7 +163,12 @@ export class SwarmLifecycleService {
 
   async sendManagerBootstrapMessage(
     managerId: string,
-    sendMessage: (fromAgentId: string, targetAgentId: string, message: string, delivery?: "auto") => Promise<unknown>,
+    sendMessage: (
+      fromAgentId: string,
+      targetAgentId: string,
+      message: string,
+      delivery?: "auto",
+    ) => Promise<unknown>,
   ): Promise<void> {
     const manager = this.getAgent(managerId);
     if (!manager || manager.role !== "manager") {
@@ -170,7 +183,9 @@ export class SwarmLifecycleService {
   }
 
   async ensureManagerOrder(): Promise<void> {
-    this.options.getManagerOrderRepo().ensure(this.listManagers().map((manager) => manager.agentId));
+    this.options
+      .getManagerOrderRepo()
+      .ensure(this.listManagers().map((manager) => manager.agentId));
   }
 
   resolveDefaultModelDescriptor(): AgentModelDescriptor {
@@ -196,11 +211,15 @@ export class SwarmLifecycleService {
 
   getSortedDescriptors(options?: { includeArchived?: boolean }): AgentDescriptor[] {
     const sessionsById = new Map(
-      this.options.getCore().sessionService.list({
-        includeArchived: options?.includeArchived === true,
-      }).map((session) => [session.id, session]),
+      this.options
+        .getCore()
+        .sessionService.list({
+          includeArchived: options?.includeArchived === true,
+        })
+        .map((session) => [session.id, session]),
     );
-    const descriptors = this.options.getAgentRepo()
+    const descriptors = this.options
+      .getAgentRepo()
       .list()
       .map((row) => {
         const session = sessionsById.get(row.sessionId);
@@ -213,8 +232,10 @@ export class SwarmLifecycleService {
 
     return descriptors.sort((left, right) => {
       if (left.role === "manager" && right.role === "manager") {
-        return (managerIndexById.get(left.agentId) ?? Number.MAX_SAFE_INTEGER) -
-          (managerIndexById.get(right.agentId) ?? Number.MAX_SAFE_INTEGER);
+        return (
+          (managerIndexById.get(left.agentId) ?? Number.MAX_SAFE_INTEGER) -
+          (managerIndexById.get(right.agentId) ?? Number.MAX_SAFE_INTEGER)
+        );
       }
 
       if (left.role === "manager") {
@@ -225,8 +246,10 @@ export class SwarmLifecycleService {
       }
 
       if (left.managerId !== right.managerId) {
-        return (managerIndexById.get(left.managerId) ?? Number.MAX_SAFE_INTEGER) -
-          (managerIndexById.get(right.managerId) ?? Number.MAX_SAFE_INTEGER);
+        return (
+          (managerIndexById.get(left.managerId) ?? Number.MAX_SAFE_INTEGER) -
+          (managerIndexById.get(right.managerId) ?? Number.MAX_SAFE_INTEGER)
+        );
       }
 
       if (left.createdAt !== right.createdAt) {

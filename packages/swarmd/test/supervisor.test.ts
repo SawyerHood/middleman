@@ -64,10 +64,7 @@ function createSessionRecord(id = "session-supervisor-test"): SessionRecord {
   };
 }
 
-function createMockRuntimeConfig(
-  sessionId: string,
-  responseText: string,
-): SessionRuntimeConfig {
+function createMockRuntimeConfig(sessionId: string, responseText: string): SessionRuntimeConfig {
   return {
     backend: "codex",
     cwd: repoRoot,
@@ -184,7 +181,10 @@ async function waitForCondition(predicate: () => boolean, timeoutMs = 3_000): Pr
 
 function createEventController(protocol: WorkerProtocolHost): {
   events: WorkerEvent[];
-  waitForEvent: (predicate: (event: WorkerEvent) => boolean, timeoutMs?: number) => Promise<WorkerEvent>;
+  waitForEvent: (
+    predicate: (event: WorkerEvent) => boolean,
+    timeoutMs?: number,
+  ) => Promise<WorkerEvent>;
 } {
   const events: WorkerEvent[] = [];
   const waiters = new Set<{
@@ -271,9 +271,11 @@ describe("RuntimeSupervisor", () => {
     );
 
     await Promise.all(
-      childProcesses.splice(0).map((child) => terminateChild(child).catch(() => {
-        // Best-effort cleanup for tests.
-      })),
+      childProcesses.splice(0).map((child) =>
+        terminateChild(child).catch(() => {
+          // Best-effort cleanup for tests.
+        }),
+      ),
     );
   });
 
@@ -301,7 +303,8 @@ describe("RuntimeSupervisor", () => {
     const session = createSessionRecord("session-runtime-supervisor-test");
     const config = createRuntimeConfig();
     const workerEvents: WorkerEvent[] = [];
-    const workerExits: Array<{ sessionId: string; code: number | null; signal: string | null }> = [];
+    const workerExits: Array<{ sessionId: string; code: number | null; signal: string | null }> =
+      [];
     const workerErrors: Error[] = [];
     const supervisor = new RuntimeSupervisor(
       {
@@ -349,9 +352,7 @@ describe("RuntimeSupervisor", () => {
 
     const commandResult = workerEvents.find(
       (event) =>
-        event.type === "command_result" &&
-        event.operationId === "operation-send-test" &&
-        event.ok,
+        event.type === "command_result" && event.operationId === "operation-send-test" && event.ok,
     );
     expect(commandResult).toMatchObject({
       type: "command_result",

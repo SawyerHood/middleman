@@ -10,7 +10,7 @@ import {
   type SendMessageReceipt,
   type SwarmModelPreset,
   SWARM_MODEL_PRESETS,
-  type SpawnAgentInput
+  type SpawnAgentInput,
 } from "./types.js";
 
 export interface SwarmToolHost {
@@ -21,13 +21,13 @@ export interface SwarmToolHost {
     fromAgentId: string,
     targetAgentId: string,
     message: string,
-    delivery?: RequestedDeliveryMode
+    delivery?: RequestedDeliveryMode,
   ): Promise<SendMessageReceipt>;
   publishToUser(
     agentId: string,
     text: string,
     source?: "speak_to_user" | "system",
-    targetContext?: MessageTargetContext
+    targetContext?: MessageTargetContext,
   ): Promise<{ targetContext: MessageSourceContext }>;
 }
 
@@ -38,7 +38,7 @@ interface BuildSwarmToolsOptions {
 const deliveryModeSchema = Type.Union([
   Type.Literal("auto"),
   Type.Literal("followUp"),
-  Type.Literal("steer")
+  Type.Literal("steer"),
 ]);
 
 const spawnModelPresetSchema = Type.Unsafe<SwarmModelPreset>({
@@ -68,7 +68,7 @@ function buildVisibleAgentEntries(
     includeArchived?: boolean;
     includeManagers?: boolean;
     includeTerminated?: boolean;
-  }
+  },
 ): ListAgentsEntry[] {
   const teamManagerId = caller.role === "manager" ? caller.agentId : caller.managerId;
   const includeInactive = options.includeTerminated === true;
@@ -102,13 +102,13 @@ function buildVisibleAgentEntries(
       role: agent.role,
       managerId: agent.managerId,
       status: agent.status,
-      model: agent.model
+      model: agent.model,
     };
 
     if (agent.role === "manager" && agent.agentId !== teamManagerId) {
       externalManagers.push({
         ...entry,
-        isExternal: true
+        isExternal: true,
       });
       continue;
     }
@@ -122,7 +122,7 @@ function buildVisibleAgentEntries(
 export function buildSwarmTools(
   host: SwarmToolHost,
   descriptor: AgentDescriptor,
-  options: BuildSwarmToolsOptions = {}
+  options: BuildSwarmToolsOptions = {},
 ): ToolDefinition[] {
   const availableArchetypeIds = options.availableArchetypeIds ?? [];
   const archetypeIdDescriptionSuffix =
@@ -138,21 +138,21 @@ export function buildSwarmTools(
       parameters: Type.Object({
         includeTerminated: Type.Optional(
           Type.Boolean({
-            description: "When true, include stopped/terminated/error agents in the results."
-          })
+            description: "When true, include stopped/terminated/error agents in the results.",
+          }),
         ),
         includeArchived: Type.Optional(
           Type.Boolean({
             description:
-              "When true, include archived agents in the candidate set. Combine with includeTerminated=true to surface archived terminated agents."
-          })
+              "When true, include archived agents in the candidate set. Combine with includeTerminated=true to surface archived terminated agents.",
+          }),
         ),
         includeManagers: Type.Optional(
           Type.Boolean({
             description:
-              "Manager only. When true, also include other managers outside the caller's own team."
-          })
-        )
+              "Manager only. When true, also include other managers outside the caller's own team.",
+          }),
+        ),
       }),
       async execute(_toolCallId, params) {
         const parsed = params as {
@@ -169,12 +169,12 @@ export function buildSwarmTools(
           content: [
             {
               type: "text",
-              text: JSON.stringify({ agents }, null, 2)
-            }
+              text: JSON.stringify({ agents }, null, 2),
+            },
           ],
-          details: { agents }
+          details: { agents },
         };
-      }
+      },
     },
     {
       name: "send_message_to_agent",
@@ -184,7 +184,7 @@ export function buildSwarmTools(
       parameters: Type.Object({
         targetAgentId: Type.String({ description: "Agent id to receive the message." }),
         message: Type.String({ description: "Message text to deliver." }),
-        delivery: Type.Optional(deliveryModeSchema)
+        delivery: Type.Optional(deliveryModeSchema),
       }),
       async execute(_toolCallId, params) {
         const parsed = params as {
@@ -197,20 +197,20 @@ export function buildSwarmTools(
           descriptor.agentId,
           parsed.targetAgentId,
           parsed.message,
-          parsed.delivery
+          parsed.delivery,
         );
 
         return {
           content: [
             {
               type: "text",
-              text: `Queued message for ${receipt.targetAgentId}. deliveryId=${receipt.deliveryId}, mode=${receipt.acceptedMode}`
-            }
+              text: `Queued message for ${receipt.targetAgentId}. deliveryId=${receipt.deliveryId}, mode=${receipt.acceptedMode}`,
+            },
           ],
-          details: receipt
+          details: receipt,
         };
-      }
-    }
+      },
+    },
   ];
 
   if (descriptor.role !== "manager") {
@@ -226,17 +226,21 @@ export function buildSwarmTools(
       parameters: Type.Object({
         agentId: Type.String({
           description:
-            "Required agent identifier. Normalized to lowercase kebab-case; collisions are suffixed numerically."
+            "Required agent identifier. Normalized to lowercase kebab-case; collisions are suffixed numerically.",
         }),
         archetypeId: Type.Optional(
           Type.String({
             description: `Optional archetype id.${archetypeIdDescriptionSuffix}`,
-          })
+          }),
         ),
-        systemPrompt: Type.Optional(Type.String({ description: "Optional system prompt override." })),
+        systemPrompt: Type.Optional(
+          Type.String({ description: "Optional system prompt override." }),
+        ),
         model: Type.Optional(spawnModelPresetSchema),
         cwd: Type.Optional(Type.String({ description: "Optional working directory override." })),
-        initialMessage: Type.Optional(Type.String({ description: "Optional first message to send after spawn." }))
+        initialMessage: Type.Optional(
+          Type.String({ description: "Optional first message to send after spawn." }),
+        ),
       }),
       async execute(_toolCallId, params) {
         const parsed = params as {
@@ -254,26 +258,26 @@ export function buildSwarmTools(
           systemPrompt: parsed.systemPrompt,
           model: parseSwarmModelPreset(parsed.model, "spawn_agent.model"),
           cwd: parsed.cwd,
-          initialMessage: parsed.initialMessage
+          initialMessage: parsed.initialMessage,
         });
 
         return {
           content: [
             {
               type: "text",
-              text: `Spawned agent ${spawned.agentId} (${spawned.displayName})`
-            }
+              text: `Spawned agent ${spawned.agentId} (${spawned.displayName})`,
+            },
           ],
-          details: spawned
+          details: spawned,
         };
-      }
+      },
     },
     {
       name: "kill_agent",
       label: "Kill Agent",
       description: "Terminate a running worker agent. Manager cannot be terminated.",
       parameters: Type.Object({
-        targetAgentId: Type.String({ description: "Agent id to terminate." })
+        targetAgentId: Type.String({ description: "Agent id to terminate." }),
       }),
       async execute(_toolCallId, params) {
         const parsed = params as { targetAgentId: string };
@@ -282,23 +286,22 @@ export function buildSwarmTools(
           content: [
             {
               type: "text",
-              text: `Terminated agent ${parsed.targetAgentId}`
-            }
+              text: `Terminated agent ${parsed.targetAgentId}`,
+            },
           ],
           details: {
             targetAgentId: parsed.targetAgentId,
-            terminated: true
-          }
+            terminated: true,
+          },
         };
-      }
+      },
     },
     {
       name: "speak_to_user",
       label: "Speak To User",
-      description:
-        "Publish a user-visible manager message into the websocket conversation feed.",
+      description: "Publish a user-visible manager message into the websocket conversation feed.",
       parameters: Type.Object({
-        text: Type.String({ description: "Message content to show to the user." })
+        text: Type.String({ description: "Message content to show to the user." }),
       }),
       async execute(_toolCallId, params) {
         const parsed = params as { text: string };
@@ -306,24 +309,24 @@ export function buildSwarmTools(
         const published = await host.publishToUser(
           descriptor.agentId,
           parsed.text,
-          "speak_to_user"
+          "speak_to_user",
         );
 
         return {
           content: [
             {
               type: "text",
-              text: `Published message to user (${published.targetContext.channel}).`
-            }
+              text: `Published message to user (${published.targetContext.channel}).`,
+            },
           ],
           details: {
             published: true,
             text: parsed.text,
-            targetContext: published.targetContext
-          }
+            targetContext: published.targetContext,
+          },
         };
-      }
-    }
+      },
+    },
   ];
 
   return [...shared, ...managerOnly];

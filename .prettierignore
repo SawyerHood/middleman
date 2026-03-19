@@ -1,0 +1,6 @@
+node_modules
+dist
+.output
+pnpm-lock.yaml
+*.gen.ts
+packages/protocol/src/*.js

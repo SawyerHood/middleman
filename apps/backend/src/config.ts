@@ -40,10 +40,7 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
   const projectMemorySkillFile = resolve(projectSkillsDir, "memory", "SKILL.md");
   const defaultCwd = projectRoot;
 
-  const cwdAllowlistRoots = normalizeAllowlistRoots([
-    projectRoot,
-    resolve(homedir(), "worktrees")
-  ]);
+  const cwdAllowlistRoots = normalizeAllowlistRoots([projectRoot, resolve(homedir(), "worktrees")]);
 
   return {
     host: options.host ?? process.env.MIDDLEMAN_HOST ?? "0.0.0.0",
@@ -51,7 +48,7 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
     defaultModel: {
       provider: "openai-codex-app-server",
       modelId: "gpt-5.4",
-      thinkingLevel: "xhigh"
+      thinkingLevel: "xhigh",
     },
     defaultCwd,
     cwdAllowlistRoots,
@@ -78,7 +75,7 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
       authDir,
       authFile,
       memoryDir,
-    }
+    },
   };
 }
 
@@ -140,7 +137,7 @@ function resolveInstallArchetypesDir(installDir: string): string {
   return resolveFirstExistingPath([
     resolve(installDir, "assets", "archetypes"),
     resolve(installDir, "apps", "backend", "dist", "assets", "archetypes"),
-    resolve(installDir, "apps", "backend", "src", "swarm", "archetypes", "builtins")
+    resolve(installDir, "apps", "backend", "src", "swarm", "archetypes", "builtins"),
   ]);
 }
 
@@ -148,7 +145,7 @@ function resolveInstallSkillsDir(installDir: string): string {
   return resolveFirstExistingPath([
     resolve(installDir, "assets", "skills"),
     resolve(installDir, "apps", "backend", "dist", "assets", "skills"),
-    resolve(installDir, "apps", "backend", "src", "swarm", "skills", "builtins")
+    resolve(installDir, "apps", "backend", "src", "swarm", "skills", "builtins"),
   ]);
 }
 
@@ -160,7 +157,7 @@ function resolveCliBinDir(installDir: string, explicitCliBinDir?: string): strin
 
   return resolveFirstExistingPath([
     resolve(installDir, "bin"),
-    resolve(installDir, "apps", "cli", "bin")
+    resolve(installDir, "apps", "cli", "bin"),
   ]);
 }
 
@@ -173,7 +170,7 @@ function resolveUiDir(installDir: string, explicitUiDir?: string): string {
   return resolveFirstExistingPath([
     resolve(installDir, "ui"),
     resolve(installDir, "apps", "backend", "dist", "public"),
-    resolve(installDir, "apps", "ui", ".output", "public")
+    resolve(installDir, "apps", "ui", ".output", "public"),
   ]);
 }
 

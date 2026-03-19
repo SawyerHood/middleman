@@ -109,7 +109,7 @@ export class ClaudeBackendAdapter implements BackendAdapter {
     return await this.activateSession(checkpoint, {
       forkSession: true,
       resume: sourceCheckpoint.sessionId,
-      ...(sourceMessageId ?? sourceCheckpoint.resumeAtMessageId
+      ...((sourceMessageId ?? sourceCheckpoint.resumeAtMessageId)
         ? { resumeSessionAt: sourceMessageId ?? sourceCheckpoint.resumeAtMessageId }
         : {}),
       sessionId: checkpoint.sessionId,
@@ -200,7 +200,9 @@ export class ClaudeBackendAdapter implements BackendAdapter {
       sessionId: this.envelopeSessionId,
       threadId: this.envelopeThreadId,
       checkpoint,
-      ...(this.hostTools ? { mcpServers: { [this.hostTools.serverName]: this.hostTools.server } } : {}),
+      ...(this.hostTools
+        ? { mcpServers: { [this.hostTools.serverName]: this.hostTools.server } }
+        : {}),
       ...(this.hostTools ? { allowedTools: this.hostTools.allowedTools } : {}),
       queryOptions,
     });
@@ -278,16 +280,15 @@ export class ClaudeBackendAdapter implements BackendAdapter {
     return randomUUID();
   }
 
-  private async resolveHostTools(config: SessionRuntimeConfig): Promise<ClaudeHostToolServer | null> {
+  private async resolveHostTools(
+    config: SessionRuntimeConfig,
+  ): Promise<ClaudeHostToolServer | null> {
     const role = readMiddlemanRole(readMiddlemanConfig(config.backendConfig)?.role);
     if (!role || !this.options.hostRpc) {
       return null;
     }
 
-    return await createClaudeHostToolServer(
-      this.options.hostRpc,
-      buildHostToolDefinitions(role),
-    );
+    return await createClaudeHostToolServer(this.options.hostRpc, buildHostToolDefinitions(role));
   }
 }
 

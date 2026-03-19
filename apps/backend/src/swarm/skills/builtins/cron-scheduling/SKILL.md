@@ -8,6 +8,7 @@ description: Create, list, and remove persistent scheduled tasks using cron expr
 Use this skill when the user asks to schedule, reschedule, or cancel reminders/tasks for later.
 
 Before creating a schedule, confirm:
+
 - exact schedule timing (cron expression),
 - timezone (IANA, for example `America/Los_Angeles`),
 - task message content.
@@ -59,5 +60,6 @@ middleman schedule list --manager "manager"
 ## Output
 
 All commands return JSON:
+
 - Success: `{ "ok": true, ... }`
 - Failure: `{ "ok": false, "error": "..." }`

@@ -65,7 +65,9 @@ export class SessionBackendStateRepo {
 
   delete(sessionId: string): void {
     this.db
-      .prepare<{ sessionId: string }>("DELETE FROM session_backend_state WHERE session_id = @sessionId")
+      .prepare<{
+        sessionId: string;
+      }>("DELETE FROM session_backend_state WHERE session_id = @sessionId")
       .run({ sessionId });
   }
 }

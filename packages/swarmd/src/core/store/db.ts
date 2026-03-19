@@ -34,36 +34,34 @@ export function runMigrations(
   `);
 
   const getAppliedMigration = db.prepare<{ id: string }, MigrationRow>(
-    "SELECT id FROM migrations WHERE id = @id"
+    "SELECT id FROM migrations WHERE id = @id",
   );
   const insertMigration = db.prepare<AppliedMigrationRow>(
-    "INSERT INTO migrations (id, applied_at) VALUES (@id, @applied_at)"
+    "INSERT INTO migrations (id, applied_at) VALUES (@id, @applied_at)",
   );
   const migrations = [...STORE_MIGRATIONS, ...(options?.migrations ?? [])];
   const seenMigrationIds = new Set<string>();
 
-  const migrate = db
-    .transaction(() => {
-      for (const migration of migrations) {
-        if (seenMigrationIds.has(migration.id)) {
-          throw new Error(`Duplicate migration id: ${migration.id}`);
-        }
-
-        seenMigrationIds.add(migration.id);
-        const existing = getAppliedMigration.get({ id: migration.id });
-
-        if (existing) {
-          continue;
-        }
-
-        db.exec(migration.sql);
-        insertMigration.run({
-          id: migration.id,
-          applied_at: new Date().toISOString()
-        });
+  const migrate = db.transaction(() => {
+    for (const migration of migrations) {
+      if (seenMigrationIds.has(migration.id)) {
+        throw new Error(`Duplicate migration id: ${migration.id}`);
       }
-    })
-    .immediate;
+
+      seenMigrationIds.add(migration.id);
+      const existing = getAppliedMigration.get({ id: migration.id });
+
+      if (existing) {
+        continue;
+      }
+
+      db.exec(migration.sql);
+      insertMigration.run({
+        id: migration.id,
+        applied_at: new Date().toISOString(),
+      });
+    }
+  }).immediate;
 
   migrate();
 }

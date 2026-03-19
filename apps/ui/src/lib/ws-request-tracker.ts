@@ -1,20 +1,23 @@
-type RequestKey<RequestMap extends Record<string, unknown>> = Extract<keyof RequestMap, string>
+type RequestKey<RequestMap extends Record<string, unknown>> = Extract<keyof RequestMap, string>;
 
 interface PendingRequest<T> {
-  resolve: (value: T) => void
-  reject: (error: Error) => void
-  timeout: ReturnType<typeof setTimeout>
+  resolve: (value: T) => void;
+  reject: (error: Error) => void;
+  timeout: ReturnType<typeof setTimeout>;
 }
 
 export class WsRequestTracker<RequestMap extends Record<string, unknown>> {
-  private readonly pendingByType = new Map<RequestKey<RequestMap>, Map<string, PendingRequest<unknown>>>()
+  private readonly pendingByType = new Map<
+    RequestKey<RequestMap>,
+    Map<string, PendingRequest<unknown>>
+  >();
 
   constructor(
     private readonly requestTypes: readonly RequestKey<RequestMap>[],
     private readonly timeoutMs: number,
   ) {
     for (const requestType of requestTypes) {
-      this.pendingByType.set(requestType, new Map())
+      this.pendingByType.set(requestType, new Map());
     }
   }
 
@@ -28,15 +31,15 @@ export class WsRequestTracker<RequestMap extends Record<string, unknown>> {
       this.reject(
         requestType,
         requestId,
-        new Error('Request timed out waiting for backend response.'),
-      )
-    }, this.timeoutMs)
+        new Error("Request timed out waiting for backend response."),
+      );
+    }, this.timeoutMs);
 
     this.pendingMapFor(requestType).set(requestId, {
       resolve,
       reject,
       timeout,
-    })
+    });
   }
 
   resolve<RequestType extends RequestKey<RequestMap>>(
@@ -44,15 +47,13 @@ export class WsRequestTracker<RequestMap extends Record<string, unknown>> {
     requestId: string | undefined,
     value: RequestMap[RequestType],
   ): void {
-    const resolvedById = requestId
-      ? this.resolveById(requestType, requestId, value)
-      : false
+    const resolvedById = requestId ? this.resolveById(requestType, requestId, value) : false;
 
     if (resolvedById) {
-      return
+      return;
     }
 
-    this.resolveOldest(requestType, value)
+    this.resolveOldest(requestType, value);
   }
 
   reject<RequestType extends RequestKey<RequestMap>>(
@@ -60,78 +61,78 @@ export class WsRequestTracker<RequestMap extends Record<string, unknown>> {
     requestId: string,
     error: Error,
   ): boolean {
-    const pendingMap = this.pendingMapFor(requestType)
-    const pending = pendingMap.get(requestId)
+    const pendingMap = this.pendingMapFor(requestType);
+    const pending = pendingMap.get(requestId);
     if (!pending) {
-      return false
+      return false;
     }
 
-    clearTimeout(pending.timeout)
-    pendingMap.delete(requestId)
-    pending.reject(error)
-    return true
+    clearTimeout(pending.timeout);
+    pendingMap.delete(requestId);
+    pending.reject(error);
+    return true;
   }
 
   rejectByRequestId(requestId: string, error: Error): boolean {
     for (const requestType of this.requestTypes) {
       if (this.reject(requestType, requestId, error)) {
-        return true
+        return true;
       }
     }
 
-    return false
+    return false;
   }
 
   rejectOldest<RequestType extends RequestKey<RequestMap>>(
     requestType: RequestType,
     error: Error,
   ): boolean {
-    const pendingMap = this.pendingMapFor(requestType)
-    const first = pendingMap.entries().next()
+    const pendingMap = this.pendingMapFor(requestType);
+    const first = pendingMap.entries().next();
     if (first.done) {
-      return false
+      return false;
     }
 
-    const [requestId, pending] = first.value
-    clearTimeout(pending.timeout)
-    pendingMap.delete(requestId)
-    pending.reject(error)
-    return true
+    const [requestId, pending] = first.value;
+    clearTimeout(pending.timeout);
+    pendingMap.delete(requestId);
+    pending.reject(error);
+    return true;
   }
 
   rejectOnlyPending(error: Error): boolean {
     if (this.totalPending() !== 1) {
-      return false
+      return false;
     }
 
     for (const requestType of this.requestTypes) {
       if (this.rejectOldest(requestType, error)) {
-        return true
+        return true;
       }
     }
 
-    return false
+    return false;
   }
 
   rejectAll(error: Error): void {
     for (const requestType of this.requestTypes) {
-      const pendingMap = this.pendingMapFor(requestType)
+      const pendingMap = this.pendingMapFor(requestType);
       for (const [requestId, pending] of pendingMap.entries()) {
-        clearTimeout(pending.timeout)
-        pending.reject(error)
-        pendingMap.delete(requestId)
+        clearTimeout(pending.timeout);
+        pending.reject(error);
+        pendingMap.delete(requestId);
       }
     }
   }
 
   totalPending(): number {
-    let pendingCount = 0
+    let pendingCount = 0;
 
     for (const requestType of this.requestTypes) {
-      pendingCount += this.pendingMapFor(requestType).size
+      pendingCount += this.pendingMapFor(requestType).size;
     }
 
-    return pendingCount
+    return pendingCount;
   }
 
   private resolveById<RequestType extends RequestKey<RequestMap>>(
@@ -139,38 +140,41 @@ export class WsRequestTracker<RequestMap extends Record<string, unknown>> {
     requestId: string,
     value: RequestMap[RequestType],
   ): boolean {
-    const pendingMap = this.pendingMapFor(requestType)
-    const pending = pendingMap.get(requestId)
+    const pendingMap = this.pendingMapFor(requestType);
+    const pending = pendingMap.get(requestId);
     if (!pending) {
-      return false
+      return false;
     }
 
-    clearTimeout(pending.timeout)
-    pendingMap.delete(requestId)
-    pending.resolve(value)
-    return true
+    clearTimeout(pending.timeout);
+    pendingMap.delete(requestId);
+    pending.resolve(value);
+    return true;
   }
 
   private resolveOldest<RequestType extends RequestKey<RequestMap>>(
     requestType: RequestType,
     value: RequestMap[RequestType],
   ): boolean {
-    const pendingMap = this.pendingMapFor(requestType)
-    const first = pendingMap.entries().next()
+    const pendingMap = this.pendingMapFor(requestType);
+    const first = pendingMap.entries().next();
     if (first.done) {
-      return false
+      return false;
     }
 
-    const [requestId, pending] = first.value
-    clearTimeout(pending.timeout)
-    pendingMap.delete(requestId)
-    pending.resolve(value)
-    return true
+    const [requestId, pending] = first.value;
+    clearTimeout(pending.timeout);
+    pendingMap.delete(requestId);
+    pending.resolve(value);
+    return true;
   }
 
   private pendingMapFor<RequestType extends RequestKey<RequestMap>>(
     requestType: RequestType,
   ): Map<string, PendingRequest<RequestMap[RequestType]>> {
-    return this.pendingByType.get(requestType) as Map<string, PendingRequest<RequestMap[RequestType]>>
+    return this.pendingByType.get(requestType) as Map<
+      string,
+      PendingRequest<RequestMap[RequestType]>
+    >;
   }
 }

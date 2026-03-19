@@ -20,10 +20,7 @@ interface SwarmTranscriptServiceOptions {
   getCore: () => SwarmdCoreHandle;
   getAgent: (agentId: string) => AgentDescriptor | undefined;
   resolvePreferredManagerId: () => string | undefined;
-  resolveRuntimeErrorMessage: (
-    descriptor: AgentDescriptor,
-    payload: unknown,
-  ) => string;
+  resolveRuntimeErrorMessage: (descriptor: AgentDescriptor, payload: unknown) => string;
 }
 
 export interface ConversationHistoryPageResult<
@@ -41,12 +38,8 @@ interface ProjectStoredMessageOptions {
 export class SwarmTranscriptService {
   constructor(private readonly options: SwarmTranscriptServiceOptions) {}
 
-  projectConversationEntries(
-    agentId?: string,
-    limit?: number,
-  ): ConversationEntryEvent[] {
-    return this.pageEntries(this.collectConversationEntries(agentId), { limit })
-      .entries;
+  projectConversationEntries(agentId?: string, limit?: number): ConversationEntryEvent[] {
+    return this.pageEntries(this.collectConversationEntries(agentId), { limit }).entries;
   }
 
   getConversationHistoryPage(
@@ -59,11 +52,8 @@ export class SwarmTranscriptService {
   getVisibleTranscript(
     agentId?: string,
     options?: { limit?: number },
-  ): Array<
-    ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent
-  > {
-    return this.getVisibleTranscriptPage(agentId, { limit: options?.limit })
-      .entries;
+  ): Array<ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent> {
+    return this.getVisibleTranscriptPage(agentId, { limit: options?.limit }).entries;
   }
 
   getVisibleTranscriptPage(
@@ -73,12 +63,7 @@ export class SwarmTranscriptService {
     ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent
   > {
     const visibleEntries = this.collectConversationEntries(agentId).filter(
-      (
-        entry,
-      ): entry is
-        | ConversationMessageEvent
-        | ConversationLogEvent
-        | AgentMessageEvent =>
+      (entry): entry is ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent =>
         entry.type === "conversation_message" ||
         entry.type === "agent_message" ||
         (entry.type === "conversation_log" && entry.isError === true),
@@ -115,11 +100,8 @@ export class SwarmTranscriptService {
     return entries;
   }
 
-  private collectConversationEntries(
-    agentId?: string,
-  ): ConversationEntryEvent[] {
-    const resolvedAgentId =
-      agentId?.trim() || this.options.resolvePreferredManagerId();
+  private collectConversationEntries(agentId?: string): ConversationEntryEvent[] {
+    const resolvedAgentId = agentId?.trim() || this.options.resolvePreferredManagerId();
     if (!resolvedAgentId) {
       return [];
     }
@@ -157,11 +139,7 @@ export class SwarmTranscriptService {
 
     if (resolvedDescriptor?.role === "manager") {
       entries.push(
-        ...this.collectManagerScopedAgentMessages(
-          core,
-          resolvedDescriptor.agentId,
-          seenMessageIds,
-        ),
+        ...this.collectManagerScopedAgentMessages(core, resolvedDescriptor.agentId, seenMessageIds),
       );
     }
 
@@ -196,10 +174,7 @@ export class SwarmTranscriptService {
   ): ConversationHistoryPageResult<Entry> {
     const before = options?.before?.trim();
     const matchingEntries = before
-      ? entries.filter(
-          (entry) =>
-            resolveConversationEntryCursor(entry).localeCompare(before) < 0,
-        )
+      ? entries.filter((entry) => resolveConversationEntryCursor(entry).localeCompare(before) < 0)
       : entries;
     const limit = options?.limit;
 
@@ -221,11 +196,7 @@ function buildStoredMessageHistoryCursor(message: SwarmdMessage): string {
   return `${message.createdAt}|${message.sessionId}|${message.orderKey}|${message.id}`;
 }
 
-function buildSyntheticHistoryCursor(
-  timestamp: string,
-  agentId: string,
-  kind: string,
-): string {
+function buildSyntheticHistoryCursor(timestamp: string, agentId: string, kind: string): string {
   return `${timestamp}|${agentId}|${kind}`;
 }
 
@@ -237,9 +208,7 @@ function compareConversationEntries(
   left: ConversationEntryEvent,
   right: ConversationEntryEvent,
 ): number {
-  return resolveConversationEntryCursor(left).localeCompare(
-    resolveConversationEntryCursor(right),
-  );
+  return resolveConversationEntryCursor(left).localeCompare(resolveConversationEntryCursor(right));
 }
 
 function isManagerScopedAgentMessage(
@@ -386,10 +355,7 @@ export function projectStoredMessage(
         message.sessionId,
       timestamp: message.createdAt,
       historyCursor,
-      source:
-        readString(routing.origin) === "agent"
-          ? "agent_to_agent"
-          : "user_to_agent",
+      source: readString(routing.origin) === "agent" ? "agent_to_agent" : "user_to_agent",
       fromAgentId: readString(routing.fromAgentId),
       toAgentId: readString(routing.toAgentId) ?? message.sessionId,
       text: extractStoredMessageText(message.content),
@@ -426,9 +392,7 @@ export function projectStoredMessage(
     if (toolName === "speak_to_user") {
       const result = readObject(content?.result);
       const details = readObject(result?.details);
-      const text =
-        readString(details?.text) ??
-        extractToolResultContentText(result?.contentItems);
+      const text = readString(details?.text) ?? extractToolResultContentText(result?.contentItems);
       if (!text) {
         return null;
       }
@@ -450,12 +414,7 @@ export function projectStoredMessage(
       options.includeSendMessageToolResults === true &&
       toolName === "send_message_to_agent"
     ) {
-      return projectStoredSendMessageToolResult(
-        message,
-        content,
-        historyCursor,
-        options,
-      );
+      return projectStoredSendMessageToolResult(message, content, historyCursor, options);
     }
 
     return null;
@@ -474,8 +433,7 @@ function projectStoredSendMessageToolResult(
   const result = readObject(content.result);
   const details = readObject(result?.details);
   const text = readString(input?.message);
-  const toAgentId =
-    readString(input?.targetAgentId) ?? readString(details?.targetAgentId);
+  const toAgentId = readString(input?.targetAgentId) ?? readString(details?.targetAgentId);
 
   if (!text || !toAgentId) {
     return null;
@@ -510,9 +468,7 @@ export function buildAttachmentMetadata(
   }));
 }
 
-export function readObject(
-  value: unknown,
-): Record<string, unknown> | undefined {
+export function readObject(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
@@ -526,12 +482,8 @@ export function readBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
-export function readRole(
-  value: unknown,
-): "user" | "assistant" | "system" | undefined {
-  return value === "user" || value === "assistant" || value === "system"
-    ? value
-    : undefined;
+export function readRole(value: unknown): "user" | "assistant" | "system" | undefined {
+  return value === "user" || value === "assistant" || value === "system" ? value : undefined;
 }
 
 function readConversationSource(
@@ -541,25 +493,15 @@ function readConversationSource(
   return value === "system" || role === "system" ? "system" : "user_input";
 }
 
-function readRequestedDeliveryMode(
-  value: unknown,
-): RequestedDeliveryMode | undefined {
-  return value === "auto" || value === "followUp" || value === "steer"
-    ? value
-    : undefined;
+function readRequestedDeliveryMode(value: unknown): RequestedDeliveryMode | undefined {
+  return value === "auto" || value === "followUp" || value === "steer" ? value : undefined;
 }
 
-function readAcceptedDeliveryMode(
-  value: unknown,
-): SendMessageReceipt["acceptedMode"] | undefined {
-  return value === "prompt" || value === "followUp" || value === "steer"
-    ? value
-    : undefined;
+function readAcceptedDeliveryMode(value: unknown): SendMessageReceipt["acceptedMode"] | undefined {
+  return value === "prompt" || value === "followUp" || value === "steer" ? value : undefined;
 }
 
-function readConversationLogKind(
-  value: unknown,
-): ConversationLogEvent["kind"] | undefined {
+function readConversationLogKind(value: unknown): ConversationLogEvent["kind"] | undefined {
   return value === "message_start" ||
     value === "message_end" ||
     value === "tool_execution_start" ||
@@ -569,9 +511,7 @@ function readConversationLogKind(
     : undefined;
 }
 
-function readAgentToolCallKind(
-  value: unknown,
-): AgentToolCallEvent["kind"] | undefined {
+function readAgentToolCallKind(value: unknown): AgentToolCallEvent["kind"] | undefined {
   return value === "tool_execution_start" ||
     value === "tool_execution_update" ||
     value === "tool_execution_end"
@@ -579,9 +519,7 @@ function readAgentToolCallKind(
     : undefined;
 }
 
-function readSourceContext(
-  value: unknown,
-): MessageSourceContext | undefined {
+function readSourceContext(value: unknown): MessageSourceContext | undefined {
   const context = readObject(value);
   if (!context) {
     return undefined;
@@ -597,26 +535,19 @@ function readSourceContext(
   };
 }
 
-function readAttachments(
-  value: unknown,
-): ConversationAttachmentMetadata[] | undefined {
+function readAttachments(value: unknown): ConversationAttachmentMetadata[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
 
   const attachments = value
     .map(readAttachmentMetadata)
-    .filter(
-      (attachment): attachment is ConversationAttachmentMetadata =>
-        attachment !== undefined,
-    );
+    .filter((attachment): attachment is ConversationAttachmentMetadata => attachment !== undefined);
 
   return attachments.length > 0 ? attachments : undefined;
 }
 
-function readAttachmentMetadata(
-  value: unknown,
-): ConversationAttachmentMetadata | undefined {
+function readAttachmentMetadata(value: unknown): ConversationAttachmentMetadata | undefined {
   const attachment = readObject(value);
   if (!attachment) {
     return undefined;
@@ -628,12 +559,7 @@ function readAttachmentMetadata(
   }
 
   const type = readString(attachment.type);
-  if (
-    type !== undefined &&
-    type !== "image" &&
-    type !== "text" &&
-    type !== "binary"
-  ) {
+  if (type !== undefined && type !== "image" && type !== "text" && type !== "binary") {
     return undefined;
   }
 
@@ -642,9 +568,7 @@ function readAttachmentMetadata(
   const sizeBytes = attachment.sizeBytes;
   if (
     sizeBytes !== undefined &&
-    (typeof sizeBytes !== "number" ||
-      !Number.isFinite(sizeBytes) ||
-      sizeBytes < 0)
+    (typeof sizeBytes !== "number" || !Number.isFinite(sizeBytes) || sizeBytes < 0)
   ) {
     return undefined;
   }
@@ -705,9 +629,7 @@ function extractStoredMessageText(content: unknown): string {
   return extractToolResultContentText(object?.contentItems) ?? "";
 }
 
-function extractToolResultContentText(
-  value: unknown,
-): string | undefined {
+function extractToolResultContentText(value: unknown): string | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -720,33 +642,21 @@ function extractToolResultContentText(
   return text.length > 0 ? text : undefined;
 }
 
-function extractStoredMessageAttachments(
-  content: unknown,
-): ConversationAttachmentMetadata[] {
+function extractStoredMessageAttachments(content: unknown): ConversationAttachmentMetadata[] {
   const object = readObject(content);
   if (!object) {
     return [];
   }
 
   return mergeAttachments(
-    extractAttachmentsFromArray(
-      Array.isArray(object.parts) ? object.parts : [],
-    ),
-    extractAttachmentsFromArray(
-      Array.isArray(object.content) ? object.content : [],
-    ),
-    extractAttachmentsFromArray(
-      Array.isArray(object.contentItems) ? object.contentItems : [],
-    ),
-    Array.isArray(object.attachments)
-      ? readAttachments(object.attachments)
-      : undefined,
+    extractAttachmentsFromArray(Array.isArray(object.parts) ? object.parts : []),
+    extractAttachmentsFromArray(Array.isArray(object.content) ? object.content : []),
+    extractAttachmentsFromArray(Array.isArray(object.contentItems) ? object.contentItems : []),
+    Array.isArray(object.attachments) ? readAttachments(object.attachments) : undefined,
   );
 }
 
-function extractAttachmentsFromArray(
-  value: unknown[],
-): ConversationAttachmentMetadata[] {
+function extractAttachmentsFromArray(value: unknown[]): ConversationAttachmentMetadata[] {
   const attachments: ConversationAttachmentMetadata[] = [];
 
   for (const item of value) {
@@ -758,8 +668,7 @@ function extractAttachmentsFromArray(
     const type = readString(object.type);
     if (type === "image") {
       const mimeType =
-        readString(object.mimeType) ??
-        readString(readObject(object.source)?.media_type);
+        readString(object.mimeType) ?? readString(readObject(object.source)?.media_type);
       if (!mimeType) {
         continue;
       }

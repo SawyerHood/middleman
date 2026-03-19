@@ -13,7 +13,7 @@ export function parseJsonValue(value: string | null, fieldName: string): unknown
     return JSON.parse(value);
   } catch (error) {
     throw new Error(
-      `Failed to parse ${fieldName}: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to parse ${fieldName}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -55,7 +55,10 @@ export function parseSessionError(value: string | null): SessionErrorInfo | null
 
   const details = errorInfo.details;
 
-  if (details !== undefined && (details === null || typeof details !== "object" || Array.isArray(details))) {
+  if (
+    details !== undefined &&
+    (details === null || typeof details !== "object" || Array.isArray(details))
+  ) {
     throw new Error("Expected last_error_json.details to contain a JSON object");
   }
 
@@ -63,7 +66,7 @@ export function parseSessionError(value: string | null): SessionErrorInfo | null
     code: errorInfo.code,
     message: errorInfo.message,
     retryable: errorInfo.retryable,
-    details: details as Record<string, unknown> | undefined
+    details: details as Record<string, unknown> | undefined,
   };
 }
 

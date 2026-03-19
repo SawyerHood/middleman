@@ -671,16 +671,16 @@ function createDeferred<T>(): Deferred<T> {
 }
 
 function isIdleLike(status: SessionStatus): boolean {
-  return status === "idle" || status === "stopped" || status === "terminated" || status === "errored";
+  return (
+    status === "idle" || status === "stopped" || status === "terminated" || status === "errored"
+  );
 }
 
 const MAX_CLAUDE_STDERR_LINES = 20;
 const MAX_CLAUDE_STDERR_SUMMARY_LINES = 3;
 
 function sameCheckpoint(left: ClaudeCheckpoint | undefined, right: ClaudeCheckpoint): boolean {
-  return (
-    left?.sessionId === right.sessionId && left?.resumeAtMessageId === right.resumeAtMessageId
-  );
+  return left?.sessionId === right.sessionId && left?.resumeAtMessageId === right.resumeAtMessageId;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -729,7 +729,8 @@ function extractClaudeContextUsage(
     return null;
   }
 
-  const inputTokens = readFiniteNumber(usageEntry.inputTokens) ?? readFiniteNumber(usageEntry.input_tokens) ?? 0;
+  const inputTokens =
+    readFiniteNumber(usageEntry.inputTokens) ?? readFiniteNumber(usageEntry.input_tokens) ?? 0;
   const cacheReadInputTokens =
     readFiniteNumber(usageEntry.cacheReadInputTokens) ??
     readFiniteNumber(usageEntry.cache_read_input_tokens) ??
@@ -742,10 +743,7 @@ function extractClaudeContextUsage(
     readFiniteNumber(usageEntry.outputTokens) ?? readFiniteNumber(usageEntry.output_tokens) ?? 0;
   const contextWindow =
     readFiniteNumber(usageEntry.contextWindow) ?? readFiniteNumber(usageEntry.context_window);
-  if (
-    contextWindow === undefined ||
-    contextWindow <= 0
-  ) {
+  if (contextWindow === undefined || contextWindow <= 0) {
     return null;
   }
 
@@ -776,7 +774,9 @@ function selectClaudeUsageEntry(
 
   if (configuredModel) {
     const normalizedConfiguredModel = normalizeModelKey(configuredModel);
-    const exactMatch = entries.find(([modelKey]) => normalizeModelKey(modelKey) === normalizedConfiguredModel);
+    const exactMatch = entries.find(
+      ([modelKey]) => normalizeModelKey(modelKey) === normalizedConfiguredModel,
+    );
     if (exactMatch) {
       return exactMatch[1] as Record<string, unknown>;
     }
@@ -785,19 +785,24 @@ function selectClaudeUsageEntry(
   return (
     entries
       .map(([, value]) => value as Record<string, unknown>)
-      .sort((left, right) => totalClaudeUsageTokens(right) - totalClaudeUsageTokens(left))[0] ?? null
+      .sort((left, right) => totalClaudeUsageTokens(right) - totalClaudeUsageTokens(left))[0] ??
+    null
   );
 }
 
 function isClaudeUsageEntry(value: unknown): value is Record<string, unknown> {
   const entry = readObject(value);
-  return entry !== null && readFiniteNumber(entry.contextWindow ?? entry.context_window) !== undefined;
+  return (
+    entry !== null && readFiniteNumber(entry.contextWindow ?? entry.context_window) !== undefined
+  );
 }
 
 function totalClaudeUsageTokens(entry: Record<string, unknown>): number {
   return (
     (readFiniteNumber(entry.inputTokens) ?? readFiniteNumber(entry.input_tokens) ?? 0) +
-    (readFiniteNumber(entry.cacheReadInputTokens) ?? readFiniteNumber(entry.cache_read_input_tokens) ?? 0) +
+    (readFiniteNumber(entry.cacheReadInputTokens) ??
+      readFiniteNumber(entry.cache_read_input_tokens) ??
+      0) +
     (readFiniteNumber(entry.cacheCreationInputTokens) ??
       readFiniteNumber(entry.cache_creation_input_tokens) ??
       0) +
@@ -915,7 +920,9 @@ function prefixSystemMessage(contentBlocks: ClaudeSdkInputContent[]): ClaudeSdkI
   ];
 }
 
-function describeFileAttachment(part: Extract<UserInput["parts"][number], { type: "file" }>): string {
+function describeFileAttachment(
+  part: Extract<UserInput["parts"][number], { type: "file" }>,
+): string {
   const identifier = part.fileName ?? part.path ?? "unnamed-file";
   return `Attached file: ${identifier} (${part.mimeType})`;
 }

@@ -174,11 +174,7 @@ describe("SwarmManager.handleHostCall", () => {
         agentId: "reviewer",
       },
     });
-    expect(publishToUser).toHaveBeenCalledWith(
-      "manager-1",
-      "Review complete",
-      "speak_to_user",
-    );
+    expect(publishToUser).toHaveBeenCalledWith("manager-1", "Review complete", "speak_to_user");
     expect(speakResult).toMatchObject({
       details: {
         published: true,
@@ -244,7 +240,9 @@ describe("SwarmManager.handleHostCall", () => {
       },
     };
 
-    await expect((manager as any).ensureAgentReadyForInput("worker-1")).resolves.toEqual(descriptor);
+    await expect((manager as any).ensureAgentReadyForInput("worker-1")).resolves.toEqual(
+      descriptor,
+    );
 
     expect(stop).toHaveBeenCalledWith("worker-1");
     expect(start).toHaveBeenCalledWith("worker-1");

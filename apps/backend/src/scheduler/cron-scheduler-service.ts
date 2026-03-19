@@ -161,7 +161,10 @@ export class CronSchedulerService {
     }
   }
 
-  private async dispatchSchedule(schedule: ScheduledTask, scheduledForIso: string): Promise<boolean> {
+  private async dispatchSchedule(
+    schedule: ScheduledTask,
+    scheduledForIso: string,
+  ): Promise<boolean> {
     const scheduleContext = {
       scheduleId: schedule.id,
       name: schedule.name,

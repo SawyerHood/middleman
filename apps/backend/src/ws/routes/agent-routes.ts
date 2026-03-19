@@ -12,7 +12,8 @@ export interface AgentCommandRouteContext {
 }
 
 export async function handleAgentCommand(context: AgentCommandRouteContext): Promise<boolean> {
-  const { command, socket, subscribedAgentId, swarmManager, resolveManagerContextAgentId, send } = context;
+  const { command, socket, subscribedAgentId, swarmManager, resolveManagerContextAgentId, send } =
+    context;
 
   if (command.type === "kill_agent") {
     const managerContextId = resolveManagerContextAgentId(subscribedAgentId);
@@ -20,7 +21,7 @@ export async function handleAgentCommand(context: AgentCommandRouteContext): Pro
       send(socket, {
         type: "error",
         code: "UNKNOWN_AGENT",
-        message: `Agent ${subscribedAgentId} does not exist.`
+        message: `Agent ${subscribedAgentId} does not exist.`,
       });
       return true;
     }
@@ -31,7 +32,7 @@ export async function handleAgentCommand(context: AgentCommandRouteContext): Pro
       send(socket, {
         type: "error",
         code: "KILL_AGENT_FAILED",
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
       });
     }
 
@@ -45,7 +46,7 @@ export async function handleAgentCommand(context: AgentCommandRouteContext): Pro
         type: "error",
         code: "UNKNOWN_AGENT",
         message: `Agent ${subscribedAgentId} does not exist.`,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
       return true;
     }
@@ -57,14 +58,14 @@ export async function handleAgentCommand(context: AgentCommandRouteContext): Pro
         managerId: stopped.managerId,
         stoppedWorkerIds: stopped.stoppedWorkerIds,
         managerStopped: stopped.managerStopped,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     } catch (error) {
       send(socket, {
         type: "error",
         code: "STOP_ALL_AGENTS_FAILED",
         message: error instanceof Error ? error.message : String(error),
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     }
 
@@ -82,14 +83,14 @@ export async function handleAgentCommand(context: AgentCommandRouteContext): Pro
         requestedPath: listed.requestedPath,
         resolvedPath: listed.resolvedPath,
         roots: listed.roots,
-        entries: listed.directories
+        entries: listed.directories,
       });
     } catch (error) {
       send(socket, {
         type: "error",
         code: "LIST_DIRECTORIES_FAILED",
         message: error instanceof Error ? error.message : String(error),
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     }
 
@@ -107,14 +108,14 @@ export async function handleAgentCommand(context: AgentCommandRouteContext): Pro
         requestId: command.requestId,
         requestedPath: validation.requestedPath,
         roots: validation.roots,
-        resolvedPath: validation.resolvedPath
+        resolvedPath: validation.resolvedPath,
       });
     } catch (error) {
       send(socket, {
         type: "error",
         code: "VALIDATE_DIRECTORY_FAILED",
         message: error instanceof Error ? error.message : String(error),
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     }
 
@@ -127,14 +128,14 @@ export async function handleAgentCommand(context: AgentCommandRouteContext): Pro
       send(socket, {
         type: "directory_picked",
         path: pickedPath,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     } catch (error) {
       send(socket, {
         type: "error",
         code: "PICK_DIRECTORY_FAILED",
         message: error instanceof Error ? error.message : String(error),
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     }
 

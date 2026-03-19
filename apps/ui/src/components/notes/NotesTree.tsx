@@ -1,33 +1,33 @@
-import { useMemo, useRef } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useMemo, useRef } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from '@/components/ui/context-menu'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-import type { NoteFolder, NoteSummary, NoteTreeNode } from '@middleman/protocol'
+} from "@/components/ui/context-menu";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import type { NoteFolder, NoteSummary, NoteTreeNode } from "@middleman/protocol";
 
 interface NotesTreeProps {
-  tree: NoteTreeNode[]
-  selectedNotePath: string | null
-  expandedFolderPaths: string[]
-  renamingNotePath: string | null
-  renameDraft: string
-  isRenamingNote: boolean
-  onSelectNote: (path: string) => void
-  onToggleFolder: (path: string) => void
-  onStartRenameNote: (note: NoteSummary) => void
-  onRenameDraftChange: (value: string) => void
-  onCommitRenameNote: () => Promise<void> | void
-  onCancelRenameNote: () => void
-  onCreateNoteInFolder: (folderPath: string | null) => void
-  onCreateFolderInFolder: (folderPath: string | null) => void
-  onMoveNote: (note: NoteSummary) => void
-  onDeleteNote: (note: NoteSummary) => void
-  onDeleteFolder: (folder: NoteFolder) => void
+  tree: NoteTreeNode[];
+  selectedNotePath: string | null;
+  expandedFolderPaths: string[];
+  renamingNotePath: string | null;
+  renameDraft: string;
+  isRenamingNote: boolean;
+  onSelectNote: (path: string) => void;
+  onToggleFolder: (path: string) => void;
+  onStartRenameNote: (note: NoteSummary) => void;
+  onRenameDraftChange: (value: string) => void;
+  onCommitRenameNote: () => Promise<void> | void;
+  onCancelRenameNote: () => void;
+  onCreateNoteInFolder: (folderPath: string | null) => void;
+  onCreateFolderInFolder: (folderPath: string | null) => void;
+  onMoveNote: (note: NoteSummary) => void;
+  onDeleteNote: (note: NoteSummary) => void;
+  onDeleteFolder: (folder: NoteFolder) => void;
 }
 
 export function NotesTree({
@@ -49,7 +49,7 @@ export function NotesTree({
   onDeleteNote,
   onDeleteFolder,
 }: NotesTreeProps) {
-  const expandedFolderSet = useMemo(() => new Set(expandedFolderPaths), [expandedFolderPaths])
+  const expandedFolderSet = useMemo(() => new Set(expandedFolderPaths), [expandedFolderPaths]);
 
   return (
     <div className="py-1">
@@ -77,7 +77,7 @@ export function NotesTree({
         />
       ))}
     </div>
-  )
+  );
 }
 
 function TreeNodeRow({
@@ -100,30 +100,30 @@ function TreeNodeRow({
   renamingNotePath,
   selectedNotePath,
 }: {
-  depth: number
-  expandedFolderSet: Set<string>
-  isRenamingNote: boolean
-  node: NoteTreeNode
-  onCancelRenameNote: () => void
-  onCommitRenameNote: () => Promise<void> | void
-  onCreateFolderInFolder: (folderPath: string | null) => void
-  onCreateNoteInFolder: (folderPath: string | null) => void
-  onDeleteFolder: (folder: NoteFolder) => void
-  onDeleteNote: (note: NoteSummary) => void
-  onMoveNote: (note: NoteSummary) => void
-  onRenameDraftChange: (value: string) => void
-  onSelectNote: (path: string) => void
-  onStartRenameNote: (note: NoteSummary) => void
-  onToggleFolder: (path: string) => void
-  renameDraft: string
-  renamingNotePath: string | null
-  selectedNotePath: string | null
+  depth: number;
+  expandedFolderSet: Set<string>;
+  isRenamingNote: boolean;
+  node: NoteTreeNode;
+  onCancelRenameNote: () => void;
+  onCommitRenameNote: () => Promise<void> | void;
+  onCreateFolderInFolder: (folderPath: string | null) => void;
+  onCreateNoteInFolder: (folderPath: string | null) => void;
+  onDeleteFolder: (folder: NoteFolder) => void;
+  onDeleteNote: (note: NoteSummary) => void;
+  onMoveNote: (note: NoteSummary) => void;
+  onRenameDraftChange: (value: string) => void;
+  onSelectNote: (path: string) => void;
+  onStartRenameNote: (note: NoteSummary) => void;
+  onToggleFolder: (path: string) => void;
+  renameDraft: string;
+  renamingNotePath: string | null;
+  selectedNotePath: string | null;
 }) {
-  const ignoreNextRenameBlurRef = useRef(false)
-  const paddingLeft = depth * 14 + 10
+  const ignoreNextRenameBlurRef = useRef(false);
+  const paddingLeft = depth * 14 + 10;
 
-  if (node.kind === 'folder') {
-    const isExpanded = expandedFolderSet.has(node.path)
+  if (node.kind === "folder") {
+    const isExpanded = expandedFolderSet.has(node.path);
 
     return (
       <>
@@ -183,19 +183,19 @@ function TreeNodeRow({
             ))
           : null}
       </>
-    )
+    );
   }
 
-  const isSelected = node.path === selectedNotePath
-  const isRenaming = node.path === renamingNotePath
+  const isSelected = node.path === selectedNotePath;
+  const isRenaming = node.path === renamingNotePath;
 
   return (
     <ContextMenu>
       <ContextMenuTrigger className="w-full">
         <div
           className={cn(
-            'flex min-h-8 w-full items-center rounded-md pr-3 transition-colors',
-            isSelected ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/25',
+            "flex min-h-8 w-full items-center rounded-md pr-3 transition-colors",
+            isSelected ? "bg-muted/55 text-foreground" : "hover:bg-muted/25",
           )}
           style={{ paddingLeft }}
         >
@@ -207,25 +207,25 @@ function TreeNodeRow({
               disabled={isRenamingNote}
               onBlur={() => {
                 if (ignoreNextRenameBlurRef.current) {
-                  ignoreNextRenameBlurRef.current = false
-                  return
+                  ignoreNextRenameBlurRef.current = false;
+                  return;
                 }
 
-                void onCommitRenameNote()
+                void onCommitRenameNote();
               }}
               onChange={(event) => onRenameDraftChange(event.target.value)}
               onClick={(event) => event.stopPropagation()}
               onFocus={(event) => event.currentTarget.select()}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  void onCommitRenameNote()
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void onCommitRenameNote();
                 }
 
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  ignoreNextRenameBlurRef.current = true
-                  onCancelRenameNote()
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  ignoreNextRenameBlurRef.current = true;
+                  onCancelRenameNote();
                 }
               }}
               value={renameDraft}
@@ -237,9 +237,9 @@ function TreeNodeRow({
               onClick={() => onSelectNote(node.path)}
               onDoubleClick={() => onStartRenameNote(node)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && isSelected) {
-                  event.preventDefault()
-                  onStartRenameNote(node)
+                if (event.key === "Enter" && isSelected) {
+                  event.preventDefault();
+                  onStartRenameNote(node);
                 }
               }}
               title={node.path}
@@ -250,16 +250,12 @@ function TreeNodeRow({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => onStartRenameNote(node)}>
-          Rename
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => onMoveNote(node)}>
-          Move to…
-        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onStartRenameNote(node)}>Rename</ContextMenuItem>
+        <ContextMenuItem onClick={() => onMoveNote(node)}>Move to…</ContextMenuItem>
         <ContextMenuItem variant="destructive" onClick={() => onDeleteNote(node)}>
           Delete
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  )
+  );
 }

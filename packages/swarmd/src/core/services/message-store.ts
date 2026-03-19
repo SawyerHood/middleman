@@ -91,10 +91,12 @@ export class MessageStore {
     const metadata = Object.assign({}, existing.metadata, patch);
     this.messageRepo.updateMetadata(messageId, metadata);
 
-    return this.messageRepo.getById(messageId) ?? {
-      ...existing,
-      metadata,
-    };
+    return (
+      this.messageRepo.getById(messageId) ?? {
+        ...existing,
+        metadata,
+      }
+    );
   }
 
   private assertSessionExists(sessionId: string): void {

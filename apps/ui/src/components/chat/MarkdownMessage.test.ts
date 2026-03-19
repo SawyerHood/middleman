@@ -1,150 +1,146 @@
 // @vitest-environment jsdom
 
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
-import { MarkdownMessage } from './MarkdownMessage'
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { MarkdownMessage } from "./MarkdownMessage";
 
 afterEach(() => {
-  cleanup()
-})
+  cleanup();
+});
 
-describe('MarkdownMessage', () => {
-  it('renders common markdown formatting for speak_to_user content', () => {
+describe("MarkdownMessage", () => {
+  it("renders common markdown formatting for speak_to_user content", () => {
     const content = [
-      'Visit [example](https://example.com).',
-      '',
-      'Use `pnpm test`.',
-      '',
-      '```ts',
+      "Visit [example](https://example.com).",
+      "",
+      "Use `pnpm test`.",
+      "",
+      "```ts",
       'console.log("hello")',
-      '```',
-      '',
-      '- alpha',
-      '- beta',
-      '',
-      'This is **bold** and *italic*.',
-    ].join('\n')
+      "```",
+      "",
+      "- alpha",
+      "- beta",
+      "",
+      "This is **bold** and *italic*.",
+    ].join("\n");
 
-    const html = renderToStaticMarkup(createElement(MarkdownMessage, { content }))
+    const html = renderToStaticMarkup(createElement(MarkdownMessage, { content }));
 
-    expect(html).toContain('href="https://example.com"')
-    expect(html).toContain('>pnpm test</code>')
-    expect(html).toContain('<pre class="overflow-x-auto p-4">')
-    expect(html).toContain('<ul class="mb-2 list-disc space-y-0.5 pl-5')
-    expect(html).toContain('<strong class="font-semibold')
-    expect(html).toContain('<em class="italic">italic</em>')
-  })
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain(">pnpm test</code>");
+    expect(html).toContain('<pre class="overflow-x-auto p-4">');
+    expect(html).toContain('<ul class="mb-2 list-disc space-y-0.5 pl-5');
+    expect(html).toContain('<strong class="font-semibold');
+    expect(html).toContain('<em class="italic">italic</em>');
+  });
 
-  it('adds enough ordered-list padding for multi-digit markers', () => {
-    const content = ['9. nine', '10. ten', '11. eleven'].join('\n')
+  it("adds enough ordered-list padding for multi-digit markers", () => {
+    const content = ["9. nine", "10. ten", "11. eleven"].join("\n");
 
-    const html = renderToStaticMarkup(createElement(MarkdownMessage, { content }))
+    const html = renderToStaticMarkup(createElement(MarkdownMessage, { content }));
 
-    expect(html).toContain('<ol class="mb-2 list-decimal space-y-0.5 pl-7')
-  })
+    expect(html).toContain('<ol class="mb-2 list-decimal space-y-0.5 pl-7');
+  });
 
-  it('keeps raw HTML escaped and sanitizes javascript links', () => {
-    const content = ['[xss](javascript:alert(1))', '', '<script>alert("x")</script>'].join('\n')
+  it("keeps raw HTML escaped and sanitizes javascript links", () => {
+    const content = ["[xss](javascript:alert(1))", "", '<script>alert("x")</script>'].join("\n");
 
-    const html = renderToStaticMarkup(createElement(MarkdownMessage, { content }))
+    const html = renderToStaticMarkup(createElement(MarkdownMessage, { content }));
 
-    expect(html).not.toContain('href="javascript:alert(1)"')
-    expect(html).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;')
-  })
+    expect(html).not.toContain('href="javascript:alert(1)"');
+    expect(html).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
+  });
 
-  it('renders artifact links as clickable artifact cards when callback is provided', () => {
-    const content = '[artifact:/Users/example/worktrees/swarm/README.md]'
-
-    const html = renderToStaticMarkup(
-      createElement(MarkdownMessage, {
-        content,
-        onArtifactClick: () => {},
-      }),
-    )
-
-    expect(html).toContain('data-artifact-card="true"')
-    expect(html).toContain('README.md')
-    expect(html).toContain('/Users/example/worktrees/swarm/README.md')
-  })
-
-  it('renders local markdown file links as artifact cards using link text as title', () => {
-    const content = '[Terminal Support Plan](docs/plans/terminal-support.md)'
+  it("renders artifact links as clickable artifact cards when callback is provided", () => {
+    const content = "[artifact:/Users/example/worktrees/swarm/README.md]";
 
     const html = renderToStaticMarkup(
       createElement(MarkdownMessage, {
         content,
         onArtifactClick: () => {},
       }),
-    )
+    );
 
-    expect(html).toContain('data-artifact-card="true"')
-    expect(html).toContain('Terminal Support Plan')
-    expect(html).toContain('docs/plans/terminal-support.md')
-  })
+    expect(html).toContain('data-artifact-card="true"');
+    expect(html).toContain("README.md");
+    expect(html).toContain("/Users/example/worktrees/swarm/README.md");
+  });
 
-  it('rewrites file urls for inline images through the read-file endpoint', () => {
+  it("renders local markdown file links as artifact cards using link text as title", () => {
+    const content = "[Terminal Support Plan](docs/plans/terminal-support.md)";
+
     const html = renderToStaticMarkup(
       createElement(MarkdownMessage, {
-        content: '![Local image](file:///tmp/test%20image.png)',
-        wsUrl: 'ws://127.0.0.1:47187',
+        content,
+        onArtifactClick: () => {},
       }),
-    )
+    );
 
-    expect(html).toContain('<img')
+    expect(html).toContain('data-artifact-card="true"');
+    expect(html).toContain("Terminal Support Plan");
+    expect(html).toContain("docs/plans/terminal-support.md");
+  });
+
+  it("rewrites file urls for inline images through the read-file endpoint", () => {
+    const html = renderToStaticMarkup(
+      createElement(MarkdownMessage, {
+        content: "![Local image](file:///tmp/test%20image.png)",
+        wsUrl: "ws://127.0.0.1:47187",
+      }),
+    );
+
+    expect(html).toContain("<img");
     expect(html).toContain(
       'src="http://127.0.0.1:47187/api/read-file?path=%2Ftmp%2Ftest%20image.png"',
-    )
-  })
+    );
+  });
 
-  it('rewrites file urls for links without touching app-relative image paths', () => {
+  it("rewrites file urls for links without touching app-relative image paths", () => {
     const content = [
-      '[Local image link](file:///tmp/link-image.png)',
-      '',
-      '![Bundled asset](/agents/codex-logo.svg)',
-    ].join('\n')
+      "[Local image link](file:///tmp/link-image.png)",
+      "",
+      "![Bundled asset](/agents/codex-logo.svg)",
+    ].join("\n");
 
     const html = renderToStaticMarkup(
       createElement(MarkdownMessage, {
         content,
-        wsUrl: 'ws://127.0.0.1:47187',
+        wsUrl: "ws://127.0.0.1:47187",
       }),
-    )
+    );
 
     expect(html).toContain(
       'href="http://127.0.0.1:47187/api/read-file?path=%2Ftmp%2Flink-image.png"',
-    )
-    expect(html).toContain('src="/agents/codex-logo.svg"')
+    );
+    expect(html).toContain('src="/agents/codex-logo.svg"');
     expect(html).not.toContain(
       'src="http://127.0.0.1:47187/api/read-file?path=%2Fagents%2Fcodex-logo.svg"',
-    )
-  })
+    );
+  });
 
-  it('opens inline markdown images in a lightbox for chat messages', async () => {
+  it("opens inline markdown images in a lightbox for chat messages", async () => {
     render(
       createElement(MarkdownMessage, {
-        content: '![Example](https://example.com/example.png)',
+        content: "![Example](https://example.com/example.png)",
       }),
-    )
+    );
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Expand image: Example' }),
-    )
+    fireEvent.click(screen.getByRole("button", { name: "Expand image: Example" }));
 
     await waitFor(() => {
-      expect(document.querySelector('[data-content-zoom-dialog="true"]')).not.toBeNull()
-    })
+      expect(document.querySelector('[data-content-zoom-dialog="true"]')).not.toBeNull();
+    });
 
-    const popup = document.querySelector(
-      '[data-content-zoom-dialog="true"]',
-    ) as HTMLElement | null
-    expect(popup).not.toBeNull()
+    const popup = document.querySelector('[data-content-zoom-dialog="true"]') as HTMLElement | null;
+    expect(popup).not.toBeNull();
 
-    fireEvent.keyDown(popup as HTMLElement, { key: 'Escape' })
+    fireEvent.keyDown(popup as HTMLElement, { key: "Escape" });
 
     await waitFor(() => {
-      expect(document.querySelector('[data-content-zoom-dialog="true"]')).toBeNull()
-    })
-  })
-})
+      expect(document.querySelector('[data-content-zoom-dialog="true"]')).toBeNull();
+    });
+  });
+});

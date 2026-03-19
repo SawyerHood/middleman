@@ -19,9 +19,7 @@ export function usePendingResponse(): {
   const pendingResponse = useAtomValue(pendingResponseAtom);
   const isAwaitingResponseStart = useAtomValue(isAwaitingResponseStartAtom);
   const markPendingResponse = useSetAtom(markPendingResponseAtom);
-  const clearPendingResponseForAgent = useSetAtom(
-    clearPendingResponseForAgentAtom,
-  );
+  const clearPendingResponseForAgent = useSetAtom(clearPendingResponseForAgentAtom);
   const resetPendingResponse = useSetAtom(resetPendingResponseAtom);
 
   useEffect(() => {

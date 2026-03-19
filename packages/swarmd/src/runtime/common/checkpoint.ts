@@ -23,7 +23,9 @@ export function isClaudeCheckpoint(
   return cp.backend === "claude";
 }
 
-export function isPiCheckpoint(cp: BackendCheckpoint): cp is Extract<BackendCheckpoint, { backend: "pi" }> {
+export function isPiCheckpoint(
+  cp: BackendCheckpoint,
+): cp is Extract<BackendCheckpoint, { backend: "pi" }> {
   return cp.backend === "pi";
 }
 

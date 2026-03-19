@@ -22,7 +22,7 @@ export async function handleManagerCommand(context: ManagerCommandRouteContext):
     resolveManagerContextAgentId,
     send,
     broadcastToSubscribed,
-    handleDeletedAgentSubscriptions
+    handleDeletedAgentSubscriptions,
   } = context;
 
   if (command.type === "create_manager") {
@@ -32,7 +32,7 @@ export async function handleManagerCommand(context: ManagerCommandRouteContext):
         type: "error",
         code: "UNKNOWN_AGENT",
         message: `Agent ${subscribedAgentId} does not exist.`,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
       return true;
     }
@@ -41,20 +41,20 @@ export async function handleManagerCommand(context: ManagerCommandRouteContext):
       const manager = await swarmManager.createManager(managerContextId, {
         name: command.name,
         cwd: command.cwd,
-        model: command.model
+        model: command.model,
       });
 
       broadcastToSubscribed({
         type: "manager_created",
         manager,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     } catch (error) {
       send(socket, {
         type: "error",
         code: "CREATE_MANAGER_FAILED",
         message: error instanceof Error ? error.message : String(error),
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     }
 
@@ -68,7 +68,7 @@ export async function handleManagerCommand(context: ManagerCommandRouteContext):
         type: "error",
         code: "UNKNOWN_AGENT",
         message: `Agent ${subscribedAgentId} does not exist.`,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
       return true;
     }
@@ -79,14 +79,14 @@ export async function handleManagerCommand(context: ManagerCommandRouteContext):
       broadcastToSubscribed({
         type: "manager_order_updated",
         managerIds,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     } catch (error) {
       send(socket, {
         type: "error",
         code: "REORDER_MANAGERS_FAILED",
         message: error instanceof Error ? error.message : String(error),
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     }
 
@@ -100,7 +100,7 @@ export async function handleManagerCommand(context: ManagerCommandRouteContext):
         type: "error",
         code: "UNKNOWN_AGENT",
         message: `Agent ${subscribedAgentId} does not exist.`,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
       return true;
     }
@@ -113,14 +113,14 @@ export async function handleManagerCommand(context: ManagerCommandRouteContext):
         type: "manager_deleted",
         managerId: deleted.managerId,
         terminatedWorkerIds: deleted.terminatedWorkerIds,
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     } catch (error) {
       send(socket, {
         type: "error",
         code: "DELETE_MANAGER_FAILED",
         message: error instanceof Error ? error.message : String(error),
-        requestId: command.requestId
+        requestId: command.requestId,
       });
     }
 

@@ -126,10 +126,7 @@ export class RuntimeSupervisor {
     this.heartbeatTimeoutMs = options?.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
   }
 
-  async spawnWorker(
-    session: SessionRecord,
-    config: SessionRuntimeConfig,
-  ): Promise<WorkerHandle> {
+  async spawnWorker(session: SessionRecord, config: SessionRuntimeConfig): Promise<WorkerHandle> {
     if (this.workers.has(session.id)) {
       throw new Error(`Worker already running for session ${session.id}.`);
     }
@@ -232,7 +229,9 @@ export class RuntimeSupervisor {
     child.once("exit", (code, signal) => {
       if (!readyHandled) {
         resolveReady(
-          new Error(`Worker ${session.id} exited before ready with ${formatExitReason(code, signal)}.`),
+          new Error(
+            `Worker ${session.id} exited before ready with ${formatExitReason(code, signal)}.`,
+          ),
         );
       }
 
@@ -268,7 +267,11 @@ export class RuntimeSupervisor {
     handle.protocol.send(cmd);
   }
 
-  async stopWorker(sessionId: string, operationId: string, timeoutMs = DEFAULT_STOP_TIMEOUT_MS): Promise<void> {
+  async stopWorker(
+    sessionId: string,
+    operationId: string,
+    timeoutMs = DEFAULT_STOP_TIMEOUT_MS,
+  ): Promise<void> {
     const handle = this.workers.get(sessionId);
     if (!handle) {
       return;
@@ -342,7 +345,9 @@ export class RuntimeSupervisor {
   async shutdownAll(): Promise<void> {
     const sessionIds = this.getActiveSessionIds();
     const results = await Promise.allSettled(
-      sessionIds.map((sessionId, index) => this.stopWorker(sessionId, `shutdown-${Date.now()}-${index}`)),
+      sessionIds.map((sessionId, index) =>
+        this.stopWorker(sessionId, `shutdown-${Date.now()}-${index}`),
+      ),
     );
     const failures = results
       .filter((result): result is PromiseRejectedResult => result.status === "rejected")
@@ -371,9 +376,11 @@ export class RuntimeSupervisor {
         handle.protocol.send({ type: "ping" });
       } catch (error) {
         this.callbacks.onWorkerError(sessionId, toError(error));
-        void this.terminateWorker(sessionId, `heartbeat-send-${Date.now()}`).catch((terminateError) => {
-          this.callbacks.onWorkerError(sessionId, toError(terminateError));
-        });
+        void this.terminateWorker(sessionId, `heartbeat-send-${Date.now()}`).catch(
+          (terminateError) => {
+            this.callbacks.onWorkerError(sessionId, toError(terminateError));
+          },
+        );
         return;
       }
 
@@ -412,7 +419,10 @@ export class RuntimeSupervisor {
     }
 
     this.stopHeartbeat(sessionId);
-    this.callbacks.onWorkerError(sessionId, new Error(`Heartbeat timed out for worker ${sessionId}.`));
+    this.callbacks.onWorkerError(
+      sessionId,
+      new Error(`Heartbeat timed out for worker ${sessionId}.`),
+    );
     void this.terminateWorker(sessionId, `heartbeat-timeout-${Date.now()}`).catch((error) => {
       this.callbacks.onWorkerError(sessionId, toError(error));
     });

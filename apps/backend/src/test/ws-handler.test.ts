@@ -11,10 +11,7 @@ function pageEntries<T extends { historyCursor?: string; timestamp: string }>(
 ) {
   const filteredEntries = options.before
     ? entries.filter(
-        (entry) =>
-          (entry.historyCursor ?? entry.timestamp).localeCompare(
-            options.before!,
-          ) < 0,
+        (entry) => (entry.historyCursor ?? entry.timestamp).localeCompare(options.before!) < 0,
       )
     : entries;
 
@@ -149,9 +146,7 @@ function createRichManagerStub() {
       thinkingLevel: "xhigh",
     },
   };
-  const managerTranscript: Array<
-    Extract<ServerEvent, { type: "conversation_message" }>
-  > = [
+  const managerTranscript: Array<Extract<ServerEvent, { type: "conversation_message" }>> = [
     {
       type: "conversation_message" as const,
       agentId: manager.agentId,
@@ -186,10 +181,7 @@ function createRichManagerStub() {
     },
   ];
   const workerHistory: Array<
-    Extract<
-      ServerEvent,
-      { type: "conversation_message" | "agent_message" | "agent_tool_call" }
-    >
+    Extract<ServerEvent, { type: "conversation_message" | "agent_message" | "agent_tool_call" }>
   > = [
     ...workerVisibleTranscript,
     ...Array.from({ length: 250 }, (_, index) => ({
@@ -241,10 +233,7 @@ function createRichManagerStub() {
           : [];
     },
     getConversationHistoryPage(agentId?: string, options = { limit: 200 }) {
-      return pageEntries(
-        agentId === worker.agentId ? workerHistory : [],
-        options,
-      );
+      return pageEntries(agentId === worker.agentId ? workerHistory : [], options);
     },
     getConversationHistory(agentId?: string) {
       return agentId === worker.agentId ? workerHistory : [];
@@ -365,9 +354,7 @@ describe("WsHandler", () => {
     });
     expect(events[1]).toMatchObject({
       type: "agents_snapshot",
-      agents: [
-        expect.objectContaining({ agentId: "manager-1", status: "stopped" }),
-      ],
+      agents: [expect.objectContaining({ agentId: "manager-1", status: "stopped" })],
     });
     expect(events[2]).toMatchObject({
       type: "conversation_history",
@@ -437,11 +424,9 @@ describe("WsHandler", () => {
       }),
       expect.objectContaining({ type: "agent_message", text: "investigate" }),
     ]);
-    expect(
-      detailHistoryEvent.messages.some(
-        (entry) => entry.type === "agent_tool_call",
-      ),
-    ).toBe(false);
+    expect(detailHistoryEvent.messages.some((entry) => entry.type === "agent_tool_call")).toBe(
+      false,
+    );
   });
 
   it("loads older history pages for the active subscription", async () => {
@@ -695,9 +680,7 @@ describe("WsHandler", () => {
       agentId: "worker-1",
       mode: "prepend",
       hasMore: false,
-      messages: [
-        expect.objectContaining({ text: "older visible detail message" }),
-      ],
+      messages: [expect.objectContaining({ text: "older visible detail message" })],
     });
   });
 
@@ -722,15 +705,12 @@ describe("WsHandler", () => {
       }),
     );
 
-    expect(swarmManager.handleUserMessage).toHaveBeenCalledWith(
-      "Ship the migration",
-      {
-        targetAgentId: "manager-1",
-        delivery: "followUp",
-        attachments: undefined,
-        sourceContext: { channel: "web" },
-      },
-    );
+    expect(swarmManager.handleUserMessage).toHaveBeenCalledWith("Ship the migration", {
+      targetAgentId: "manager-1",
+      delivery: "followUp",
+      attachments: undefined,
+      sourceContext: { channel: "web" },
+    });
     expect(events.some((event) => event.type === "error")).toBe(false);
   });
 
@@ -771,10 +751,7 @@ describe("WsHandler", () => {
       cwd: "/tmp/project",
       model: "pi-codex",
     });
-    expect(swarmManager.deleteManager).toHaveBeenCalledWith(
-      "manager-1",
-      "manager-1",
-    );
+    expect(swarmManager.deleteManager).toHaveBeenCalledWith("manager-1", "manager-1");
     expect(events).toContainEqual(
       expect.objectContaining({
         type: "manager_created",

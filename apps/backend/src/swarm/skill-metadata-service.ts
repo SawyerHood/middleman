@@ -11,7 +11,7 @@ const REQUIRED_SKILL_NAMES = [
   "brave-search",
   "cron-scheduling",
   "agent-browser",
-  "image-generation"
+  "image-generation",
 ] as const;
 
 export interface SkillMetadata {
@@ -40,7 +40,7 @@ export class SkillMetadataService {
       skillName: metadata.skillName,
       description: metadata.description,
       path: metadata.path,
-      env: [...metadata.env]
+      env: [...metadata.env],
     }));
   }
 
@@ -65,7 +65,7 @@ export class SkillMetadataService {
       this.resolveBraveSearchSkillPath(skillPathIndex),
       this.resolveCronSchedulingSkillPath(skillPathIndex),
       this.resolveAgentBrowserSkillPath(skillPathIndex),
-      this.resolveImageGenerationSkillPath(skillPathIndex)
+      this.resolveImageGenerationSkillPath(skillPathIndex),
     ];
 
     const metadata: SkillMetadata[] = [];
@@ -86,7 +86,7 @@ export class SkillMetadataService {
         skillName,
         description: parsed.description?.trim() || undefined,
         path: skillPath,
-        env: parsed.env
+        env: parsed.env,
       });
     }
 
@@ -97,7 +97,7 @@ export class SkillMetadataService {
     return this.resolveRequiredSkillPath(
       "memory",
       skillPathIndex,
-      this.deps.config.paths.projectMemorySkillFile
+      this.deps.config.paths.projectMemorySkillFile,
     );
   }
 
@@ -120,7 +120,7 @@ export class SkillMetadataService {
   private resolveRequiredSkillPath(
     skillName: (typeof REQUIRED_SKILL_NAMES)[number],
     skillPathIndex: Map<string, string[]>,
-    explicitOverridePath?: string
+    explicitOverridePath?: string,
   ): string {
     if (typeof explicitOverridePath === "string" && existsSync(explicitOverridePath)) {
       return explicitOverridePath;
@@ -139,11 +139,15 @@ export class SkillMetadataService {
     const candidates: SkillPathCandidate[] = [];
     const repositoryBuiltInSkillsDir = resolve(
       this.deps.config.paths.projectRoot,
-      REPO_BUILT_IN_SKILLS_RELATIVE_DIR
+      REPO_BUILT_IN_SKILLS_RELATIVE_DIR,
     );
 
-    candidates.push(...(await this.scanSkillFilesInDirectory(this.deps.config.paths.projectSkillsDir)));
-    candidates.push(...(await this.scanSkillFilesInDirectory(this.deps.config.paths.installSkillsDir)));
+    candidates.push(
+      ...(await this.scanSkillFilesInDirectory(this.deps.config.paths.projectSkillsDir)),
+    );
+    candidates.push(
+      ...(await this.scanSkillFilesInDirectory(this.deps.config.paths.installSkillsDir)),
+    );
     candidates.push(...(await this.scanSkillFilesInDirectory(repositoryBuiltInSkillsDir)));
 
     return candidates;
@@ -156,7 +160,7 @@ export class SkillMetadataService {
       const dirEntries = await readdir(directory, { withFileTypes: true, encoding: "utf8" });
       entries = dirEntries.map((entry) => ({
         isDirectory: () => entry.isDirectory(),
-        name: String(entry.name)
+        name: String(entry.name),
       }));
     } catch {
       return [];
@@ -176,7 +180,7 @@ export class SkillMetadataService {
 
       candidates.push({
         skillDirectoryName,
-        path: skillPath
+        path: skillPath,
       });
     }
 

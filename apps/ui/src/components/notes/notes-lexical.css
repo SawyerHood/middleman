@@ -161,7 +161,7 @@
 
 .notes-lexical-list-item-checked::before,
 .notes-lexical-list-item-unchecked::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: calc(var(--notes-lexical-line-height) * 0.5em);
@@ -170,7 +170,9 @@
   border: 1.5px solid color-mix(in srgb, var(--border) 82%, var(--foreground) 10%);
   border-radius: 0.3rem;
   background: var(--background);
-  transition: background-color 140ms ease, border-color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
   transform: translateY(-50%);
 }
 
@@ -180,7 +182,7 @@
 }
 
 .notes-lexical-list-item-checked::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 0.28rem;
   top: calc(var(--notes-lexical-line-height) * 0.5em);

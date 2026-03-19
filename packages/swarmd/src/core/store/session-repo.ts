@@ -106,7 +106,8 @@ export class SessionRepo {
         updated_at: string;
         last_error_json: string | null;
         context_usage_json: string | null;
-      }>(`
+      }>(
+        `
         INSERT INTO sessions (
           id,
           backend,
@@ -139,7 +140,8 @@ export class SessionRepo {
           @last_error_json,
           @context_usage_json
         )
-      `)
+      `,
+      )
       .run({
         id: session.id,
         backend: session.backend,
@@ -152,7 +154,9 @@ export class SessionRepo {
         backend_checkpoint_json:
           session.backendCheckpoint === null ? null : serializeJson(session.backendCheckpoint),
         runtime_config_json: serializeJson({
-          ...(runtimeConfig?.deliveryDefaults ? { deliveryDefaults: runtimeConfig.deliveryDefaults } : {}),
+          ...(runtimeConfig?.deliveryDefaults
+            ? { deliveryDefaults: runtimeConfig.deliveryDefaults }
+            : {}),
           backendConfig: { ...(runtimeConfig?.backendConfig ?? {}) },
         }),
         created_at: session.createdAt,
@@ -182,7 +186,7 @@ export class SessionRepo {
           context_usage_json,
           archived
         FROM sessions
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .get({ id });
 
@@ -213,14 +217,16 @@ export class SessionRepo {
             archived
           FROM sessions
           ${includeArchived ? "" : "WHERE archived = 0"}
-          ORDER BY created_at ASC`
+          ORDER BY created_at ASC`,
         )
         .all()
         .map(mapSessionRow);
     }
 
     const placeholders = filter.status.map((_, index) => `@status${index}`).join(", ");
-    const params = Object.fromEntries(filter.status.map((status, index) => [`status${index}`, status]));
+    const params = Object.fromEntries(
+      filter.status.map((status, index) => [`status${index}`, status]),
+    );
 
     return this.db
       .prepare<Record<string, SessionStatus>, SessionRow>(
@@ -242,7 +248,7 @@ export class SessionRepo {
           archived
         FROM sessions
         WHERE ${includeArchived ? "" : "archived = 0 AND "}status IN (${placeholders})
-        ORDER BY created_at ASC`
+        ORDER BY created_at ASC`,
       )
       .all(params)
       .map(mapSessionRow);
@@ -293,7 +299,7 @@ export class SessionRepo {
             updated_at = @updated_at,
             last_error_json = @last_error_json,
             context_usage_json = @context_usage_json
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .run({
         id,
@@ -310,12 +316,12 @@ export class SessionRepo {
         `UPDATE sessions
         SET metadata_json = @metadata_json,
             updated_at = @updated_at
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .run({
         id,
         metadata_json: serializeJson(metadata),
-        updated_at: nowTimestamp()
+        updated_at: nowTimestamp(),
       });
   }
 
@@ -325,12 +331,12 @@ export class SessionRepo {
         `UPDATE sessions
         SET display_name = @display_name,
             updated_at = @updated_at
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .run({
         id,
         display_name: displayName,
-        updated_at: nowTimestamp()
+        updated_at: nowTimestamp(),
       });
   }
 
@@ -340,12 +346,12 @@ export class SessionRepo {
         `UPDATE sessions
         SET backend_checkpoint_json = @backend_checkpoint_json,
             updated_at = @updated_at
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .run({
         id,
         backend_checkpoint_json: checkpoint === null ? null : serializeJson(checkpoint),
-        updated_at: nowTimestamp()
+        updated_at: nowTimestamp(),
       });
   }
 
@@ -375,7 +381,9 @@ export class SessionRepo {
       .run({
         sessionId,
         runtime_config_json: serializeJson({
-          ...(runtimeConfig.deliveryDefaults ? { deliveryDefaults: runtimeConfig.deliveryDefaults } : {}),
+          ...(runtimeConfig.deliveryDefaults
+            ? { deliveryDefaults: runtimeConfig.deliveryDefaults }
+            : {}),
           backendConfig: { ...(runtimeConfig.backendConfig ?? {}) },
         }),
         updated_at: nowTimestamp(),

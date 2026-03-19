@@ -5,7 +5,7 @@ const CWD_ERROR_MESSAGES = {
   REQUIRED: "Directory path must be a non-empty string.",
   NOT_FOUND: "Directory does not exist.",
   NOT_DIRECTORY: "Path is not a directory.",
-  LIST_FAILED: "Unable to list directories for the requested path."
+  LIST_FAILED: "Unable to list directories for the requested path.",
 } as const;
 
 export type DirectoryValidationErrorCode =
@@ -90,7 +90,7 @@ export async function validateDirectoryPath(input: string, policy: CwdPolicy): P
 
 export async function listDirectories(
   requestedPath: string | undefined,
-  policy: CwdPolicy
+  policy: CwdPolicy,
 ): Promise<DirectoryListingResult> {
   const baseInput = requestedPath?.trim().length ? requestedPath : policy.rootDir;
   const resolvedPath = await validateDirectoryPath(baseInput, policy);
@@ -107,9 +107,9 @@ export async function listDirectories(
 
           return {
             name: entry.name,
-            path: await resolveToRealPath(resolve(resolvedPath, entry.name))
+            path: await resolveToRealPath(resolve(resolvedPath, entry.name)),
           };
-        })
+        }),
       )
     ).filter((entry): entry is DirectorySummary => entry !== null);
 
@@ -119,7 +119,7 @@ export async function listDirectories(
       requestedPath,
       resolvedPath,
       roots,
-      directories
+      directories,
     };
   } catch {
     throw new DirectoryValidationError("DIRECTORY_LIST_FAILED", CWD_ERROR_MESSAGES.LIST_FAILED);
@@ -128,7 +128,7 @@ export async function listDirectories(
 
 export async function validateDirectory(
   requestedPath: string,
-  policy: CwdPolicy
+  policy: CwdPolicy,
 ): Promise<DirectoryValidationResult> {
   const roots: string[] = [];
 
@@ -138,7 +138,7 @@ export async function validateDirectory(
       requestedPath,
       roots,
       valid: true,
-      resolvedPath
+      resolvedPath,
     };
   } catch (error) {
     if (error instanceof DirectoryValidationError) {
@@ -146,7 +146,7 @@ export async function validateDirectory(
         requestedPath,
         roots,
         valid: false,
-        message: error.message
+        message: error.message,
       };
     }
 
@@ -154,7 +154,7 @@ export async function validateDirectory(
       requestedPath,
       roots,
       valid: false,
-      message: CWD_ERROR_MESSAGES.NOT_FOUND
+      message: CWD_ERROR_MESSAGES.NOT_FOUND,
     };
   }
 }

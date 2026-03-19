@@ -1,4 +1,8 @@
-import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from "node:child_process";
+import {
+  spawn,
+  type ChildProcessWithoutNullStreams,
+  type SpawnOptionsWithoutStdio,
+} from "node:child_process";
 import { createInterface, type Interface as ReadLineInterface } from "node:readline";
 
 export type JsonRpcRequestId = string | number;
@@ -143,7 +147,9 @@ export class CodexJsonRpcClient {
   constructor(options: CodexJsonRpcClientOptions) {
     this.#options = options;
     this.#requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-    this.#transport = options.transport ?? this.#spawnTransport(options.command, options.args ?? [], options.spawnOptions);
+    this.#transport =
+      options.transport ??
+      this.#spawnTransport(options.command, options.args ?? [], options.spawnOptions);
 
     this.#exitPromise = new Promise<ExitInfo>((resolve) => {
       this.#resolveExitPromise = resolve;
@@ -177,12 +183,19 @@ export class CodexJsonRpcClient {
     return this.#transport.pid;
   }
 
-  async initialize(params: CodexInitializeParams, timeoutMs = this.#requestTimeoutMs): Promise<void> {
+  async initialize(
+    params: CodexInitializeParams,
+    timeoutMs = this.#requestTimeoutMs,
+  ): Promise<void> {
     await this.sendRequest("initialize", params, timeoutMs);
     this.sendNotification("initialized");
   }
 
-  async sendRequest<T>(method: string, params?: unknown, timeoutMs = this.#requestTimeoutMs): Promise<T> {
+  async sendRequest<T>(
+    method: string,
+    params?: unknown,
+    timeoutMs = this.#requestTimeoutMs,
+  ): Promise<T> {
     this.#ensureReady();
 
     const id = ++this.#nextRequestId;
@@ -459,7 +472,10 @@ function isJsonRpcRequestMessage(value: unknown): value is JsonRpcRequestMessage
     method?: unknown;
   };
 
-  return (typeof maybe.id === "number" || typeof maybe.id === "string") && typeof maybe.method === "string";
+  return (
+    (typeof maybe.id === "number" || typeof maybe.id === "string") &&
+    typeof maybe.method === "string"
+  );
 }
 
 function isJsonRpcNotificationMessage(value: unknown): value is JsonRpcNotificationMessage {

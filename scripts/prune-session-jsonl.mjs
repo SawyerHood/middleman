@@ -247,14 +247,20 @@ function printSummary(summaries, label) {
   console.log(`Scanned files: ${summaries.length}`);
   console.log(`Files with removable entries: ${changed.length}`);
   console.log(`Bytes scanned: ${formatBytes(totalBytes)}`);
-  console.log(`Bytes removable: ${formatBytes(totalPrunedBytes)} (${percent(totalPrunedBytes, totalBytes)})`);
+  console.log(
+    `Bytes removable: ${formatBytes(totalPrunedBytes)} (${percent(totalPrunedBytes, totalBytes)})`,
+  );
   console.log(`Lines removable: ${formatNumber(totalPrunedLines)}`);
 
   for (const summary of changed.slice(0, 20)) {
     console.log("");
     console.log(summary.file);
-    console.log(`  removable: ${formatBytes(summary.prunedBytes)} across ${formatNumber(summary.prunedLines)} lines`);
-    console.log(`  would keep: ${formatBytes(summary.keptBytes)} across ${formatNumber(summary.keptLines)} lines`);
+    console.log(
+      `  removable: ${formatBytes(summary.prunedBytes)} across ${formatNumber(summary.prunedLines)} lines`,
+    );
+    console.log(
+      `  would keep: ${formatBytes(summary.keptBytes)} across ${formatNumber(summary.keptLines)} lines`,
+    );
     for (const [reason, count] of Object.entries(summary.pruneBreakdown).slice(0, 6)) {
       console.log(`  ${reason}: ${formatNumber(count)}`);
     }
@@ -264,7 +270,10 @@ function printSummary(summaries, label) {
 function printAppliedSummary(summaries, backupDir, manifestPath) {
   const changed = summaries.filter((summary) => summary.prunedLines > 0);
   const totalOriginalBytes = changed.reduce((sum, summary) => sum + summary.totalBytes, 0);
-  const totalResultingBytes = changed.reduce((sum, summary) => sum + (summary.resultingBytes ?? summary.totalBytes), 0);
+  const totalResultingBytes = changed.reduce(
+    (sum, summary) => sum + (summary.resultingBytes ?? summary.totalBytes),
+    0,
+  );
 
   console.log("");
   console.log("Applied session prune");

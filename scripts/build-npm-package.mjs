@@ -17,7 +17,7 @@ const BACKEND_PUBLIC_DIR = resolve(BACKEND_DIST_DIR, "public");
 const BACKEND_ASSETS_DIR = resolve(BACKEND_DIST_DIR, "assets");
 const UI_PUBLIC_CANDIDATES = [
   resolve(REPO_ROOT, "apps", "ui", ".output", "public"),
-  resolve(REPO_ROOT, "apps", "ui", "dist")
+  resolve(REPO_ROOT, "apps", "ui", "dist"),
 ];
 const SOURCE_ARCHETYPES_DIR = resolve(
   REPO_ROOT,
@@ -26,19 +26,35 @@ const SOURCE_ARCHETYPES_DIR = resolve(
   "src",
   "swarm",
   "archetypes",
-  "builtins"
+  "builtins",
 );
-const SOURCE_SKILLS_DIR = resolve(REPO_ROOT, "apps", "backend", "src", "swarm", "skills", "builtins");
+const SOURCE_SKILLS_DIR = resolve(
+  REPO_ROOT,
+  "apps",
+  "backend",
+  "src",
+  "swarm",
+  "skills",
+  "builtins",
+);
 const NPM_DIST_DIR = resolve(REPO_ROOT, "dist", "npm");
 const PACKAGE_README_PATH = resolve(REPO_ROOT, "README.package.md");
-const STAGED_SWARM_MANAGER_PATH = resolve(NPM_DIST_DIR, "dist", "backend", "swarm", "swarm-manager.js");
+const STAGED_SWARM_MANAGER_PATH = resolve(
+  NPM_DIST_DIR,
+  "dist",
+  "backend",
+  "swarm",
+  "swarm-manager.js",
+);
 
 await main();
 
 async function main() {
   const uiPublicDir = resolveExistingPath(UI_PUBLIC_CANDIDATES);
   if (!uiPublicDir) {
-    throw new Error("Unable to locate the built UI output. Run `pnpm --filter @middleman/ui build` first.");
+    throw new Error(
+      "Unable to locate the built UI output. Run `pnpm --filter @middleman/ui build` first.",
+    );
   }
 
   assertPathExists(CLI_BIN_PATH, "CLI bin entrypoint");
@@ -73,7 +89,7 @@ async function main() {
 
       const topLevelSegment = relativePath.split(sep)[0];
       return topLevelSegment !== "public" && topLevelSegment !== "assets";
-    }
+    },
   });
   await rewriteSwarmdImport(STAGED_SWARM_MANAGER_PATH);
 
@@ -84,12 +100,12 @@ async function main() {
   await cp(resolve(REPO_ROOT, "LICENSE"), resolve(NPM_DIST_DIR, "LICENSE"));
   await cp(
     existsSync(PACKAGE_README_PATH) ? PACKAGE_README_PATH : resolve(REPO_ROOT, "README.md"),
-    resolve(NPM_DIST_DIR, "README.md")
+    resolve(NPM_DIST_DIR, "README.md"),
   );
 
   const runtimeDependencies = {
     ...(backendManifest.dependencies ?? {}),
-    ...(swarmdManifest.dependencies ?? {})
+    ...(swarmdManifest.dependencies ?? {}),
   };
   delete runtimeDependencies["@middleman/protocol"];
   delete runtimeDependencies.swarmd;
@@ -103,16 +119,20 @@ async function main() {
     main: "./dist/cli/index.js",
     bin: {
       "middleman-app": "./bin/middleman.js",
-      middleman: "./bin/middleman.js"
+      middleman: "./bin/middleman.js",
     },
     files: ["bin", "dist", "ui", "assets", "README.md", "LICENSE"],
     engines: {
-      node: ">=22"
+      node: ">=22",
     },
-    dependencies: runtimeDependencies
+    dependencies: runtimeDependencies,
   };
 
-  await writeFile(resolve(NPM_DIST_DIR, "package.json"), `${JSON.stringify(publishManifest, null, 2)}\n`, "utf8");
+  await writeFile(
+    resolve(NPM_DIST_DIR, "package.json"),
+    `${JSON.stringify(publishManifest, null, 2)}\n`,
+    "utf8",
+  );
 
   process.stdout.write(`Staged npm package at ${NPM_DIST_DIR}\n`);
 }

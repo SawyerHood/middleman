@@ -16,9 +16,12 @@ const CONTEXT_WINDOW_BY_PRESET = {
   "claude-code": 200_000,
 } as const;
 
-const TELEMETRY_BACKED_PRESETS = new Set<keyof typeof CONTEXT_WINDOW_BY_PRESET>(
-  ["pi-opus", "pi-codex", "codex-app", "claude-code"],
-);
+const TELEMETRY_BACKED_PRESETS = new Set<keyof typeof CONTEXT_WINDOW_BY_PRESET>([
+  "pi-opus",
+  "pi-codex",
+  "codex-app",
+  "claude-code",
+]);
 
 function contextWindowForAgent(agent: AgentDescriptor | null): number | null {
   if (!agent) {
@@ -41,11 +44,7 @@ function shouldUseHeuristicFallback(agent: AgentDescriptor | null): boolean {
 function isTextAttachmentWithContent(
   attachment: ConversationMessageAttachment,
 ): attachment is ConversationTextAttachment {
-  return (
-    attachment.type === "text" &&
-    "text" in attachment &&
-    typeof attachment.text === "string"
-  );
+  return attachment.type === "text" && "text" in attachment && typeof attachment.text === "string";
 }
 
 function estimateUsedTokens(messages: ConversationEntry[]): number {

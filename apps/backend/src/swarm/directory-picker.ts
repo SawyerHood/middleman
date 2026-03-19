@@ -42,11 +42,11 @@ export async function pickDirectory(options: PickDirectoryOptions = {}): Promise
               "-e",
               `set pickedFolder to choose folder with prompt \"${escapeAppleScriptString(prompt)}\"`,
               "-e",
-              "POSIX path of pickedFolder"
-            ]
-          }
+              "POSIX path of pickedFolder",
+            ],
+          },
         ],
-        execFileFn
+        execFileFn,
       );
 
     case "linux":
@@ -58,20 +58,15 @@ export async function pickDirectory(options: PickDirectoryOptions = {}): Promise
               "--file-selection",
               "--directory",
               `--title=${prompt}`,
-              ...(defaultPath ? [`--filename=${ensureTrailingSlash(defaultPath)}`] : [])
-            ]
+              ...(defaultPath ? [`--filename=${ensureTrailingSlash(defaultPath)}`] : []),
+            ],
           },
           {
             command: "kdialog",
-            args: [
-              "--title",
-              prompt,
-              "--getexistingdirectory",
-              defaultPath ?? cwd
-            ]
-          }
+            args: ["--title", prompt, "--getexistingdirectory", defaultPath ?? cwd],
+          },
         ],
-        execFileFn
+        execFileFn,
       );
 
     case "win32": {
@@ -83,21 +78,21 @@ export async function pickDirectory(options: PickDirectoryOptions = {}): Promise
         ...(defaultPath ? [`$dialog.SelectedPath = '${escapePowerShellString(defaultPath)}'`] : []),
         "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {",
         "  [Console]::Out.Write($dialog.SelectedPath)",
-        "}"
+        "}",
       ].join(";");
 
       return pickDirectoryFromCommands(
         [
           {
             command: "powershell",
-            args: ["-NoLogo", "-NoProfile", "-STA", "-Command", pickScript]
+            args: ["-NoLogo", "-NoProfile", "-STA", "-Command", pickScript],
           },
           {
             command: "pwsh",
-            args: ["-NoLogo", "-NoProfile", "-STA", "-Command", pickScript]
-          }
+            args: ["-NoLogo", "-NoProfile", "-STA", "-Command", pickScript],
+          },
         ],
-        execFileFn
+        execFileFn,
       );
     }
 
@@ -108,7 +103,7 @@ export async function pickDirectory(options: PickDirectoryOptions = {}): Promise
 
 async function pickDirectoryFromCommands(
   commands: PickerCommand[],
-  execFileFn: ExecFileFn
+  execFileFn: ExecFileFn,
 ): Promise<string | null> {
   let sawMissingCommand = false;
 
@@ -185,7 +180,7 @@ function isDirectoryPickerCanceled(error: unknown): boolean {
 }
 
 function escapeAppleScriptString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/\"/g, "\\\"");
+  return value.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
 }
 
 function escapePowerShellString(value: string): string {

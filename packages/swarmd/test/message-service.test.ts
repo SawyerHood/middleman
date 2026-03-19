@@ -201,11 +201,15 @@ describe("MessageService", () => {
       delivery: "interrupt",
       operationId: interruptReceipt.operationId,
     });
-    expect(messageStore.list(session.id).map((message) => message.role)).toEqual(["user", "system"]);
+    expect(messageStore.list(session.id).map((message) => message.role)).toEqual([
+      "user",
+      "system",
+    ]);
   });
 
   it("sends interrupt commands through the supervisor and tracks the operation", () => {
-    const { messageService, operationService, session, supervisor } = createTestContext(openDatabases);
+    const { messageService, operationService, session, supervisor } =
+      createTestContext(openDatabases);
 
     const operationId = messageService.interrupt(session.id);
 
@@ -223,9 +227,12 @@ describe("MessageService", () => {
   });
 
   it("rejects sends when the session is not running", () => {
-    const { messageService, operationService, session, supervisor } = createTestContext(openDatabases, {
-      sessionStatus: "stopped",
-    });
+    const { messageService, operationService, session, supervisor } = createTestContext(
+      openDatabases,
+      {
+        sessionStatus: "stopped",
+      },
+    );
 
     expect(() => {
       messageService.send(session.id, [{ type: "text", text: "should fail" }]);
@@ -235,9 +242,12 @@ describe("MessageService", () => {
   });
 
   it("rejects commands when no worker is running for the session", () => {
-    const { messageService, operationService, session, supervisor } = createTestContext(openDatabases, {
-      workerRunning: false,
-    });
+    const { messageService, operationService, session, supervisor } = createTestContext(
+      openDatabases,
+      {
+        workerRunning: false,
+      },
+    );
 
     expect(() => {
       messageService.send(session.id, [{ type: "text", text: "should fail" }]);

@@ -20,7 +20,7 @@ type OperationCompletedEventPayload = CompletedOperationPayload | FailedOperatio
 export class OperationService {
   constructor(
     private repo: OperationRepo,
-    private eventBus: EventBus
+    private eventBus: EventBus,
   ) {}
 
   create(sessionId: string, type: string): OperationRecord {
@@ -33,7 +33,7 @@ export class OperationService {
       resultJson: null,
       errorJson: null,
       createdAt: now,
-      completedAt: null
+      completedAt: null,
     };
 
     this.repo.create(operation);
@@ -53,7 +53,7 @@ export class OperationService {
     this.publishCompletedEvent(operation, {
       operationId,
       status: "completed",
-      result
+      result,
     });
 
     return operation;
@@ -71,7 +71,7 @@ export class OperationService {
     this.publishCompletedEvent(operation, {
       operationId,
       status: "failed",
-      error
+      error,
     });
 
     return operation;
@@ -87,7 +87,7 @@ export class OperationService {
 
   private publishCompletedEvent(
     operation: OperationRecord,
-    payload: OperationCompletedEventPayload
+    payload: OperationCompletedEventPayload,
   ): EventEnvelope<OperationCompletedEventPayload> {
     return this.eventBus.publish({
       id: generateEventId(),
@@ -97,7 +97,7 @@ export class OperationService {
       timestamp: new Date().toISOString(),
       source: "server",
       type: "operation.completed",
-      payload
+      payload,
     });
   }
 }

@@ -77,7 +77,11 @@ export interface PiToolResultMessage {
   timestamp: number;
 }
 
-export type PiMessage = PiUserMessage | PiAssistantMessage | PiToolResultMessage | Record<string, unknown>;
+export type PiMessage =
+  | PiUserMessage
+  | PiAssistantMessage
+  | PiToolResultMessage
+  | Record<string, unknown>;
 
 export type PiAssistantMessageEvent =
   | { type: "start"; partial: PiAssistantMessage }
@@ -133,7 +137,13 @@ export type PiSessionEvent =
       willRetry: boolean;
       errorMessage?: string;
     }
-  | { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
+  | {
+      type: "auto_retry_start";
+      attempt: number;
+      maxAttempts: number;
+      delayMs: number;
+      errorMessage: string;
+    }
   | { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string };
 
 export interface PiMapperContext {
@@ -177,7 +187,9 @@ function buildMessageCompletedPayload(message: PiMessage): Record<string, unknow
   return { role };
 }
 
-export function extractPiMessageDelta(event: Extract<PiSessionEvent, { type: "message_update" }>): string | null {
+export function extractPiMessageDelta(
+  event: Extract<PiSessionEvent, { type: "message_update" }>,
+): string | null {
   switch (event.assistantMessageEvent.type) {
     case "text_delta":
     case "thinking_delta":
@@ -282,7 +294,9 @@ export class PiEventMapper {
             messageId,
             delta,
             payload: {
-              ...(getMessageRole(event.message) === undefined ? {} : { role: getMessageRole(event.message) }),
+              ...(getMessageRole(event.message) === undefined
+                ? {}
+                : { role: getMessageRole(event.message) }),
             },
           }),
         ];

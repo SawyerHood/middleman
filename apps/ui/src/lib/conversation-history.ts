@@ -8,9 +8,7 @@ export function compareConversationEntries(
   left: ConversationEntry,
   right: ConversationEntry,
 ): number {
-  return getConversationEntryCursor(left).localeCompare(
-    getConversationEntryCursor(right),
-  );
+  return getConversationEntryCursor(left).localeCompare(getConversationEntryCursor(right));
 }
 
 export function getConversationEntryStableId(entry: ConversationEntry): string {

@@ -367,11 +367,15 @@ describe("PiSessionHost", () => {
       );
     });
 
-    expect(callbacks.emitStatusChange).toHaveBeenCalledWith("errored", {
-      code: "PROMPT_DISPATCH_FAILED",
-      message: "Pi runtime failed.",
-      retryable: true,
-    }, null);
+    expect(callbacks.emitStatusChange).toHaveBeenCalledWith(
+      "errored",
+      {
+        code: "PROMPT_DISPATCH_FAILED",
+        message: "Pi runtime failed.",
+        retryable: true,
+      },
+      null,
+    );
   });
 
   it("uses Pi session context usage snapshots and clears stale usage after compaction", async () => {

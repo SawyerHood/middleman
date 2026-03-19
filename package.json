@@ -26,6 +26,8 @@
     "predev": "pnpm --filter swarmd build",
     "build": "pnpm --filter swarmd build && pnpm --filter @middleman/cli build && pnpm --filter @middleman/backend build && pnpm --filter @middleman/ui build && pnpm build:npm-package && pnpm --filter @middleman/site build",
     "build:npm-package": "node scripts/build-npm-package.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "prod": "pnpm build && pnpm prod:start",
     "prod:debug": "MINIFY=false pnpm build && pnpm prod:start",
     "prod:start": "NODE_ENV=production MIDDLEMAN_HOST=${MIDDLEMAN_HOST:-$(node --env-file-if-exists=.env -p 'process.env.MIDDLEMAN_HOST || \"127.0.0.1\"' 2>/dev/null)} MIDDLEMAN_PORT=${MIDDLEMAN_PORT:-47287} pnpm --filter @middleman/backend start",
@@ -35,7 +37,11 @@
     "sessions:prune": "node scripts/prune-session-jsonl.mjs",
     "pretest": "pnpm --filter swarmd build",
     "test": "pnpm --filter swarmd test && pnpm --filter @middleman/backend test && pnpm --filter @middleman/ui test",
-    "test:e2e": "pnpm build && pnpm --filter @middleman/ui test:e2e"
+    "test:e2e": "pnpm build && pnpm --filter @middleman/ui test:e2e",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "**/*": "prettier --write --ignore-unknown"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -49,6 +55,9 @@
     }
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.1"
   }
 }

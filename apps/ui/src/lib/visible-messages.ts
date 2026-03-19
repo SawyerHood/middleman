@@ -18,10 +18,7 @@ function mergeConversationAndActivityMessages(
   let conversationIndex = 0;
   let activityIndex = 0;
 
-  while (
-    conversationIndex < messages.length &&
-    activityIndex < activityMessages.length
-  ) {
+  while (conversationIndex < messages.length && activityIndex < activityMessages.length) {
     const conversationMessage = messages[conversationIndex];
     const activityMessage = activityMessages[activityIndex];
 
@@ -46,10 +43,7 @@ function mergeConversationAndActivityMessages(
   return merged;
 }
 
-function buildManagerScopedAgentIds(
-  agents: AgentDescriptor[],
-  managerId: string,
-): Set<string> {
+function buildManagerScopedAgentIds(agents: AgentDescriptor[], managerId: string): Set<string> {
   const scopedAgentIds = new Set<string>([managerId]);
 
   for (const agent of agents) {
@@ -107,11 +101,8 @@ export function deriveVisibleMessages({
   const managerScopedActivityMessages =
     activeAgentRole === "manager" && activeAgentId && showInternalChatter
       ? activityMessages.filter(
-          (
-            entry,
-          ): entry is Extract<ConversationEntry, { type: "agent_message" }> =>
-            entry.type === "agent_message" &&
-            isManagerInvolvedAgentMessage(entry, activeAgentId),
+          (entry): entry is Extract<ConversationEntry, { type: "agent_message" }> =>
+            entry.type === "agent_message" && isManagerInvolvedAgentMessage(entry, activeAgentId),
         )
       : [];
 
@@ -123,9 +114,7 @@ export function deriveVisibleMessages({
   const visibleMessages =
     activeAgentRole === "manager" && managerScopedAgentIds
       ? mergeConversationAndActivityMessages(
-          messages.filter((entry) =>
-            isManagerScopedTranscriptEntry(entry, managerScopedAgentIds),
-          ),
+          messages.filter((entry) => isManagerScopedTranscriptEntry(entry, managerScopedAgentIds)),
           managerScopedActivityMessages,
         )
       : activeAgentRole === "worker"

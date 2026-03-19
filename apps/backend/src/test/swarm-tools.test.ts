@@ -1,84 +1,86 @@
-import { describe, expect, it } from 'vitest'
-import { buildSwarmTools, type SwarmToolHost } from '../swarm/swarm-tools.js'
-import type { AgentDescriptor, SendMessageReceipt, SpawnAgentInput } from '../swarm/types.js'
+import { describe, expect, it } from "vitest";
+import { buildSwarmTools, type SwarmToolHost } from "../swarm/swarm-tools.js";
+import type { AgentDescriptor, SendMessageReceipt, SpawnAgentInput } from "../swarm/types.js";
 
-function makeManagerDescriptor(agentId = 'manager'): AgentDescriptor {
+function makeManagerDescriptor(agentId = "manager"): AgentDescriptor {
   return {
     agentId,
     displayName: agentId,
-    role: 'manager',
+    role: "manager",
     managerId: agentId,
-    archetypeId: 'manager',
-    status: 'idle',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    cwd: '/tmp/swarm',
+    archetypeId: "manager",
+    status: "idle",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    cwd: "/tmp/swarm",
     model: {
-      provider: 'openai-codex',
-      modelId: 'gpt-5.4',
-      thinkingLevel: 'xhigh',
+      provider: "openai-codex",
+      modelId: "gpt-5.4",
+      thinkingLevel: "xhigh",
     },
-  }
+  };
 }
 
-function makeWorkerDescriptor(agentId: string, managerId = 'manager'): AgentDescriptor {
+function makeWorkerDescriptor(agentId: string, managerId = "manager"): AgentDescriptor {
   return {
     agentId,
     displayName: agentId,
-    role: 'worker',
+    role: "worker",
     managerId,
-    status: 'idle',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    cwd: '/tmp/swarm',
+    status: "idle",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    cwd: "/tmp/swarm",
     model: {
-      provider: 'anthropic',
-      modelId: 'claude-opus-4-6',
-      thinkingLevel: 'xhigh',
+      provider: "anthropic",
+      modelId: "claude-opus-4-6",
+      thinkingLevel: "xhigh",
     },
-  }
+  };
 }
 
-function makeHost(spawnImpl: (callerAgentId: string, input: SpawnAgentInput) => Promise<AgentDescriptor>): SwarmToolHost {
+function makeHost(
+  spawnImpl: (callerAgentId: string, input: SpawnAgentInput) => Promise<AgentDescriptor>,
+): SwarmToolHost {
   return {
     listAgents(): AgentDescriptor[] {
-      return [makeManagerDescriptor()]
+      return [makeManagerDescriptor()];
     },
     spawnAgent: spawnImpl,
     async killAgent(): Promise<void> {},
     async sendMessage(): Promise<SendMessageReceipt> {
       return {
-        targetAgentId: 'worker',
-        deliveryId: 'delivery-1',
-        acceptedMode: 'prompt',
-      }
+        targetAgentId: "worker",
+        deliveryId: "delivery-1",
+        acceptedMode: "prompt",
+      };
     },
-    async publishToUser(): Promise<{ targetContext: { channel: 'web' } }> {
+    async publishToUser(): Promise<{ targetContext: { channel: "web" } }> {
       return {
-        targetContext: { channel: 'web' },
-      }
+        targetContext: { channel: "web" },
+      };
     },
-  }
+  };
 }
 
-describe('buildSwarmTools', () => {
-  it('returns only active agents with a compact payload for list_agents', async () => {
-    const activeManager = makeManagerDescriptor()
-    const activeWorker = makeWorkerDescriptor('worker-active')
-    const externalManager = makeManagerDescriptor('manager-two')
-    const externalWorker = makeWorkerDescriptor('worker-external', externalManager.agentId)
+describe("buildSwarmTools", () => {
+  it("returns only active agents with a compact payload for list_agents", async () => {
+    const activeManager = makeManagerDescriptor();
+    const activeWorker = makeWorkerDescriptor("worker-active");
+    const externalManager = makeManagerDescriptor("manager-two");
+    const externalWorker = makeWorkerDescriptor("worker-external", externalManager.agentId);
     const stoppedWorker: AgentDescriptor = {
-      ...makeWorkerDescriptor('worker-stopped'),
-      status: 'stopped',
-    }
+      ...makeWorkerDescriptor("worker-stopped"),
+      status: "stopped",
+    };
     const terminatedWorker: AgentDescriptor = {
-      ...makeWorkerDescriptor('worker-terminated'),
-      status: 'terminated',
-    }
+      ...makeWorkerDescriptor("worker-terminated"),
+      status: "terminated",
+    };
     const stoppedExternalManager: AgentDescriptor = {
-      ...makeManagerDescriptor('manager-stopped'),
-      status: 'stopped',
-    }
+      ...makeManagerDescriptor("manager-stopped"),
+      status: "stopped",
+    };
 
     const host: SwarmToolHost = {
       listAgents: () => [
@@ -90,283 +92,283 @@ describe('buildSwarmTools', () => {
         stoppedWorker,
         terminatedWorker,
       ],
-      spawnAgent: async () => makeWorkerDescriptor('worker'),
+      spawnAgent: async () => makeWorkerDescriptor("worker"),
       killAgent: async () => {},
       sendMessage: async () => ({
-        targetAgentId: 'worker',
-        deliveryId: 'delivery-1',
-        acceptedMode: 'prompt',
+        targetAgentId: "worker",
+        deliveryId: "delivery-1",
+        acceptedMode: "prompt",
       }),
       publishToUser: async () => ({
-        targetContext: { channel: 'web' },
+        targetContext: { channel: "web" },
       }),
-    }
+    };
 
-    const tools = buildSwarmTools(host, makeManagerDescriptor())
-    const listAgentsTool = tools.find((tool) => tool.name === 'list_agents')
-    expect(listAgentsTool).toBeDefined()
+    const tools = buildSwarmTools(host, makeManagerDescriptor());
+    const listAgentsTool = tools.find((tool) => tool.name === "list_agents");
+    expect(listAgentsTool).toBeDefined();
 
     const result = await listAgentsTool!.execute(
-      'tool-call',
+      "tool-call",
       {},
       undefined,
       undefined,
       undefined as any,
-    )
+    );
 
     expect(result.details).toEqual({
       agents: [
         {
-          agentId: 'manager',
-          role: 'manager',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "manager",
+          role: "manager",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'openai-codex',
-            modelId: 'gpt-5.4',
-            thinkingLevel: 'xhigh',
+            provider: "openai-codex",
+            modelId: "gpt-5.4",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'worker-active',
-          role: 'worker',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "worker-active",
+          role: "worker",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'anthropic',
-            modelId: 'claude-opus-4-6',
-            thinkingLevel: 'xhigh',
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
           },
         },
       ],
-    })
-    const textContent = result.content.find((block) => block.type === 'text')
-    expect(textContent?.text).toContain('"agentId": "manager"')
-    expect(textContent?.text).toContain('"agentId": "worker-active"')
-    expect(textContent?.text).not.toContain('manager-two')
-    expect(textContent?.text).not.toContain('worker-external')
-    expect(textContent?.text).not.toContain('worker-stopped')
-    expect(textContent?.text).not.toContain('worker-terminated')
-    expect(textContent?.text).not.toContain('sessionFile')
-    expect(textContent?.text).not.toContain('cwd')
-    expect(textContent?.text).not.toContain('displayName')
+    });
+    const textContent = result.content.find((block) => block.type === "text");
+    expect(textContent?.text).toContain('"agentId": "manager"');
+    expect(textContent?.text).toContain('"agentId": "worker-active"');
+    expect(textContent?.text).not.toContain("manager-two");
+    expect(textContent?.text).not.toContain("worker-external");
+    expect(textContent?.text).not.toContain("worker-stopped");
+    expect(textContent?.text).not.toContain("worker-terminated");
+    expect(textContent?.text).not.toContain("sessionFile");
+    expect(textContent?.text).not.toContain("cwd");
+    expect(textContent?.text).not.toContain("displayName");
 
     const resultWithInactive = await listAgentsTool!.execute(
-      'tool-call',
+      "tool-call",
       {
         includeTerminated: true,
       },
       undefined,
       undefined,
       undefined as any,
-    )
+    );
 
     expect(resultWithInactive.details).toEqual({
       agents: [
         {
-          agentId: 'manager',
-          role: 'manager',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "manager",
+          role: "manager",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'openai-codex',
-            modelId: 'gpt-5.4',
-            thinkingLevel: 'xhigh',
+            provider: "openai-codex",
+            modelId: "gpt-5.4",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'worker-active',
-          role: 'worker',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "worker-active",
+          role: "worker",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'anthropic',
-            modelId: 'claude-opus-4-6',
-            thinkingLevel: 'xhigh',
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'worker-stopped',
-          role: 'worker',
-          managerId: 'manager',
-          status: 'stopped',
+          agentId: "worker-stopped",
+          role: "worker",
+          managerId: "manager",
+          status: "stopped",
           model: {
-            provider: 'anthropic',
-            modelId: 'claude-opus-4-6',
-            thinkingLevel: 'xhigh',
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'worker-terminated',
-          role: 'worker',
-          managerId: 'manager',
-          status: 'terminated',
+          agentId: "worker-terminated",
+          role: "worker",
+          managerId: "manager",
+          status: "terminated",
           model: {
-            provider: 'anthropic',
-            modelId: 'claude-opus-4-6',
-            thinkingLevel: 'xhigh',
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
           },
         },
       ],
-    })
-    const includeInactiveText = resultWithInactive.content.find((block) => block.type === 'text')
-    expect(includeInactiveText?.text).toContain('worker-stopped')
-    expect(includeInactiveText?.text).toContain('worker-terminated')
-    expect(includeInactiveText?.text).not.toContain('manager-two')
-    expect(includeInactiveText?.text).not.toContain('manager-stopped')
-    expect(includeInactiveText?.text).not.toContain('sessionFile')
-    expect(includeInactiveText?.text).not.toContain('cwd')
-  })
+    });
+    const includeInactiveText = resultWithInactive.content.find((block) => block.type === "text");
+    expect(includeInactiveText?.text).toContain("worker-stopped");
+    expect(includeInactiveText?.text).toContain("worker-terminated");
+    expect(includeInactiveText?.text).not.toContain("manager-two");
+    expect(includeInactiveText?.text).not.toContain("manager-stopped");
+    expect(includeInactiveText?.text).not.toContain("sessionFile");
+    expect(includeInactiveText?.text).not.toContain("cwd");
+  });
 
-  it('lets managers opt into external manager discovery without exposing other teams workers', async () => {
+  it("lets managers opt into external manager discovery without exposing other teams workers", async () => {
     const host: SwarmToolHost = {
       listAgents: () => [
         makeManagerDescriptor(),
-        makeManagerDescriptor('manager-two'),
-        makeWorkerDescriptor('worker-owned'),
-        makeWorkerDescriptor('worker-external', 'manager-two'),
+        makeManagerDescriptor("manager-two"),
+        makeWorkerDescriptor("worker-owned"),
+        makeWorkerDescriptor("worker-external", "manager-two"),
       ],
-      spawnAgent: async () => makeWorkerDescriptor('worker'),
+      spawnAgent: async () => makeWorkerDescriptor("worker"),
       killAgent: async () => {},
       sendMessage: async () => ({
-        targetAgentId: 'worker',
-        deliveryId: 'delivery-1',
-        acceptedMode: 'prompt',
+        targetAgentId: "worker",
+        deliveryId: "delivery-1",
+        acceptedMode: "prompt",
       }),
       publishToUser: async () => ({
-        targetContext: { channel: 'web' },
+        targetContext: { channel: "web" },
       }),
-    }
+    };
 
-    const tools = buildSwarmTools(host, makeManagerDescriptor())
-    const listAgentsTool = tools.find((tool) => tool.name === 'list_agents')
-    expect(listAgentsTool).toBeDefined()
+    const tools = buildSwarmTools(host, makeManagerDescriptor());
+    const listAgentsTool = tools.find((tool) => tool.name === "list_agents");
+    expect(listAgentsTool).toBeDefined();
 
     const result = await listAgentsTool!.execute(
-      'tool-call',
+      "tool-call",
       {
         includeManagers: true,
       },
       undefined,
       undefined,
       undefined as any,
-    )
+    );
 
     expect(result.details).toEqual({
       agents: [
         {
-          agentId: 'manager',
-          role: 'manager',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "manager",
+          role: "manager",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'openai-codex',
-            modelId: 'gpt-5.4',
-            thinkingLevel: 'xhigh',
+            provider: "openai-codex",
+            modelId: "gpt-5.4",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'worker-owned',
-          role: 'worker',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "worker-owned",
+          role: "worker",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'anthropic',
-            modelId: 'claude-opus-4-6',
-            thinkingLevel: 'xhigh',
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'manager-two',
-          role: 'manager',
-          managerId: 'manager-two',
-          status: 'idle',
+          agentId: "manager-two",
+          role: "manager",
+          managerId: "manager-two",
+          status: "idle",
           model: {
-            provider: 'openai-codex',
-            modelId: 'gpt-5.4',
-            thinkingLevel: 'xhigh',
+            provider: "openai-codex",
+            modelId: "gpt-5.4",
+            thinkingLevel: "xhigh",
           },
           isExternal: true,
         },
       ],
-    })
+    });
 
-    const textContent = result.content.find((block) => block.type === 'text')
-    expect(textContent?.text).toContain('"agentId": "manager-two"')
-    expect(textContent?.text).toContain('"isExternal": true')
-    expect(textContent?.text).not.toContain('worker-external')
-  })
+    const textContent = result.content.find((block) => block.type === "text");
+    expect(textContent?.text).toContain('"agentId": "manager-two"');
+    expect(textContent?.text).toContain('"isExternal": true');
+    expect(textContent?.text).not.toContain("worker-external");
+  });
 
-  it('passes includeArchived through to the host and still hides archived agents by default', async () => {
+  it("passes includeArchived through to the host and still hides archived agents by default", async () => {
     const archivedWorker: AgentDescriptor = {
-      ...makeWorkerDescriptor('worker-archived'),
-      status: 'terminated',
-    }
-    const listCalls: Array<{ includeArchived?: boolean } | undefined> = []
+      ...makeWorkerDescriptor("worker-archived"),
+      status: "terminated",
+    };
+    const listCalls: Array<{ includeArchived?: boolean } | undefined> = [];
 
     const host: SwarmToolHost = {
       listAgents: (options) => {
-        listCalls.push(options)
+        listCalls.push(options);
         return [
           makeManagerDescriptor(),
-          makeWorkerDescriptor('worker-active'),
+          makeWorkerDescriptor("worker-active"),
           ...(options?.includeArchived ? [archivedWorker] : []),
-        ]
+        ];
       },
-      spawnAgent: async () => makeWorkerDescriptor('worker'),
+      spawnAgent: async () => makeWorkerDescriptor("worker"),
       killAgent: async () => {},
       sendMessage: async () => ({
-        targetAgentId: 'worker',
-        deliveryId: 'delivery-1',
-        acceptedMode: 'prompt',
+        targetAgentId: "worker",
+        deliveryId: "delivery-1",
+        acceptedMode: "prompt",
       }),
       publishToUser: async () => ({
-        targetContext: { channel: 'web' },
+        targetContext: { channel: "web" },
       }),
-    }
+    };
 
-    const tools = buildSwarmTools(host, makeManagerDescriptor())
-    const listAgentsTool = tools.find((tool) => tool.name === 'list_agents')
-    expect(listAgentsTool).toBeDefined()
+    const tools = buildSwarmTools(host, makeManagerDescriptor());
+    const listAgentsTool = tools.find((tool) => tool.name === "list_agents");
+    expect(listAgentsTool).toBeDefined();
 
     const defaultResult = await listAgentsTool!.execute(
-      'tool-call',
+      "tool-call",
       {},
       undefined,
       undefined,
       undefined as any,
-    )
+    );
 
-    expect(listCalls[0]).toEqual({ includeArchived: false })
+    expect(listCalls[0]).toEqual({ includeArchived: false });
     expect(defaultResult.details).toEqual({
       agents: [
         {
-          agentId: 'manager',
-          role: 'manager',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "manager",
+          role: "manager",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'openai-codex',
-            modelId: 'gpt-5.4',
-            thinkingLevel: 'xhigh',
+            provider: "openai-codex",
+            modelId: "gpt-5.4",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'worker-active',
-          role: 'worker',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "worker-active",
+          role: "worker",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'anthropic',
-            modelId: 'claude-opus-4-6',
-            thinkingLevel: 'xhigh',
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
           },
         },
       ],
-    })
+    });
 
     const archivedResult = await listAgentsTool!.execute(
-      'tool-call',
+      "tool-call",
       {
         includeArchived: true,
         includeTerminated: true,
@@ -374,168 +376,171 @@ describe('buildSwarmTools', () => {
       undefined,
       undefined,
       undefined as any,
-    )
+    );
 
-    expect(listCalls[1]).toEqual({ includeArchived: true })
+    expect(listCalls[1]).toEqual({ includeArchived: true });
     expect(archivedResult.details).toEqual({
       agents: [
         {
-          agentId: 'manager',
-          role: 'manager',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "manager",
+          role: "manager",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'openai-codex',
-            modelId: 'gpt-5.4',
-            thinkingLevel: 'xhigh',
+            provider: "openai-codex",
+            modelId: "gpt-5.4",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'worker-active',
-          role: 'worker',
-          managerId: 'manager',
-          status: 'idle',
+          agentId: "worker-active",
+          role: "worker",
+          managerId: "manager",
+          status: "idle",
           model: {
-            provider: 'anthropic',
-            modelId: 'claude-opus-4-6',
-            thinkingLevel: 'xhigh',
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
           },
         },
         {
-          agentId: 'worker-archived',
-          role: 'worker',
-          managerId: 'manager',
-          status: 'terminated',
+          agentId: "worker-archived",
+          role: "worker",
+          managerId: "manager",
+          status: "terminated",
           model: {
-            provider: 'anthropic',
-            modelId: 'claude-opus-4-6',
-            thinkingLevel: 'xhigh',
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
           },
         },
       ],
-    })
-  })
+    });
+  });
 
-  it('propagates spawn_agent model preset to host.spawnAgent', async () => {
-    let receivedInput: SpawnAgentInput | undefined
+  it("propagates spawn_agent model preset to host.spawnAgent", async () => {
+    let receivedInput: SpawnAgentInput | undefined;
 
     const host = makeHost(async (_callerAgentId, input) => {
-      receivedInput = input
-      return makeWorkerDescriptor('worker-opus')
-    })
+      receivedInput = input;
+      return makeWorkerDescriptor("worker-opus");
+    });
 
-    const tools = buildSwarmTools(host, makeManagerDescriptor())
-    const spawnTool = tools.find((tool) => tool.name === 'spawn_agent')
-    expect(spawnTool).toBeDefined()
+    const tools = buildSwarmTools(host, makeManagerDescriptor());
+    const spawnTool = tools.find((tool) => tool.name === "spawn_agent");
+    expect(spawnTool).toBeDefined();
 
     const result = await spawnTool!.execute(
-      'tool-call',
+      "tool-call",
       {
-        agentId: 'Worker Opus',
-        model: 'pi-opus',
+        agentId: "Worker Opus",
+        model: "pi-opus",
       },
       undefined,
       undefined,
       undefined as any,
-    )
+    );
 
-    expect(receivedInput?.model).toBe('pi-opus')
+    expect(receivedInput?.model).toBe("pi-opus");
     expect(result.details).toMatchObject({
-      agentId: 'worker-opus',
+      agentId: "worker-opus",
       model: {
-        provider: 'anthropic',
-        modelId: 'claude-opus-4-6',
-        thinkingLevel: 'xhigh',
+        provider: "anthropic",
+        modelId: "claude-opus-4-6",
+        thinkingLevel: "xhigh",
       },
-    })
-  })
+    });
+  });
 
-  it('rejects invalid spawn_agent model presets with a clear error', async () => {
-    const host = makeHost(async () => makeWorkerDescriptor('worker'))
+  it("rejects invalid spawn_agent model presets with a clear error", async () => {
+    const host = makeHost(async () => makeWorkerDescriptor("worker"));
 
-    const tools = buildSwarmTools(host, makeManagerDescriptor())
-    const spawnTool = tools.find((tool) => tool.name === 'spawn_agent')
-    expect(spawnTool).toBeDefined()
+    const tools = buildSwarmTools(host, makeManagerDescriptor());
+    const spawnTool = tools.find((tool) => tool.name === "spawn_agent");
+    expect(spawnTool).toBeDefined();
 
     await expect(
       spawnTool!.execute(
-        'tool-call',
+        "tool-call",
         {
-          agentId: 'Worker Invalid',
-          model: 'not-allowed-model',
+          agentId: "Worker Invalid",
+          model: "not-allowed-model",
         } as any,
         undefined,
         undefined,
         undefined as any,
       ),
-    ).rejects.toThrow('spawn_agent.model must be one of pi-codex|pi-opus|codex-app|claude-code')
-  })
+    ).rejects.toThrow("spawn_agent.model must be one of pi-codex|pi-opus|codex-app|claude-code");
+  });
 
-  it('does not inject task management tools for managers', () => {
-    const tools = buildSwarmTools(makeHost(async () => makeWorkerDescriptor('worker')), makeManagerDescriptor())
-
-    expect(tools.some((tool) => tool.name === 'assign_task')).toBe(false)
-    expect(tools.some((tool) => tool.name === 'get_outstanding_tasks')).toBe(false)
-  })
-
-  it('includes available archetype ids in the spawn_agent schema description', () => {
+  it("does not inject task management tools for managers", () => {
     const tools = buildSwarmTools(
-      makeHost(async () => makeWorkerDescriptor('worker')),
+      makeHost(async () => makeWorkerDescriptor("worker")),
+      makeManagerDescriptor(),
+    );
+
+    expect(tools.some((tool) => tool.name === "assign_task")).toBe(false);
+    expect(tools.some((tool) => tool.name === "get_outstanding_tasks")).toBe(false);
+  });
+
+  it("includes available archetype ids in the spawn_agent schema description", () => {
+    const tools = buildSwarmTools(
+      makeHost(async () => makeWorkerDescriptor("worker")),
       makeManagerDescriptor(),
       {
-        availableArchetypeIds: ['manager', 'merger'],
+        availableArchetypeIds: ["manager", "merger"],
       },
-    )
-    const spawnTool = tools.find((tool) => tool.name === 'spawn_agent')
-    expect(spawnTool).toBeDefined()
+    );
+    const spawnTool = tools.find((tool) => tool.name === "spawn_agent");
+    expect(spawnTool).toBeDefined();
 
     expect(JSON.stringify(spawnTool!.parameters)).toContain(
-      'Available archetype ids: manager, merger.',
-    )
-  })
+      "Available archetype ids: manager, merger.",
+    );
+  });
 
-  it('returns the resolved speak_to_user target context without an explicit target override', async () => {
-    let receivedTarget: { channel: 'web' } | undefined
+  it("returns the resolved speak_to_user target context without an explicit target override", async () => {
+    let receivedTarget: { channel: "web" } | undefined;
 
     const host: SwarmToolHost = {
       listAgents: () => [makeManagerDescriptor()],
-      spawnAgent: async () => makeWorkerDescriptor('worker'),
+      spawnAgent: async () => makeWorkerDescriptor("worker"),
       killAgent: async () => {},
       sendMessage: async () => ({
-        targetAgentId: 'worker',
-        deliveryId: 'delivery-1',
-        acceptedMode: 'prompt',
+        targetAgentId: "worker",
+        deliveryId: "delivery-1",
+        acceptedMode: "prompt",
       }),
       publishToUser: async (_agentId, _text, _source, targetContext) => {
-        receivedTarget = targetContext
+        receivedTarget = targetContext;
         return {
           targetContext: {
-            channel: targetContext?.channel ?? 'web',
+            channel: targetContext?.channel ?? "web",
           },
-        }
+        };
       },
-    }
+    };
 
-    const tools = buildSwarmTools(host, makeManagerDescriptor())
-    const speakTool = tools.find((tool) => tool.name === 'speak_to_user')
-    expect(speakTool).toBeDefined()
+    const tools = buildSwarmTools(host, makeManagerDescriptor());
+    const speakTool = tools.find((tool) => tool.name === "speak_to_user");
+    expect(speakTool).toBeDefined();
 
     const result = await speakTool!.execute(
-      'tool-call',
+      "tool-call",
       {
-        text: 'Reply on the web',
+        text: "Reply on the web",
       },
       undefined,
       undefined,
       undefined as any,
-    )
+    );
 
-    expect(receivedTarget).toBeUndefined()
+    expect(receivedTarget).toBeUndefined();
     expect(result.details).toMatchObject({
       published: true,
       targetContext: {
-        channel: 'web',
+        channel: "web",
       },
-    })
-  })
-})
+    });
+  });
+});

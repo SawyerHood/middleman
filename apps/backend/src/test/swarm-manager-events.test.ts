@@ -95,11 +95,9 @@ describe("SwarmManager core event projection", () => {
       }),
     );
 
-    expect(
-      (manager as any).resolveSettingsAuthProviderForModel(
-        "anthropic-claude-code",
-      ),
-    ).toBe("anthropic");
+    expect((manager as any).resolveSettingsAuthProviderForModel("anthropic-claude-code")).toBe(
+      "anthropic",
+    );
   });
 
   it("maps session.status.changed into agent_status with context usage", () => {
@@ -263,7 +261,7 @@ describe("SwarmManager core event projection", () => {
         kind: "tool_execution_start",
         toolName: "spawn_agent",
         toolCallId: "tool-1",
-        text: "{\"agentId\":\"reviewer\"}",
+        text: '{"agentId":"reviewer"}',
       },
       {
         type: "agent_tool_call",
@@ -273,7 +271,7 @@ describe("SwarmManager core event projection", () => {
         kind: "tool_execution_update",
         toolName: "spawn_agent",
         toolCallId: "tool-1",
-        text: "{\"stage\":\"starting\"}",
+        text: '{"stage":"starting"}',
       },
       {
         type: "agent_tool_call",
@@ -283,7 +281,7 @@ describe("SwarmManager core event projection", () => {
         kind: "tool_execution_end",
         toolName: "spawn_agent",
         toolCallId: "tool-1",
-        text: "{\"agentId\":\"reviewer\"}",
+        text: '{"agentId":"reviewer"}',
         isError: false,
       },
     ]);

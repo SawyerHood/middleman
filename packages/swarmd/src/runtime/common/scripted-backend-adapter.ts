@@ -26,13 +26,15 @@ import {
 } from "./checkpoint.js";
 import type { AdapterCallbacks, BackendAdapter, HostRpcClient } from "./adapter.js";
 
-const mockRuntimeConfigSchema = z.object({
-  fixtureFile: z.string().min(1).optional(),
-  fixture: z.unknown().optional(),
-  scenarioId: z.string().min(1).optional(),
-}).refine((value) => value.fixtureFile !== undefined || value.fixture !== undefined, {
-  message: "Mock runtime config requires fixtureFile or fixture.",
-});
+const mockRuntimeConfigSchema = z
+  .object({
+    fixtureFile: z.string().min(1).optional(),
+    fixture: z.unknown().optional(),
+    scenarioId: z.string().min(1).optional(),
+  })
+  .refine((value) => value.fixtureFile !== undefined || value.fixture !== undefined, {
+    message: "Mock runtime config requires fixtureFile or fixture.",
+  });
 
 const scriptedTurnMatchSchema = z.object({
   index: z.number().int().positive().optional(),
@@ -83,20 +85,22 @@ const scriptedWorkerExitStepSchema = z.object({
   code: z.number().int().optional(),
 });
 
-const scriptedMessageBaseSchema = z.object({
-  messageId: z.string().min(1).optional(),
-  role: z.enum(["assistant", "system", "user"]).optional(),
-  text: z.string().optional(),
-  chunks: z.array(z.string()).optional(),
-  chunkDelayMs: z.number().int().nonnegative().optional(),
-}).superRefine((value, context) => {
-  if (value.text === undefined && value.chunks === undefined) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Message steps require text or chunks.",
-    });
-  }
-});
+const scriptedMessageBaseSchema = z
+  .object({
+    messageId: z.string().min(1).optional(),
+    role: z.enum(["assistant", "system", "user"]).optional(),
+    text: z.string().optional(),
+    chunks: z.array(z.string()).optional(),
+    chunkDelayMs: z.number().int().nonnegative().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.text === undefined && value.chunks === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Message steps require text or chunks.",
+      });
+    }
+  });
 
 const scriptedMessageStreamStepSchema = scriptedMessageBaseSchema.extend({
   type: z.literal("message_stream"),
@@ -303,7 +307,7 @@ function isTurnMatch(
     return false;
   }
 
-  if (match.textMatches !== undefined && !(new RegExp(match.textMatches).test(text))) {
+  if (match.textMatches !== undefined && !new RegExp(match.textMatches).test(text)) {
     return false;
   }
 
@@ -333,9 +337,7 @@ async function loadScriptedFixture(rawConfig: unknown): Promise<ScriptedRuntimeF
   return scriptedFixtureSchema.parse(parsed);
 }
 
-export function hasMockRuntimeConfig(
-  backendConfig: Record<string, unknown> | undefined,
-): boolean {
+export function hasMockRuntimeConfig(backendConfig: Record<string, unknown> | undefined): boolean {
   return typeof backendConfig?.mockRuntime === "object" && backendConfig.mockRuntime !== null;
 }
 
@@ -393,10 +395,8 @@ export class ScriptedBackendAdapter implements BackendAdapter {
     this.pendingTurns = [];
     this.sessionId = toSessionId(config);
     this.fixture = await loadScriptedFixture(backendConfig.mockRuntime);
-    this.sessionFixture =
-      this.fixture.sessions[this.sessionId] ??
-      this.fixture.sessions["*"] ??
-      { turns: [] };
+    this.sessionFixture = this.fixture.sessions[this.sessionId] ??
+      this.fixture.sessions["*"] ?? { turns: [] };
 
     this.checkpoint = checkpoint
       ? this.normalizeCheckpoint(checkpoint)
@@ -568,11 +568,7 @@ export class ScriptedBackendAdapter implements BackendAdapter {
   ): Promise<void> {
     switch (step.type) {
       case "status":
-        this.callbacks.emitStatusChange(
-          step.status,
-          step.error,
-          step.contextUsage ?? undefined,
-        );
+        this.callbacks.emitStatusChange(step.status, step.error, step.contextUsage ?? undefined);
         break;
       case "sleep":
         await sleep(step.ms, signal);
@@ -654,7 +650,9 @@ export class ScriptedBackendAdapter implements BackendAdapter {
     );
   }
 
-  private async executeHostCallStep(step: z.infer<typeof scriptedHostCallStepSchema>): Promise<void> {
+  private async executeHostCallStep(
+    step: z.infer<typeof scriptedHostCallStepSchema>,
+  ): Promise<void> {
     const toolCallId = step.toolCallId ?? `${step.tool}-${randomUUID()}`;
     const args = step.args ?? {};
 

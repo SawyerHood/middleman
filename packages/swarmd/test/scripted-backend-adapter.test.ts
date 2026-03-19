@@ -152,40 +152,38 @@ describe("ScriptedBackendAdapter", () => {
       { hostRpc },
     );
 
-    await adapter.bootstrap(
-      {
-        backend: "pi",
-        cwd: process.cwd(),
-        model: "openai/gpt-5",
-        backendConfig: {
-          swarmdSessionId: "worker-1",
-          mockRuntime: {
-            fixture: {
-              sessions: {
-                "worker-1": {
-                  turns: [
-                    {
-                      match: { index: 1 },
-                      steps: [
-                        {
-                          type: "host_call",
-                          tool: "send_message_to_agent",
-                          args: {
-                            targetAgentId: "reviewer",
-                            message: "Please review the crash log.",
-                            delivery: "steer",
-                          },
+    await adapter.bootstrap({
+      backend: "pi",
+      cwd: process.cwd(),
+      model: "openai/gpt-5",
+      backendConfig: {
+        swarmdSessionId: "worker-1",
+        mockRuntime: {
+          fixture: {
+            sessions: {
+              "worker-1": {
+                turns: [
+                  {
+                    match: { index: 1 },
+                    steps: [
+                      {
+                        type: "host_call",
+                        tool: "send_message_to_agent",
+                        args: {
+                          targetAgentId: "reviewer",
+                          message: "Please review the crash log.",
+                          delivery: "steer",
                         },
-                      ],
-                    },
-                  ],
-                },
+                      },
+                    ],
+                  },
+                ],
               },
             },
           },
         },
       },
-    );
+    });
 
     await adapter.sendInput(createInput("delegate this", "system"), "auto");
 
@@ -226,36 +224,34 @@ describe("ScriptedBackendAdapter", () => {
       log: () => undefined,
     });
 
-    await adapter.bootstrap(
-      {
-        backend: "claude",
-        cwd: process.cwd(),
-        model: "claude-sonnet",
-        backendConfig: {
-          swarmdSessionId: "manager-2",
-          mockRuntime: {
-            fixture: {
-              sessions: {
-                "manager-2": {
-                  turns: [
-                    {
-                      match: { index: 1 },
-                      steps: [
-                        { type: "status", status: "busy" },
-                        {
-                          type: "error",
-                          message: "Mock runtime exploded.",
-                        },
-                      ],
-                    },
-                  ],
-                },
+    await adapter.bootstrap({
+      backend: "claude",
+      cwd: process.cwd(),
+      model: "claude-sonnet",
+      backendConfig: {
+        swarmdSessionId: "manager-2",
+        mockRuntime: {
+          fixture: {
+            sessions: {
+              "manager-2": {
+                turns: [
+                  {
+                    match: { index: 1 },
+                    steps: [
+                      { type: "status", status: "busy" },
+                      {
+                        type: "error",
+                        message: "Mock runtime exploded.",
+                      },
+                    ],
+                  },
+                ],
               },
             },
           },
         },
       },
-    );
+    });
 
     await adapter.sendInput(createInput("trigger failure"), "auto");
 

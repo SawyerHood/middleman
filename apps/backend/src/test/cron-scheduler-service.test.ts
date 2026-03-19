@@ -25,9 +25,7 @@ function createFakeSwarmManager(
   initialSchedules: ScheduledTask[],
   handleUserMessage = vi.fn(async () => undefined),
 ) {
-  const schedules = new Map(
-    initialSchedules.map((schedule) => [schedule.id, { ...schedule }]),
-  );
+  const schedules = new Map(initialSchedules.map((schedule) => [schedule.id, { ...schedule }]));
 
   const listSchedulesForManager = vi.fn(async (managerId: string) =>
     [...schedules.values()]
@@ -107,7 +105,7 @@ describe("CronSchedulerService", () => {
       { targetAgentId: string; sourceContext: { channel: string } },
     ];
     expect(message).toContain("[Scheduled Task: Daily summary]");
-    expect(message).toContain("\"scheduleId\":\"schedule-1\"");
+    expect(message).toContain('"scheduleId":"schedule-1"');
     expect(options).toEqual({
       targetAgentId: "manager",
       sourceContext: { channel: "web" },

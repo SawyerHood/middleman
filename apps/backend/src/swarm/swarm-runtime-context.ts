@@ -10,11 +10,7 @@ import { validateDirectoryPath } from "./cwd-policy.js";
 import type { ArchetypePromptRegistry } from "./archetypes/archetype-prompt-registry.js";
 import { SkillMetadataService } from "./skill-metadata-service.js";
 import { type MiddlemanSettingsRepo } from "./swarm-sql.js";
-import type {
-  AgentDescriptor,
-  AgentModelDescriptor,
-  SwarmConfig,
-} from "./types.js";
+import type { AgentDescriptor, AgentModelDescriptor, SwarmConfig } from "./types.js";
 
 export const DEFAULT_WORKER_SYSTEM_PROMPT = `You are a worker agent in a swarm.
 - You can list agents and send messages to other agents.
@@ -63,7 +59,9 @@ interface SwarmRuntimeContextServiceOptions {
 export class SwarmRuntimeContextService {
   constructor(private readonly options: SwarmRuntimeContextServiceOptions) {}
 
-  resolveSystemPromptForDescriptor(descriptor: Pick<AgentDescriptor, "role" | "archetypeId">): string {
+  resolveSystemPromptForDescriptor(
+    descriptor: Pick<AgentDescriptor, "role" | "archetypeId">,
+  ): string {
     const registry = this.options.getArchetypePromptRegistry();
     let prompt: string | undefined;
     if (descriptor.archetypeId) {
@@ -142,7 +140,10 @@ export class SwarmRuntimeContextService {
     await this.ensureMemoryFile(input.memoryOwnerAgentId);
     await this.options.skillMetadataService.ensureSkillMetadataLoaded();
 
-    const memoryPath = getAgentMemoryPath(this.options.config.paths.dataDir, input.memoryOwnerAgentId);
+    const memoryPath = getAgentMemoryPath(
+      this.options.config.paths.dataDir,
+      input.memoryOwnerAgentId,
+    );
     const [memoryContent, swarmContextFiles] = await Promise.all([
       readFile(memoryPath, "utf8"),
       this.getSwarmContextFiles(input.cwd),
@@ -226,8 +227,16 @@ export class SwarmRuntimeContextService {
             additionalSkillPaths: resources.additionalSkillPaths,
             modelProvider: descriptor.model.provider,
             modelId: descriptor.model.modelId,
-            agentDir: join(this.options.config.paths.runtimeScratchDir, descriptor.agentId, "agent"),
-            sessionDir: join(this.options.config.paths.runtimeScratchDir, descriptor.agentId, "sessions"),
+            agentDir: join(
+              this.options.config.paths.runtimeScratchDir,
+              descriptor.agentId,
+              "agent",
+            ),
+            sessionDir: join(
+              this.options.config.paths.runtimeScratchDir,
+              descriptor.agentId,
+              "sessions",
+            ),
             ...resolveMockRuntimeConfigFromEnv(),
           },
         };
@@ -255,33 +264,39 @@ export class SwarmRuntimeContextService {
         continue;
       }
 
-      sections.push([
-        `Repository swarm policy (${contextFile.path}):`,
-        "----- BEGIN SWARM CONTEXT -----",
-        content,
-        "----- END SWARM CONTEXT -----",
-      ].join("\n"));
+      sections.push(
+        [
+          `Repository swarm policy (${contextFile.path}):`,
+          "----- BEGIN SWARM CONTEXT -----",
+          content,
+          "----- END SWARM CONTEXT -----",
+        ].join("\n"),
+      );
     }
 
     const memoryContent = resources.memoryContextFile.content.trim();
     if (memoryContent) {
-      sections.push([
-        `Persistent swarm memory (${resources.memoryContextFile.path}):`,
-        "----- BEGIN SWARM MEMORY -----",
-        memoryContent,
-        "----- END SWARM MEMORY -----",
-      ].join("\n"));
+      sections.push(
+        [
+          `Persistent swarm memory (${resources.memoryContextFile.path}):`,
+          "----- BEGIN SWARM MEMORY -----",
+          memoryContent,
+          "----- END SWARM MEMORY -----",
+        ].join("\n"),
+      );
     }
 
     if (resources.skillDescriptors.length > 0) {
-      sections.push([
-        "<available_skills>",
-        ...resources.skillDescriptors.map((skill) => {
-          const description = skill.description?.trim() || "No description provided.";
-          return `- ${skill.skillName}: ${description} (file: ${skill.path})`;
-        }),
-        "</available_skills>",
-      ].join("\n"));
+      sections.push(
+        [
+          "<available_skills>",
+          ...resources.skillDescriptors.map((skill) => {
+            const description = skill.description?.trim() || "No description provided.";
+            return `- ${skill.skillName}: ${description} (file: ${skill.path})`;
+          }),
+          "</available_skills>",
+        ].join("\n"),
+      );
     }
 
     return sections.join("\n\n");
@@ -356,7 +371,10 @@ export class SwarmRuntimeContextService {
       MIDDLEMAN_API_BASE_URL: `http://${this.options.config.host}:${this.options.config.port}`,
       SWARM_DATA_DIR: this.options.config.paths.dataDir,
       SWARM_MEMORY_FILE: input.memoryFilePath,
-      SWARM_MANAGER_MEMORY_FILE: getAgentMemoryPath(this.options.config.paths.dataDir, input.managerId),
+      SWARM_MANAGER_MEMORY_FILE: getAgentMemoryPath(
+        this.options.config.paths.dataDir,
+        input.managerId,
+      ),
       PATH: prefixedPath,
     };
   }

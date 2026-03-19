@@ -19,7 +19,9 @@ function isWorkerCommand(message: WorkerCommand | WorkerEvent): message is Worke
   return workerCommandTypes.has(message.type as WorkerCommand["type"]);
 }
 
-function formatValidationError(error: { issues: Array<{ path: PropertyKey[]; message: string }> }): string {
+function formatValidationError(error: {
+  issues: Array<{ path: PropertyKey[]; message: string }>;
+}): string {
   return error.issues
     .map((issue) => {
       const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
@@ -221,7 +223,10 @@ export class WorkerProtocolHost {
 
         const message = decodeMessage(line);
         if (isWorkerCommand(message)) {
-          reportProtocolError("WorkerProtocolHost", new Error(`Received command on event stream: ${message.type}`));
+          reportProtocolError(
+            "WorkerProtocolHost",
+            new Error(`Received command on event stream: ${message.type}`),
+          );
           continue;
         }
 

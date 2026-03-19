@@ -141,10 +141,7 @@ export class MessageCapture {
 
     const content = {
       ...omitKeys(payload ?? {}, ["messageId", "role", "text"]),
-      text:
-        typeof payload?.text === "string"
-          ? payload.text
-          : tracked?.text ?? "",
+      text: typeof payload?.text === "string" ? payload.text : (tracked?.text ?? ""),
     };
 
     this.safeAppend(event.sessionId, {
@@ -220,10 +217,7 @@ export class MessageCapture {
     return trackedRole ?? "assistant";
   }
 
-  private safeAppend(
-    sessionId: string,
-    input: AppendMessageInput,
-  ): void {
+  private safeAppend(sessionId: string, input: AppendMessageInput): void {
     try {
       // Ignore late worker events that arrive after the session has been deleted.
       this.messageStore.append(sessionId, input);

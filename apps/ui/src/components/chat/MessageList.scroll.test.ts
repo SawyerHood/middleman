@@ -1,23 +1,8 @@
 /** @vitest-environment jsdom */
 
 import { createElement } from "react";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentDescriptor, ConversationEntry } from "@middleman/protocol";
 import { MessageList } from "./MessageList";
 
@@ -114,9 +99,7 @@ function buildConversationMessages(
       agentId,
       role: "assistant",
       text: `message ${messageIndex}`,
-      timestamp: new Date(
-        Date.UTC(2026, 0, 1, 0, 0, messageIndex),
-      ).toISOString(),
+      timestamp: new Date(Date.UTC(2026, 0, 1, 0, 0, messageIndex)).toISOString(),
       source: "speak_to_user",
     };
   });
@@ -238,27 +221,15 @@ afterAll(() => {
   });
 
   if (originalScrollTopDescriptor) {
-    Object.defineProperty(
-      HTMLElement.prototype,
-      "scrollTop",
-      originalScrollTopDescriptor,
-    );
+    Object.defineProperty(HTMLElement.prototype, "scrollTop", originalScrollTopDescriptor);
   }
 
   if (originalScrollHeightDescriptor) {
-    Object.defineProperty(
-      HTMLElement.prototype,
-      "scrollHeight",
-      originalScrollHeightDescriptor,
-    );
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", originalScrollHeightDescriptor);
   }
 
   if (originalClientHeightDescriptor) {
-    Object.defineProperty(
-      HTMLElement.prototype,
-      "clientHeight",
-      originalClientHeightDescriptor,
-    );
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", originalClientHeightDescriptor);
   }
 });
 

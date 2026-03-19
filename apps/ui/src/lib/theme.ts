@@ -1,11 +1,11 @@
-export type ThemePreference = 'light' | 'dark' | 'auto'
+export type ThemePreference = "light" | "dark" | "auto";
 
-export const THEME_STORAGE_KEY = 'middleman-theme'
+export const THEME_STORAGE_KEY = "middleman-theme";
 
-const DARK_CLASS_NAME = 'dark'
-const SYSTEM_THEME_MEDIA_QUERY = '(prefers-color-scheme: dark)'
+const DARK_CLASS_NAME = "dark";
+const SYSTEM_THEME_MEDIA_QUERY = "(prefers-color-scheme: dark)";
 
-let removeSystemThemeListener: (() => void) | null = null
+let removeSystemThemeListener: (() => void) | null = null;
 
 export const THEME_INIT_SCRIPT = `(() => {
   try {
@@ -32,91 +32,91 @@ export const THEME_INIT_SCRIPT = `(() => {
   } catch {
     document.documentElement.classList.remove('${DARK_CLASS_NAME}');
   }
-})();`
+})();`;
 
 export function isThemePreference(value: unknown): value is ThemePreference {
-  return value === 'light' || value === 'dark' || value === 'auto'
+  return value === "light" || value === "dark" || value === "auto";
 }
 
 export function readStoredThemePreference(): ThemePreference {
-  if (typeof window === 'undefined') {
-    return 'auto'
+  if (typeof window === "undefined") {
+    return "auto";
   }
 
   try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
-    return isThemePreference(stored) ? stored : 'auto'
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return isThemePreference(stored) ? stored : "auto";
   } catch {
-    return 'auto'
+    return "auto";
   }
 }
 
 function applyDarkClass(isDark: boolean): void {
-  if (typeof document === 'undefined') return
-  document.documentElement.classList.toggle(DARK_CLASS_NAME, isDark)
+  if (typeof document === "undefined") return;
+  document.documentElement.classList.toggle(DARK_CLASS_NAME, isDark);
 }
 
 function clearSystemThemeListener(): void {
-  if (!removeSystemThemeListener) return
-  removeSystemThemeListener()
-  removeSystemThemeListener = null
+  if (!removeSystemThemeListener) return;
+  removeSystemThemeListener();
+  removeSystemThemeListener = null;
 }
 
 function attachSystemThemeListener(): void {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    applyDarkClass(false)
-    return
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    applyDarkClass(false);
+    return;
   }
 
-  const mediaQuery = window.matchMedia(SYSTEM_THEME_MEDIA_QUERY)
+  const mediaQuery = window.matchMedia(SYSTEM_THEME_MEDIA_QUERY);
   const applyCurrentSystemTheme = (): void => {
-    applyDarkClass(mediaQuery.matches)
-  }
+    applyDarkClass(mediaQuery.matches);
+  };
 
-  applyCurrentSystemTheme()
+  applyCurrentSystemTheme();
   const handleChange = (): void => {
-    applyCurrentSystemTheme()
-  }
+    applyCurrentSystemTheme();
+  };
 
-  mediaQuery.addEventListener('change', handleChange)
+  mediaQuery.addEventListener("change", handleChange);
   removeSystemThemeListener = () => {
-    mediaQuery.removeEventListener('change', handleChange)
-  }
+    mediaQuery.removeEventListener("change", handleChange);
+  };
 }
 
 export function applyThemePreference(
   preference: ThemePreference,
   options: { persist?: boolean } = {},
 ): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return;
 
-  const { persist = true } = options
+  const { persist = true } = options;
 
   if (persist) {
     try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, preference)
+      window.localStorage.setItem(THEME_STORAGE_KEY, preference);
     } catch {
       // Ignore localStorage write failures in restricted environments.
     }
   }
 
-  clearSystemThemeListener()
+  clearSystemThemeListener();
 
-  if (preference === 'light') {
-    applyDarkClass(false)
-    return
+  if (preference === "light") {
+    applyDarkClass(false);
+    return;
   }
 
-  if (preference === 'dark') {
-    applyDarkClass(true)
-    return
+  if (preference === "dark") {
+    applyDarkClass(true);
+    return;
   }
 
-  attachSystemThemeListener()
+  attachSystemThemeListener();
 }
 
 export function initializeThemePreference(): ThemePreference {
-  const preference = readStoredThemePreference()
-  applyThemePreference(preference, { persist: false })
-  return preference
+  const preference = readStoredThemePreference();
+  applyThemePreference(preference, { persist: false });
+  return preference;
 }

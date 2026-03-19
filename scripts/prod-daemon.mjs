@@ -5,9 +5,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  getControlPidFilePath,
-} from "./prod-daemon-paths.mjs";
+import { getControlPidFilePath } from "./prod-daemon-paths.mjs";
 
 const RESTART_SIGNAL = "SIGUSR1";
 const STOP_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
@@ -20,7 +18,8 @@ const pidFile = getControlPidFilePath();
 const lockFilePath = path.join(repoRoot, "pnpm-lock.yaml");
 const lockHashFile = `${pidFile}.lock.sha1`;
 const command = process.env.SWARM_PROD_DAEMON_COMMAND?.trim() || DEFAULT_COMMAND;
-const installCommand = process.env.SWARM_PROD_DAEMON_INSTALL_COMMAND?.trim() || DEFAULT_INSTALL_COMMAND;
+const installCommand =
+  process.env.SWARM_PROD_DAEMON_INSTALL_COMMAND?.trim() || DEFAULT_INSTALL_COMMAND;
 
 let child = null;
 let restarting = false;
@@ -106,7 +105,9 @@ function ensureDependenciesInstalled() {
   }
 
   if (installResult.status !== 0) {
-    const reason = installResult.signal ? `signal ${installResult.signal}` : `code ${installResult.status ?? 0}`;
+    const reason = installResult.signal
+      ? `signal ${installResult.signal}`
+      : `code ${installResult.status ?? 0}`;
     log(`Dependency install exited with ${reason}.`);
     return false;
   }

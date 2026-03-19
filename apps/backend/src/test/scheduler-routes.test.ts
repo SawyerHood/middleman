@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest"
-import { createSchedulerRoutes } from "../ws/routes/scheduler-routes.js"
+import { describe, expect, it, vi } from "vitest";
+import { createSchedulerRoutes } from "../ws/routes/scheduler-routes.js";
 
 function createManagerStub() {
   return {
@@ -55,30 +55,30 @@ function createManagerStub() {
       updatedAt: "2026-01-01T00:00:00.000Z",
       nextFireAt: "2026-01-02T14:30:00.000Z",
     })),
-  }
+  };
 }
 
 describe("createSchedulerRoutes", () => {
   it("lists manager schedules", async () => {
-    const swarmManager = createManagerStub()
-    const app = createSchedulerRoutes({ swarmManager: swarmManager as never })
+    const swarmManager = createManagerStub();
+    const app = createSchedulerRoutes({ swarmManager: swarmManager as never });
     const response = await app.request("http://127.0.0.1:47187/api/managers/manager-1/schedules", {
       method: "GET",
       headers: {
         origin: "http://127.0.0.1:47188",
       },
-    })
+    });
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       schedules: [expect.objectContaining({ id: "schedule-1" })],
-    })
-    expect(swarmManager.listSchedulesForManager).toHaveBeenCalledWith("manager-1")
-  })
+    });
+    expect(swarmManager.listSchedulesForManager).toHaveBeenCalledWith("manager-1");
+  });
 
   it("creates a schedule over HTTP", async () => {
-    const swarmManager = createManagerStub()
-    const app = createSchedulerRoutes({ swarmManager: swarmManager as never })
+    const swarmManager = createManagerStub();
+    const app = createSchedulerRoutes({ swarmManager: swarmManager as never });
     const response = await app.request("http://127.0.0.1:47187/api/managers/manager-1/schedules", {
       method: "POST",
       headers: {
@@ -92,15 +92,15 @@ describe("createSchedulerRoutes", () => {
         oneShot: true,
         timezone: "UTC",
       }),
-    })
+    });
 
-    expect(response.status).toBe(201)
+    expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({
       ok: true,
       action: "add",
       managerId: "manager-1",
       schedule: expect.objectContaining({ id: "schedule-2" }),
-    })
+    });
     expect(swarmManager.createScheduleForManager).toHaveBeenCalledWith("manager-1", {
       cron: "30 14 * * *",
       message: "Check deployment status",
@@ -109,33 +109,36 @@ describe("createSchedulerRoutes", () => {
       timezone: "UTC",
       enabled: undefined,
       name: undefined,
-    })
-  })
+    });
+  });
 
   it("removes a schedule over HTTP", async () => {
-    const swarmManager = createManagerStub()
-    const app = createSchedulerRoutes({ swarmManager: swarmManager as never })
-    const response = await app.request("http://127.0.0.1:47187/api/managers/manager-1/schedules/schedule-2", {
-      method: "DELETE",
-      headers: {
-        origin: "http://127.0.0.1:47188",
+    const swarmManager = createManagerStub();
+    const app = createSchedulerRoutes({ swarmManager: swarmManager as never });
+    const response = await app.request(
+      "http://127.0.0.1:47187/api/managers/manager-1/schedules/schedule-2",
+      {
+        method: "DELETE",
+        headers: {
+          origin: "http://127.0.0.1:47188",
+        },
       },
-    })
+    );
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
       action: "remove",
       managerId: "manager-1",
       schedule: expect.objectContaining({ id: "schedule-2" }),
       removed: true,
-    })
-    expect(swarmManager.removeScheduleForManager).toHaveBeenCalledWith("manager-1", "schedule-2")
-  })
+    });
+    expect(swarmManager.removeScheduleForManager).toHaveBeenCalledWith("manager-1", "schedule-2");
+  });
 
   it("rejects invalid schedule payloads", async () => {
-    const swarmManager = createManagerStub()
-    const app = createSchedulerRoutes({ swarmManager: swarmManager as never })
+    const swarmManager = createManagerStub();
+    const app = createSchedulerRoutes({ swarmManager: swarmManager as never });
     const response = await app.request("http://127.0.0.1:47187/api/managers/manager-1/schedules", {
       method: "POST",
       headers: {
@@ -147,12 +150,12 @@ describe("createSchedulerRoutes", () => {
         message: "Check deployment status",
         oneShot: "yes",
       }),
-    })
+    });
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       error: "Schedule oneShot must be a boolean.",
-    })
-    expect(swarmManager.createScheduleForManager).not.toHaveBeenCalled()
-  })
-})
+    });
+    expect(swarmManager.createScheduleForManager).not.toHaveBeenCalled();
+  });
+});

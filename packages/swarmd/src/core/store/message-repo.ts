@@ -46,7 +46,8 @@ export class MessageRepo {
         order_key: string;
         created_at: string;
         metadata_json: string;
-      }>(`
+      }>(
+        `
         INSERT INTO messages (
           id,
           session_id,
@@ -71,7 +72,8 @@ export class MessageRepo {
           @created_at,
           @metadata_json
         )
-      `)
+      `,
+      )
       .run({
         id: message.id,
         session_id: message.sessionId,
@@ -101,7 +103,7 @@ export class MessageRepo {
           created_at,
           metadata_json
         FROM messages
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .get({ id });
 
@@ -133,7 +135,7 @@ export class MessageRepo {
           WHERE session_id = @session_id
             AND order_key > @after
           ORDER BY order_key ASC
-          LIMIT @limit`
+          LIMIT @limit`,
         )
         .all({ session_id: sessionId, after: options.after, limit: options.limit })
         .map(mapMessageRow);
@@ -156,7 +158,7 @@ export class MessageRepo {
           FROM messages
           WHERE session_id = @session_id
             AND order_key > @after
-          ORDER BY order_key ASC`
+          ORDER BY order_key ASC`,
         )
         .all({ session_id: sessionId, after: options.after })
         .map(mapMessageRow);
@@ -179,7 +181,7 @@ export class MessageRepo {
           FROM messages
           WHERE session_id = @session_id
           ORDER BY order_key ASC
-          LIMIT @limit`
+          LIMIT @limit`,
         )
         .all({ session_id: sessionId, limit: options.limit })
         .map(mapMessageRow);
@@ -200,7 +202,7 @@ export class MessageRepo {
           metadata_json
         FROM messages
         WHERE session_id = @session_id
-        ORDER BY order_key ASC`
+        ORDER BY order_key ASC`,
       )
       .all({ session_id: sessionId })
       .map(mapMessageRow);
@@ -211,7 +213,7 @@ export class MessageRepo {
       .prepare<{ id: string; metadata_json: string }>(
         `UPDATE messages
         SET metadata_json = @metadata_json
-        WHERE id = @id`
+        WHERE id = @id`,
       )
       .run({
         id,
@@ -227,14 +229,17 @@ export class MessageRepo {
 
   getLatestOrderKeyForTimestamp(sessionId: string, timestamp: string): string | null {
     const row = this.db
-      .prepare<{ session_id: string; start_order_key: string; end_order_key: string }, { order_key: string }>(
+      .prepare<
+        { session_id: string; start_order_key: string; end_order_key: string },
+        { order_key: string }
+      >(
         `SELECT order_key
         FROM messages
         WHERE session_id = @session_id
           AND order_key >= @start_order_key
           AND order_key < @end_order_key
         ORDER BY order_key DESC
-        LIMIT 1`
+        LIMIT 1`,
       )
       .get({
         session_id: sessionId,

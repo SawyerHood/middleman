@@ -10,10 +10,7 @@ import type {
 } from "swarmd";
 import { createCore } from "swarmd";
 
-import type {
-  CreateScheduledTaskInput,
-  ScheduledTask,
-} from "../scheduler/schedule-types.js";
+import type { CreateScheduledTaskInput, ScheduledTask } from "../scheduler/schedule-types.js";
 import {
   computeNextFireAt,
   normalizeOptionalScheduleText,
@@ -42,9 +39,7 @@ import {
 } from "./model-presets.js";
 import { SecretsEnvService } from "./secrets-env-service.js";
 import { SkillMetadataService } from "./skill-metadata-service.js";
-import {
-  SwarmLifecycleService,
-} from "./swarm-manager-lifecycle.js";
+import { SwarmLifecycleService } from "./swarm-manager-lifecycle.js";
 import {
   buildAttachmentMetadata,
   cloneDescriptor,
@@ -59,10 +54,7 @@ import {
   safeJson,
   SwarmTranscriptService,
 } from "./swarm-manager-transcript.js";
-import {
-  SwarmRuntimeContextService,
-  MANAGER_ARCHETYPE_ID,
-} from "./swarm-runtime-context.js";
+import { SwarmRuntimeContextService, MANAGER_ARCHETYPE_ID } from "./swarm-runtime-context.js";
 import { buildSwarmTools, type SwarmToolHost } from "./swarm-tools.js";
 import {
   MIDDLEMAN_STORE_MIGRATIONS,
@@ -107,9 +99,7 @@ function createEmptyArchetypePromptRegistry(): ArchetypePromptRegistry {
   };
 }
 
-function normalizeContextUsage(
-  value: unknown,
-): AgentContextUsage | null | undefined {
+function normalizeContextUsage(value: unknown): AgentContextUsage | null | undefined {
   if (value === null) {
     return null;
   }
@@ -151,13 +141,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private settingsRepo: MiddlemanSettingsRepo | null = null;
   private readonly skillMetadataService: SkillMetadataService;
   private secretsEnvService: SecretsEnvService | null = null;
-  private archetypePromptRegistry: ArchetypePromptRegistry =
-    createEmptyArchetypePromptRegistry();
+  private archetypePromptRegistry: ArchetypePromptRegistry = createEmptyArchetypePromptRegistry();
   private unsubscribeCoreEvents: (() => void) | null = null;
-  private readonly lastWorkerCompletionReportTimestampByAgentId = new Map<
-    string,
-    string
-  >();
+  private readonly lastWorkerCompletionReportTimestampByAgentId = new Map<string, string>();
   private readonly pendingWorkerCompletionReportAgentIds = new Set<string>();
 
   private readonly runtimeContext: SwarmRuntimeContextService;
@@ -168,8 +154,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     super();
 
     const defaultPreset =
-      inferSwarmModelPresetFromDescriptor(config.defaultModel) ??
-      DEFAULT_SWARM_MODEL_PRESET;
+      inferSwarmModelPresetFromDescriptor(config.defaultModel) ?? DEFAULT_SWARM_MODEL_PRESET;
     this.cwdAllowlistRoots = normalizeAllowlistRoots(config.cwdAllowlistRoots);
     this.config = {
       ...config,
@@ -200,8 +185,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.transcript = new SwarmTranscriptService({
       getCore: () => this.coreOrThrow(),
       getAgent: (agentId) => this.lifecycle.getAgent(agentId),
-      resolvePreferredManagerId: () =>
-        this.lifecycle.resolvePreferredManagerId(),
+      resolvePreferredManagerId: () => this.lifecycle.resolvePreferredManagerId(),
       resolveRuntimeErrorMessage: (descriptor, payload) =>
         this.resolveRuntimeErrorMessage(descriptor, payload),
     });
@@ -218,8 +202,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       },
       {
         migrations: MIDDLEMAN_STORE_MIGRATIONS,
-        onHostCall: async (sessionId, request) =>
-          await this.handleHostCall(sessionId, request),
+        onHostCall: async (sessionId, request) => await this.handleHostCall(sessionId, request),
         runRecovery: false,
       },
     );
@@ -232,8 +215,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.secretsEnvService = new SecretsEnvService({
       config: this.config,
       settingsRepo: this.settingsRepo,
-      ensureSkillMetadataLoaded: () =>
-        this.skillMetadataService.ensureSkillMetadataLoaded(),
+      ensureSkillMetadataLoaded: () => this.skillMetadataService.ensureSkillMetadataLoaded(),
       getSkillMetadata: () => this.skillMetadataService.getSkillMetadata(),
     });
 
@@ -281,10 +263,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     return this.lifecycle.getSortedDescriptors(options).map(cloneDescriptor);
   }
 
-  getConversationHistory(
-    agentId?: string,
-    options?: { limit?: number },
-  ): ConversationEntryEvent[] {
+  getConversationHistory(agentId?: string, options?: { limit?: number }): ConversationEntryEvent[] {
     return this.transcript.projectConversationEntries(agentId, options?.limit);
   }
 
@@ -298,9 +277,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   getVisibleTranscript(
     agentId?: string,
     options?: { limit?: number },
-  ): Array<
-    ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent
-  > {
+  ): Array<ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent> {
     return this.transcript.getVisibleTranscript(agentId, options);
   }
 
@@ -343,19 +320,13 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.managerOrderRepoOrThrow().ensure([descriptor.agentId]);
     this.emitStatus(descriptor.agentId, descriptor.status, 0);
     this.emitAgentsSnapshot();
-    await this.lifecycle.sendManagerBootstrapMessage(
-      managerId,
-      async (from, to, message) => {
-        await this.sendMessage(from, to, message, "auto");
-      },
-    );
+    await this.lifecycle.sendManagerBootstrapMessage(managerId, async (from, to, message) => {
+      await this.sendMessage(from, to, message, "auto");
+    });
     return cloneDescriptor(descriptor);
   }
 
-  async spawnAgent(
-    callerAgentId: string,
-    input: SpawnAgentInput,
-  ): Promise<AgentDescriptor> {
+  async spawnAgent(callerAgentId: string, input: SpawnAgentInput): Promise<AgentDescriptor> {
     const manager = this.lifecycle.assertManager(callerAgentId, "spawn agents");
     const requestedAgentId = input.agentId?.trim();
     if (!requestedAgentId) {
@@ -367,13 +338,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       ? await this.runtimeContext.resolveAndValidateCwd(input.cwd)
       : manager.cwd;
     const model = input.model
-      ? resolveModelDescriptorFromPreset(
-          parseSwarmModelPreset(input.model, "spawn_agent.model")!,
-        )
+      ? resolveModelDescriptorFromPreset(parseSwarmModelPreset(input.model, "spawn_agent.model")!)
       : manager.model;
-    const archetypeId = this.lifecycle.resolveSpawnWorkerArchetypeId(
-      input.archetypeId,
-    );
+    const archetypeId = this.lifecycle.resolveSpawnWorkerArchetypeId(input.archetypeId);
     const descriptor = await this.lifecycle.createAgentSessionAndRow({
       agentId,
       role: "worker",
@@ -389,12 +356,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.emitAgentsSnapshot();
 
     if (input.initialMessage?.trim()) {
-      await this.sendMessage(
-        manager.agentId,
-        descriptor.agentId,
-        input.initialMessage,
-        "auto",
-      );
+      await this.sendMessage(manager.agentId, descriptor.agentId, input.initialMessage, "auto");
     }
 
     return cloneDescriptor(descriptor);
@@ -426,19 +388,13 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     stoppedWorkerIds: string[];
     managerStopped: boolean;
   }> {
-    const manager = this.lifecycle.assertManager(
-      callerAgentId,
-      "stop all agents",
-    );
+    const manager = this.lifecycle.assertManager(callerAgentId, "stop all agents");
     if (manager.agentId !== targetManagerId) {
       throw new Error(`Only ${targetManagerId} can stop its team.`);
     }
 
     const workerIds = this.listAgents()
-      .filter(
-        (agent) =>
-          agent.role === "worker" && agent.managerId === targetManagerId,
-      )
+      .filter((agent) => agent.role === "worker" && agent.managerId === targetManagerId)
       .map((agent) => agent.agentId);
     const stoppedWorkerIds: string[] = [];
 
@@ -468,10 +424,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     }
 
     const workerIds = this.listAgents({ includeArchived: true })
-      .filter(
-        (agent) =>
-          agent.role === "worker" && agent.managerId === targetManagerId,
-      )
+      .filter((agent) => agent.role === "worker" && agent.managerId === targetManagerId)
       .map((agent) => agent.agentId);
 
     for (const workerId of workerIds) {
@@ -490,22 +443,15 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     };
   }
 
-  async reorderManagers(
-    callerAgentId: string,
-    managerIds: string[],
-  ): Promise<string[]> {
+  async reorderManagers(callerAgentId: string, managerIds: string[]): Promise<string[]> {
     this.lifecycle.assertManager(callerAgentId, "reorder managers");
     const actualManagerIds = new Set(
       this.lifecycle.listManagers().map((manager) => manager.agentId),
     );
-    const normalized = managerIds
-      .map((managerId) => managerId.trim())
-      .filter(Boolean);
+    const normalized = managerIds.map((managerId) => managerId.trim()).filter(Boolean);
 
     if (normalized.length !== actualManagerIds.size) {
-      throw new Error(
-        "reorder_managers must include every manager exactly once",
-      );
+      throw new Error("reorder_managers must include every manager exactly once");
     }
 
     for (const managerId of normalized) {
@@ -528,8 +474,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       sourceContext?: MessageSourceContext;
     },
   ): Promise<void> {
-    const targetAgentId =
-      options?.targetAgentId ?? this.lifecycle.resolvePreferredManagerId();
+    const targetAgentId = options?.targetAgentId ?? this.lifecycle.resolvePreferredManagerId();
     if (!targetAgentId) {
       throw new Error("No target agent is available.");
     }
@@ -550,15 +495,11 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       },
     };
 
-    this.coreOrThrow().messageService.send(
-      target.agentId,
-      toContentParts(text, attachments),
-      {
-        delivery: toSwarmdDeliveryMode(options?.delivery),
-        role: "user",
-        metadata,
-      },
-    );
+    this.coreOrThrow().messageService.send(target.agentId, toContentParts(text, attachments), {
+      delivery: toSwarmdDeliveryMode(options?.delivery),
+      role: "user",
+      metadata,
+    });
 
     this.emitConversationMessage({
       type: "conversation_message",
@@ -789,18 +730,13 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   ): Promise<ScheduledTask> {
     this.lifecycle.assertManager(managerId, "manage schedules");
     if (schedule.managerId !== managerId) {
-      throw new Error(
-        `Schedule ${schedule.id} does not belong to manager ${managerId}.`,
-      );
+      throw new Error(`Schedule ${schedule.id} does not belong to manager ${managerId}.`);
     }
 
     return this.scheduleRepoOrThrow().update(schedule);
   }
 
-  async removeScheduleForManager(
-    managerId: string,
-    scheduleId: string,
-  ): Promise<ScheduledTask> {
+  async removeScheduleForManager(managerId: string, scheduleId: string): Promise<ScheduledTask> {
     this.lifecycle.assertManager(managerId, "manage schedules");
     const removed = this.scheduleRepoOrThrow().remove(managerId, scheduleId);
     this.emit("schedule_changed", { managerId });
@@ -854,11 +790,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       return;
     }
 
-    this.unsubscribeCoreEvents = this.coreOrThrow().eventBus.subscribe(
-      (event) => {
-        this.handleCoreEvent(event);
-      },
-    );
+    this.unsubscribeCoreEvents = this.coreOrThrow().eventBus.subscribe((event) => {
+      this.handleCoreEvent(event);
+    });
   }
 
   private handleCoreEvent(event: EventEnvelope): void {
@@ -869,9 +803,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     if (event.type === "session.status.changed") {
       const status = readString(readObject(event.payload)?.status);
-      const contextUsage = normalizeContextUsage(
-        readObject(event.payload)?.contextUsage,
-      );
+      const contextUsage = normalizeContextUsage(readObject(event.payload)?.contextUsage);
       if (isAgentStatus(status)) {
         // Live status/context usage changes do not require rebuilding the full
         // agent snapshot for every subscribed client.
@@ -888,10 +820,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
         if (descriptor.role === "worker") {
           this.pendingWorkerCompletionReportAgentIds.delete(descriptor.agentId);
         }
-        const runtimeErrorMessage = this.resolveRuntimeErrorMessage(
-          descriptor,
-          event.payload,
-        );
+        const runtimeErrorMessage = this.resolveRuntimeErrorMessage(descriptor, event.payload);
         const runtimeErrorEvent: ConversationLogEvent = {
           type: "conversation_log",
           agentId: descriptor.agentId,
@@ -904,10 +833,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
         this.persistConversationLog(runtimeErrorEvent);
         this.emitConversationLog(runtimeErrorEvent);
         if (descriptor.role === "worker") {
-          void this.maybeEmitWorkerErrorReport(
-            descriptor.agentId,
-            runtimeErrorMessage,
-          );
+          void this.maybeEmitWorkerErrorReport(descriptor.agentId, runtimeErrorMessage);
         }
         return;
       }
@@ -926,10 +852,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
         return;
       }
       case "message.completed": {
-        const role = this.resolveCompletedMessageRole(
-          descriptor.agentId,
-          event.payload,
-        );
+        const role = this.resolveCompletedMessageRole(descriptor.agentId, event.payload);
         const messageCompletedEvent: ConversationLogEvent = {
           type: "conversation_log",
           agentId: descriptor.agentId,
@@ -941,10 +864,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
         };
         this.persistConversationLog(messageCompletedEvent);
         this.emitConversationLog(messageCompletedEvent);
-        if (
-          descriptor.role === "worker" &&
-          (role === "assistant" || role === "system")
-        ) {
+        if (descriptor.role === "worker" && (role === "assistant" || role === "system")) {
           this.pendingWorkerCompletionReportAgentIds.add(descriptor.agentId);
           void this.maybeEmitWorkerCompletionSummary(descriptor.agentId);
         }
@@ -1001,10 +921,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     }
   }
 
-  private resolveRuntimeErrorMessage(
-    descriptor: AgentDescriptor,
-    payload: unknown,
-  ): string {
+  private resolveRuntimeErrorMessage(descriptor: AgentDescriptor, payload: unknown): string {
     const configuredAuthProvider = this.resolveSettingsAuthProviderForModel(
       descriptor.model.provider,
     );
@@ -1018,9 +935,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     const payloadObject = readObject(payload);
     const errorObject = readObject(payloadObject?.error);
     const message =
-      readString(errorObject?.message)?.trim() ??
-      readString(payloadObject?.message)?.trim() ??
-      "";
+      readString(errorObject?.message)?.trim() ?? readString(payloadObject?.message)?.trim() ?? "";
 
     if (message.length > 0) {
       return message;
@@ -1047,10 +962,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     return undefined;
   }
 
-  private async handleHostCall(
-    sessionId: string,
-    request: HostCallRequest,
-  ): Promise<unknown> {
+  private async handleHostCall(sessionId: string, request: HostCallRequest): Promise<unknown> {
     if (request.method !== "tool_call") {
       throw new Error(`Unsupported host call method: ${request.method}`);
     }
@@ -1075,10 +987,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private async ensureAgentReadyForInput(
     agent: string | AgentDescriptor,
   ): Promise<AgentDescriptor> {
-    const descriptor =
-      typeof agent === "string"
-        ? this.lifecycle.requireDescriptor(agent)
-        : agent;
+    const descriptor = typeof agent === "string" ? this.lifecycle.requireDescriptor(agent) : agent;
     const core = this.coreOrThrow();
 
     if (descriptor.status === "terminated") {
@@ -1175,9 +1084,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     });
   }
 
-  private async maybeEmitWorkerCompletionSummary(
-    agentId: string,
-  ): Promise<void> {
+  private async maybeEmitWorkerCompletionSummary(agentId: string): Promise<void> {
     if (!this.pendingWorkerCompletionReportAgentIds.has(agentId)) {
       return;
     }
@@ -1210,23 +1117,15 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     try {
       await this.sendMessage(agentId, manager.agentId, report.message, "auto");
       if (report.summaryTimestamp) {
-        this.lastWorkerCompletionReportTimestampByAgentId.set(
-          agentId,
-          report.summaryTimestamp,
-        );
+        this.lastWorkerCompletionReportTimestampByAgentId.set(agentId, report.summaryTimestamp);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(
-        `[swarm] Failed to send worker completion summary for ${agentId}: ${message}`,
-      );
+      console.error(`[swarm] Failed to send worker completion summary for ${agentId}: ${message}`);
     }
   }
 
-  private async maybeEmitWorkerErrorReport(
-    agentId: string,
-    errorMessage: string,
-  ): Promise<void> {
+  private async maybeEmitWorkerErrorReport(agentId: string, errorMessage: string): Promise<void> {
     const descriptor = this.lifecycle.getAgent(agentId);
     if (!descriptor || descriptor.role !== "worker") {
       return;
@@ -1246,9 +1145,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(
-        `[swarm] Failed to send worker error report for ${agentId}: ${message}`,
-      );
+      console.error(`[swarm] Failed to send worker error report for ${agentId}: ${message}`);
     }
   }
 
@@ -1277,12 +1174,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       return true;
     }
 
-    core.sessionService.applyRuntimeStatus(
-      agentId,
-      "idle",
-      null,
-      session.contextUsage,
-    );
+    core.sessionService.applyRuntimeStatus(agentId, "idle", null, session.contextUsage);
     return true;
   }
 
@@ -1332,9 +1224,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     contextUsage?: AgentContextUsage | null,
   ): void {
     const resolvedContextUsage =
-      contextUsage === undefined
-        ? (this.getAgent(agentId)?.contextUsage ?? null)
-        : contextUsage;
+      contextUsage === undefined ? (this.getAgent(agentId)?.contextUsage ?? null) : contextUsage;
     this.emit("agent_status", {
       type: "agent_status",
       agentId,
@@ -1394,10 +1284,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   }
 }
 
-function toContentParts(
-  text: string,
-  attachments: ConversationAttachment[],
-): ContentPart[] {
+function toContentParts(text: string, attachments: ConversationAttachment[]): ContentPart[] {
   const parts: ContentPart[] = [{ type: "text", text }];
 
   for (const attachment of attachments) {
@@ -1451,10 +1338,7 @@ function buildWorkerCompletionReport(
 ): { message: string; summaryTimestamp?: string } {
   const latestSummary = findLatestWorkerCompletionSummary(history);
 
-  if (
-    !latestSummary ||
-    latestSummary.timestamp === lastReportedSummaryTimestamp
-  ) {
+  if (!latestSummary || latestSummary.timestamp === lastReportedSummaryTimestamp) {
     return {
       message: `SYSTEM: Worker ${descriptor.agentId} completed its turn.`,
     };
@@ -1519,22 +1403,18 @@ function truncateWorkerCompletionText(text: string): string {
 
   const limit = Math.max(
     0,
-    MAX_WORKER_COMPLETION_REPORT_CHARS -
-      WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX.length,
+    MAX_WORKER_COMPLETION_REPORT_CHARS - WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX.length,
   );
   return `${trimmed.slice(0, limit).trimEnd()}${WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX}`;
 }
 
 function isExpectedShutdownErrorMessage(text: string | undefined): boolean {
   return (
-    typeof text === "string" &&
-    /Worker exited with code null, signal (SIGINT|SIGTERM)/.test(text)
+    typeof text === "string" && /Worker exited with code null, signal (SIGINT|SIGTERM)/.test(text)
   );
 }
 
-function toSwarmdDeliveryMode(
-  delivery?: RequestedDeliveryMode,
-): SwarmdDeliveryMode {
+function toSwarmdDeliveryMode(delivery?: RequestedDeliveryMode): SwarmdDeliveryMode {
   switch (delivery) {
     case "followUp":
       return "queue";

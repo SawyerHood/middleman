@@ -1,17 +1,16 @@
-import { resolveBuildHash } from '../backend/src/build-hash.ts'
-import { defineConfig } from 'vite'
-import { devtools } from '@tanstack/devtools-vite'
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import viteReact from '@vitejs/plugin-react'
-import viteTsConfigPaths from 'vite-tsconfig-paths'
-import { fileURLToPath, URL } from 'node:url'
-import tailwindcss from '@tailwindcss/vite'
-import { nitro } from 'nitro/vite'
+import { resolveBuildHash } from "../backend/src/build-hash.ts";
+import { defineConfig } from "vite";
+import { devtools } from "@tanstack/devtools-vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import viteReact from "@vitejs/plugin-react";
+import viteTsConfigPaths from "vite-tsconfig-paths";
+import { fileURLToPath, URL } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
+import { nitro } from "nitro/vite";
 
-const minifyFlag = process.env.MINIFY?.trim().toLowerCase()
-const buildMinifier =
-  minifyFlag === 'false' || minifyFlag === '0' ? false : 'esbuild'
-const buildHash = resolveBuildHash()
+const minifyFlag = process.env.MINIFY?.trim().toLowerCase();
+const buildMinifier = minifyFlag === "false" || minifyFlag === "0" ? false : "esbuild";
+const buildHash = resolveBuildHash();
 
 const config = defineConfig({
   build: {
@@ -20,12 +19,12 @@ const config = defineConfig({
   },
   define: {
     __BUILD_HASH__: JSON.stringify(buildHash),
-    'import.meta.env.VITE_BUILD_HASH': JSON.stringify(buildHash),
-    'import.meta.env.VITE_MINIFY': JSON.stringify(minifyFlag ?? ''),
+    "import.meta.env.VITE_BUILD_HASH": JSON.stringify(buildHash),
+    "import.meta.env.VITE_MINIFY": JSON.stringify(minifyFlag ?? ""),
   },
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
   plugins: [
@@ -33,7 +32,7 @@ const config = defineConfig({
     nitro({ rollupConfig: { external: [/^@sentry\//] } }),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
-      projects: ['./tsconfig.json'],
+      projects: ["./tsconfig.json"],
     }),
     tailwindcss(),
     tanstackStart({
@@ -43,6 +42,6 @@ const config = defineConfig({
     }),
     viteReact(),
   ],
-})
+});
 
-export default config
+export default config;

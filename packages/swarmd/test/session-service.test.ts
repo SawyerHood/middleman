@@ -188,15 +188,20 @@ describe("SessionService", () => {
       cwd: "/tmp/swarmd",
     });
 
-    const updated = sessionService.applyRuntimeStatus(session.id, "errored", {
-      code: "CLAUDE_QUERY_FAILED",
-      message: "Missing authentication for claude-code.",
-      retryable: true,
-    }, {
-      tokens: 42_000,
-      contextWindow: 200_000,
-      percent: 21,
-    });
+    const updated = sessionService.applyRuntimeStatus(
+      session.id,
+      "errored",
+      {
+        code: "CLAUDE_QUERY_FAILED",
+        message: "Missing authentication for claude-code.",
+        retryable: true,
+      },
+      {
+        tokens: 42_000,
+        contextWindow: 200_000,
+        percent: 21,
+      },
+    );
 
     expect(updated.status).toBe("errored");
     expect(updated.lastError).toEqual({
@@ -265,12 +270,14 @@ describe("SessionService", () => {
     const spawn = createDeferred<void>();
     let capturedConfig: SessionRuntimeConfig | undefined;
 
-    supervisor.spawnWorker.mockImplementationOnce(async (spawnSession: SessionRecord, config: SessionRuntimeConfig) => {
-      supervisor.activeSessions.add(spawnSession.id);
-      capturedConfig = config;
-      await spawn.promise;
-      return undefined as never;
-    });
+    supervisor.spawnWorker.mockImplementationOnce(
+      async (spawnSession: SessionRecord, config: SessionRuntimeConfig) => {
+        supervisor.activeSessions.add(spawnSession.id);
+        capturedConfig = config;
+        await spawn.promise;
+        return undefined as never;
+      },
+    );
 
     const startPromise = sessionService.start(session.id);
 
@@ -316,7 +323,8 @@ describe("SessionService", () => {
   });
 
   it("stops sessions through the supervisor and completes the stop operation", async () => {
-    const { operationService, sessionRepo, sessionService, supervisor } = createTestContext(openDatabases);
+    const { operationService, sessionRepo, sessionService, supervisor } =
+      createTestContext(openDatabases);
     const session = sessionService.create({
       backend: "codex",
       cwd: "/tmp/swarmd",
@@ -340,7 +348,8 @@ describe("SessionService", () => {
   });
 
   it("resets stored session state without exposing raw table mutations", () => {
-    const { events, operationService, sessionRepo, sessionService } = createTestContext(openDatabases);
+    const { events, operationService, sessionRepo, sessionService } =
+      createTestContext(openDatabases);
     const session = sessionService.create({
       backend: "codex",
       cwd: "/tmp/swarmd",
