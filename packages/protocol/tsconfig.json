@@ -4,6 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
+    "noEmit": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "types": []

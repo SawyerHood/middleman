@@ -501,6 +501,86 @@ describe("projectStoredMessage", () => {
       ),
     ).toBeNull();
   });
+
+  it("drops invalid stored metadata instead of casting it into transcript events", () => {
+    expect(
+      projectStoredMessage(
+        makeMessage({
+          id: "user-invalid-metadata",
+          sessionId: "manager-1",
+          source: "user",
+          kind: "text",
+          role: "user",
+          createdAt: "2026-03-15T00:00:10.000Z",
+          content: {
+            parts: [{ type: "text", text: "hello again" }],
+          },
+          metadata: {
+            middleman: {
+              renderAs: "conversation_message",
+              agentId: "manager-1",
+              source: "user_input",
+              attachments: [
+                { type: "text", mimeType: "text/plain", fileName: "note.txt" },
+                { type: "binary", mimeType: 42 },
+                "bad-row",
+              ],
+              sourceContext: {
+                channel: "cli",
+              },
+            },
+          },
+        }),
+      ),
+    ).toEqual({
+      type: "conversation_message",
+      agentId: "manager-1",
+      role: "user",
+      text: "hello again",
+      attachments: [
+        { type: "text", mimeType: "text/plain", fileName: "note.txt" },
+      ],
+      timestamp: "2026-03-15T00:00:10.000Z",
+      historyCursor:
+        "2026-03-15T00:00:10.000Z|manager-1|2026-03-15T00:00:10.000Z:user-invalid-metadata|user-invalid-metadata",
+      source: "user_input",
+      sourceContext: undefined,
+    });
+
+    expect(
+      projectStoredMessage(
+        makeMessage({
+          id: "tool-invalid-context",
+          sessionId: "manager-1",
+          source: "tool",
+          kind: "tool_result",
+          role: "tool",
+          createdAt: "2026-03-15T00:00:11.000Z",
+          content: {
+            toolName: "speak_to_user",
+            result: {
+              details: {
+                text: "hello from details",
+                targetContext: {
+                  channel: "desktop",
+                },
+              },
+            },
+          },
+        }),
+      ),
+    ).toEqual({
+      type: "conversation_message",
+      agentId: "manager-1",
+      role: "assistant",
+      text: "hello from details",
+      timestamp: "2026-03-15T00:00:11.000Z",
+      historyCursor:
+        "2026-03-15T00:00:11.000Z|manager-1|2026-03-15T00:00:11.000Z:tool-invalid-context|tool-invalid-context",
+      source: "speak_to_user",
+      sourceContext: undefined,
+    });
+  });
 });
 
 describe("SwarmTranscriptService", () => {

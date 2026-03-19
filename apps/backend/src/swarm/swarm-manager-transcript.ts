@@ -12,7 +12,6 @@ import type {
   ConversationLogEvent,
   ConversationMessageEvent,
   MessageSourceContext,
-  MessageTargetContext,
   RequestedDeliveryMode,
   SendMessageReceipt,
 } from "./types.js";
@@ -368,9 +367,7 @@ export function projectStoredMessage(
       timestamp: message.createdAt,
       historyCursor,
       source: readConversationSource(middleman?.source, message.role),
-      sourceContext: readObject(middleman?.sourceContext) as
-        | MessageSourceContext
-        | undefined,
+      sourceContext: readSourceContext(middleman?.sourceContext),
     };
   }
 
@@ -419,9 +416,7 @@ export function projectStoredMessage(
       timestamp: message.createdAt,
       historyCursor,
       source: "system",
-      sourceContext: readObject(middleman?.sourceContext) as
-        | MessageSourceContext
-        | undefined,
+      sourceContext: readSourceContext(middleman?.sourceContext),
     };
   }
 
@@ -446,9 +441,7 @@ export function projectStoredMessage(
         timestamp: message.createdAt,
         historyCursor,
         source: "speak_to_user",
-        sourceContext: readObject(details?.targetContext) as
-          | MessageSourceContext
-          | undefined,
+        sourceContext: readSourceContext(details?.targetContext),
       };
     }
 
@@ -517,14 +510,6 @@ export function buildAttachmentMetadata(
   }));
 }
 
-export function toTargetContext(
-  sourceContext: MessageSourceContext,
-): MessageTargetContext {
-  return {
-    channel: sourceContext.channel,
-  };
-}
-
 export function readObject(
   value: unknown,
 ): Record<string, unknown> | undefined {
@@ -549,14 +534,14 @@ export function readRole(
     : undefined;
 }
 
-export function readConversationSource(
+function readConversationSource(
   value: unknown,
   role: "user" | "assistant" | "system",
 ): "user_input" | "system" {
   return value === "system" || role === "system" ? "system" : "user_input";
 }
 
-export function readRequestedDeliveryMode(
+function readRequestedDeliveryMode(
   value: unknown,
 ): RequestedDeliveryMode | undefined {
   return value === "auto" || value === "followUp" || value === "steer"
@@ -564,7 +549,7 @@ export function readRequestedDeliveryMode(
     : undefined;
 }
 
-export function readAcceptedDeliveryMode(
+function readAcceptedDeliveryMode(
   value: unknown,
 ): SendMessageReceipt["acceptedMode"] | undefined {
   return value === "prompt" || value === "followUp" || value === "steer"
@@ -572,7 +557,7 @@ export function readAcceptedDeliveryMode(
     : undefined;
 }
 
-export function readConversationLogKind(
+function readConversationLogKind(
   value: unknown,
 ): ConversationLogEvent["kind"] | undefined {
   return value === "message_start" ||
@@ -584,7 +569,7 @@ export function readConversationLogKind(
     : undefined;
 }
 
-export function readAgentToolCallKind(
+function readAgentToolCallKind(
   value: unknown,
 ): AgentToolCallEvent["kind"] | undefined {
   return value === "tool_execution_start" ||
@@ -594,12 +579,83 @@ export function readAgentToolCallKind(
     : undefined;
 }
 
-export function readAttachments(
+function readSourceContext(
+  value: unknown,
+): MessageSourceContext | undefined {
+  const context = readObject(value);
+  if (!context) {
+    return undefined;
+  }
+
+  const channel = readString(context.channel);
+  if (channel !== "web") {
+    return undefined;
+  }
+
+  return {
+    channel,
+  };
+}
+
+function readAttachments(
   value: unknown,
 ): ConversationAttachmentMetadata[] | undefined {
-  return Array.isArray(value)
-    ? (value as ConversationAttachmentMetadata[])
-    : undefined;
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const attachments = value
+    .map(readAttachmentMetadata)
+    .filter(
+      (attachment): attachment is ConversationAttachmentMetadata =>
+        attachment !== undefined,
+    );
+
+  return attachments.length > 0 ? attachments : undefined;
+}
+
+function readAttachmentMetadata(
+  value: unknown,
+): ConversationAttachmentMetadata | undefined {
+  const attachment = readObject(value);
+  if (!attachment) {
+    return undefined;
+  }
+
+  const mimeType = readString(attachment.mimeType)?.trim();
+  if (!mimeType) {
+    return undefined;
+  }
+
+  const type = readString(attachment.type);
+  if (
+    type !== undefined &&
+    type !== "image" &&
+    type !== "text" &&
+    type !== "binary"
+  ) {
+    return undefined;
+  }
+
+  const fileName = readString(attachment.fileName);
+  const filePath = readString(attachment.filePath);
+  const sizeBytes = attachment.sizeBytes;
+  if (
+    sizeBytes !== undefined &&
+    (typeof sizeBytes !== "number" ||
+      !Number.isFinite(sizeBytes) ||
+      sizeBytes < 0)
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(type ? { type } : {}),
+    mimeType,
+    ...(fileName ? { fileName } : {}),
+    ...(filePath ? { filePath } : {}),
+    ...(sizeBytes !== undefined ? { sizeBytes } : {}),
+  };
 }
 
 export function safeJson(value: unknown): string {
@@ -615,7 +671,7 @@ export function extractEventText(payload: unknown): string | undefined {
   return readString(object?.text);
 }
 
-export function extractStoredMessageText(content: unknown): string {
+function extractStoredMessageText(content: unknown): string {
   const object = readObject(content);
   const directText = readString(object?.text);
   if (directText) {
@@ -649,7 +705,7 @@ export function extractStoredMessageText(content: unknown): string {
   return extractToolResultContentText(object?.contentItems) ?? "";
 }
 
-export function extractToolResultContentText(
+function extractToolResultContentText(
   value: unknown,
 ): string | undefined {
   if (!Array.isArray(value)) {
@@ -664,7 +720,7 @@ export function extractToolResultContentText(
   return text.length > 0 ? text : undefined;
 }
 
-export function extractStoredMessageAttachments(
+function extractStoredMessageAttachments(
   content: unknown,
 ): ConversationAttachmentMetadata[] {
   const object = readObject(content);

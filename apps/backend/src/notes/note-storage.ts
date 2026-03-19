@@ -12,6 +12,12 @@ import {
 } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
 import mime from "mime";
+import type {
+  NoteDocument,
+  NoteFolder,
+  NoteSummary,
+  NoteTreeNode,
+} from "@middleman/protocol";
 
 const NOTES_DIRECTORY_NAME = "notes";
 const NOTES_ATTACHMENTS_DIRECTORY_NAME = "attachments";
@@ -19,48 +25,6 @@ const MARKDOWN_EXTENSION = ".md";
 const NOTE_PATH_MAX_LENGTH = 512;
 const NOTE_SEGMENT_MAX_LENGTH = 180;
 const NOTE_ATTACHMENT_FALLBACK_EXTENSION = "png";
-
-export interface StoredNoteSummary {
-  path: string;
-  name: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  sizeBytes: number;
-}
-
-export interface StoredNoteDocument extends StoredNoteSummary {
-  content: string;
-}
-
-export interface StoredNoteFileNode extends StoredNoteSummary {
-  kind: "file";
-}
-
-export interface StoredNoteFolderNode {
-  kind: "folder";
-  path: string;
-  name: string;
-  children: StoredNoteTreeNode[];
-}
-
-export type StoredNoteTreeNode = StoredNoteFileNode | StoredNoteFolderNode;
-
-export interface SaveNoteResult {
-  created: boolean;
-  note: StoredNoteDocument;
-}
-
-export interface CreateFolderResult {
-  created: boolean;
-  folder: StoredNoteFolderNode;
-}
-
-export interface StoredNoteAttachment {
-  filename: string;
-  path: string;
-  filePath: string;
-}
 
 interface NormalizedNotePath {
   path: string;
@@ -83,16 +47,12 @@ export function resolveNotesDir(dataDir: string): string {
   return resolve(dataDir, NOTES_DIRECTORY_NAME);
 }
 
-export function resolveNoteAttachmentsDir(dataDir: string): string {
-  return resolve(resolveNotesDir(dataDir), NOTES_ATTACHMENTS_DIRECTORY_NAME);
-}
-
-export async function listNotesTree(dataDir: string): Promise<StoredNoteTreeNode[]> {
+export async function listNotesTree(dataDir: string): Promise<NoteTreeNode[]> {
   const notesDir = await ensureNotesDir(dataDir);
   return listTreeEntries(notesDir, []);
 }
 
-export async function readNote(dataDir: string, rawPath: string): Promise<StoredNoteDocument> {
+export async function readNote(dataDir: string, rawPath: string): Promise<NoteDocument> {
   const notePath = normalizeNotePath(rawPath);
   const notesDir = await ensureNotesDir(dataDir);
   const filePath = await resolveExistingEntryPath(notesDir, notePath, "file");
@@ -112,7 +72,7 @@ export async function saveNote(
   dataDir: string,
   rawPath: string,
   content: string
-): Promise<SaveNoteResult> {
+): Promise<{ created: boolean; note: NoteDocument }> {
   const notePath = normalizeNotePath(rawPath);
   const notesDir = await ensureNotesDir(dataDir);
   const parentDirectoryPath = await ensureDirectoryChain(notesDir, notePath.parentSegments);
@@ -148,7 +108,7 @@ export async function renameNote(
   dataDir: string,
   rawPath: string,
   rawNewPath: string
-): Promise<StoredNoteDocument> {
+): Promise<NoteDocument> {
   const currentPath = normalizeNotePath(rawPath);
   const nextPath = normalizeNotePath(rawNewPath, "newFilename");
 
@@ -177,7 +137,7 @@ export async function deleteNote(dataDir: string, rawPath: string): Promise<void
 export async function createFolder(
   dataDir: string,
   rawPath: string
-): Promise<CreateFolderResult> {
+): Promise<{ created: boolean; folder: NoteFolder }> {
   const folderPath = normalizeFolderPath(rawPath);
   const notesDir = await ensureNotesDir(dataDir);
   const parentDirectoryPath = await ensureDirectoryChain(notesDir, folderPath.parentSegments);
@@ -220,7 +180,7 @@ export async function saveNoteAttachment(
     fileName?: string;
     mimeType?: string;
   }
-): Promise<StoredNoteAttachment> {
+): Promise<{ filename: string; path: string; filePath: string }> {
   const attachmentsDir = await ensureNoteAttachmentsDir(dataDir);
   const extension = resolveAttachmentExtension(options);
   const fileName = buildAttachmentFileName(options.data, extension);
@@ -245,7 +205,7 @@ export async function saveNoteAttachment(
 export async function readNoteAttachment(
   dataDir: string,
   rawFilename: string
-): Promise<StoredNoteAttachment> {
+): Promise<{ filename: string; path: string; filePath: string }> {
   const filename = normalizeAttachmentFileName(rawFilename);
   const attachmentsDir = await ensureNoteAttachmentsDir(dataDir);
   const filePath = resolve(attachmentsDir, filename);
@@ -270,9 +230,9 @@ export async function readNoteAttachment(
 async function listTreeEntries(
   directoryPath: string,
   parentSegments: string[]
-): Promise<StoredNoteTreeNode[]> {
+): Promise<NoteTreeNode[]> {
   const entries = await readdir(directoryPath, { withFileTypes: true });
-  const nodes = await Promise.all(entries.map(async (entry): Promise<StoredNoteTreeNode | null> => {
+  const nodes = await Promise.all(entries.map(async (entry): Promise<NoteTreeNode | null> => {
     const currentSegments = [...parentSegments, entry.name];
     const currentPath = currentSegments.join("/");
     const absolutePath = resolve(directoryPath, entry.name);
@@ -313,7 +273,7 @@ async function listTreeEntries(
     };
   }));
 
-  return sortTreeNodes(nodes.filter((node): node is StoredNoteTreeNode => node !== null));
+  return sortTreeNodes(nodes.filter((node): node is NoteTreeNode => node !== null));
 }
 
 async function ensureNotesDir(dataDir: string): Promise<string> {
@@ -527,7 +487,7 @@ function toStoredNoteSummary(
   notePath: string,
   fileStats: { birthtime: Date; birthtimeMs: number; mtime: Date; size: number },
   content: string
-): StoredNoteSummary {
+): NoteSummary {
   const createdAt =
     fileStats.birthtimeMs > 0 ? fileStats.birthtime.toISOString() : fileStats.mtime.toISOString();
   const noteName = basename(notePath);
@@ -560,7 +520,7 @@ function extractNoteTitle(noteName: string, content: string): string {
   return baseTitle.replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-function sortTreeNodes(nodes: StoredNoteTreeNode[]): StoredNoteTreeNode[] {
+function sortTreeNodes(nodes: NoteTreeNode[]): NoteTreeNode[] {
   return [...nodes].sort((left, right) => {
     if (left.kind !== right.kind) {
       return left.kind === "folder" ? -1 : 1;

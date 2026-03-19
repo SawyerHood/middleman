@@ -8,10 +8,8 @@ import type {
   BackendCheckpoint,
   BackendKind,
   DeliveryMode,
-  SessionContextUsage,
   SessionErrorInfo,
   SessionRuntimeConfig,
-  SessionStatus,
   UserInput,
 } from "../../core/types/index.js";
 import {
@@ -362,7 +360,6 @@ export class ScriptedBackendAdapter implements BackendAdapter {
   readonly kind: BackendKind;
   readonly capabilities: BackendCapabilities;
 
-  private config: SessionRuntimeConfig | null = null;
   private checkpoint: BackendCheckpoint | null = null;
   private sessionId = "mock-session";
   private fixture: ScriptedRuntimeFixture = { sessions: {} };
@@ -391,7 +388,6 @@ export class ScriptedBackendAdapter implements BackendAdapter {
       throw new Error("Mock runtime requested without backendConfig.mockRuntime.");
     }
 
-    this.config = config;
     this.turnCounter = 0;
     this.isShuttingDown = false;
     this.pendingTurns = [];
