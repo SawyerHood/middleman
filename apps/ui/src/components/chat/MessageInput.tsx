@@ -422,8 +422,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 className={cn(
                   "size-7 rounded-full transition-all",
                   stopInProgress
-                    ? "cursor-default bg-destructive/70 text-destructive-foreground"
-                    : "bg-destructive text-destructive-foreground hover:bg-destructive/90 active:scale-95",
+                    ? "cursor-default bg-secondary/70 text-secondary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80 active:scale-95",
                 )}
                 onClick={() => onStop?.()}
                 aria-label={stopLabel}
