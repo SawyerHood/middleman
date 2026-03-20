@@ -5,7 +5,6 @@ import {
   MessageRepo,
   OperationRepo,
   OperationService,
-  SessionBackendStateRepo,
   SessionRepo,
   SessionService,
   createDatabase,
@@ -72,7 +71,6 @@ function createTestContext(openDatabases: Database[]): TestContext {
 
   const sessionRepo = new SessionRepo(db);
   const messageRepo = new MessageRepo(db);
-  const sessionBackendStateRepo = new SessionBackendStateRepo(db);
   const operationRepo = new OperationRepo(db);
   const eventBus = new EventBus();
   const operationService = new OperationService(operationRepo, eventBus);
@@ -81,7 +79,6 @@ function createTestContext(openDatabases: Database[]): TestContext {
     sessionRepo,
     messageRepo,
     operationRepo,
-    sessionBackendStateRepo,
     supervisor as unknown as RuntimeSupervisor,
     eventBus,
     operationService,
@@ -119,7 +116,6 @@ describe("SessionService", () => {
       backend: "codex",
       cwd: "/tmp/swarmd",
       displayName: "Primary Session",
-      metadata: { owner: "manager" },
     });
 
     expect(session).toEqual({
@@ -130,7 +126,6 @@ describe("SessionService", () => {
       cwd: "/tmp/swarmd",
       model: "",
       systemPrompt: undefined,
-      metadata: { owner: "manager" },
       backendCheckpoint: null,
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
@@ -150,13 +145,12 @@ describe("SessionService", () => {
     });
   });
 
-  it("uses caller-provided ids and updates metadata, display names, and checkpoints", () => {
+  it("uses caller-provided ids and updates display names, checkpoints, and backend state", () => {
     const { sessionService } = createTestContext(openDatabases);
     const session = sessionService.create({
       id: "my-agent",
       backend: "claude",
       cwd: "/tmp/swarmd",
-      metadata: { owner: "manager" },
     });
 
     const checkpoint: BackendCheckpoint = {
@@ -165,20 +159,19 @@ describe("SessionService", () => {
       resumeAtMessageId: "msg_123",
     };
 
-    const metadataUpdated = sessionService.updateMetadata(session.id, {
-      owner: "operator",
-      priority: "high",
-    });
     const renamed = sessionService.updateDisplayName(session.id, "Renamed Session");
     const checkpointUpdated = sessionService.updateCheckpoint(session.id, checkpoint);
+    const backendStateUpdated = sessionService.updateBackendState(session.id, {
+      sessionId: "claude-session-1",
+    });
 
     expect(session.id).toBe("my-agent");
-    expect(metadataUpdated.metadata).toEqual({
-      owner: "operator",
-      priority: "high",
+    expect(sessionService.getBackendState(session.id)).toEqual({
+      sessionId: "claude-session-1",
     });
     expect(renamed.displayName).toBe("Renamed Session");
     expect(checkpointUpdated.backendCheckpoint).toEqual(checkpoint);
+    expect(backendStateUpdated.id).toBe(session.id);
   });
 
   it("persists runtime errors and context usage when a worker reports runtime status", () => {
@@ -266,6 +259,7 @@ describe("SessionService", () => {
         experimentalRawEvents: true,
       },
     });
+    sessionService.updateBackendState(session.id, { thread: "abc" });
 
     const spawn = createDeferred<void>();
     let capturedConfig: SessionRuntimeConfig | undefined;
@@ -301,6 +295,9 @@ describe("SessionService", () => {
       backendConfig: {
         command: "codex",
         experimentalRawEvents: true,
+      },
+      backendState: {
+        thread: "abc",
       },
     });
     expect(events.slice(-2)).toEqual([

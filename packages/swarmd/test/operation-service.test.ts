@@ -36,7 +36,6 @@ function createTestContext(openDatabases: Database[]): TestContext {
     cwd: "/tmp/swarmd",
     model: "gpt-5",
     systemPrompt: "You are swarmd.",
-    metadata: { role: "manager" },
     backendCheckpoint: null,
     createdAt: "2026-03-13T00:00:00.000Z",
     updatedAt: "2026-03-13T00:00:00.000Z",

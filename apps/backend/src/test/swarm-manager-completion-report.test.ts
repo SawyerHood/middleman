@@ -22,7 +22,6 @@ import {
   MessageStore,
   OperationRepo,
   OperationService,
-  SessionBackendStateRepo,
   SessionRepo,
   SessionService,
   createDatabase,
@@ -120,7 +119,6 @@ async function createHarness(): Promise<Harness> {
   const sessionRepo = new SessionRepo(db);
   const messageRepo = new MessageRepo(db);
   const operationRepo = new OperationRepo(db);
-  const sessionBackendStateRepo = new SessionBackendStateRepo(db);
   const eventBus = new EventBus();
   const supervisor = createSupervisorMock();
   const messageStore = new MessageStore(sessionRepo, messageRepo);
@@ -130,7 +128,6 @@ async function createHarness(): Promise<Harness> {
     sessionRepo,
     messageRepo,
     operationRepo,
-    sessionBackendStateRepo,
     supervisor as never,
     eventBus,
     operationService,

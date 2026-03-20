@@ -18,7 +18,6 @@ function createSession(sessionId = "message-store-session"): SessionRecord {
     displayName: "Message Store Session",
     cwd: "/tmp/swarmd-message-store",
     model: "gpt-5",
-    metadata: {},
     backendCheckpoint: null,
     createdAt: "2026-03-13T00:00:00.000Z",
     updatedAt: "2026-03-13T00:00:00.000Z",

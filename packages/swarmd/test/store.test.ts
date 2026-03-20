@@ -35,7 +35,6 @@ describe("SQLite store repositories", () => {
       cwd: "/tmp/swarmd",
       model: "gpt-5",
       systemPrompt: "You are swarmd.",
-      metadata: { role: "manager" },
       backendCheckpoint: { backend: "codex", threadId: "backend-thread-1" },
       createdAt: "2026-03-13T00:00:00.000Z",
       updatedAt: "2026-03-13T00:00:00.000Z",
@@ -79,6 +78,39 @@ describe("SQLite store repositories", () => {
     expect(storedOperation?.completedAt).not.toBeNull();
   });
 
+  it("stores backend state inside session metadata without exposing generic session metadata", () => {
+    const db = createDatabase(":memory:");
+    openDatabases.push(db);
+    runMigrations(db);
+
+    const sessionRepo = new SessionRepo(db);
+
+    const session: SessionRecord = {
+      id: "session-with-backend-state",
+      backend: "claude",
+      status: "created",
+      displayName: "Claude Session",
+      cwd: "/tmp/swarmd",
+      model: "claude-sonnet",
+      systemPrompt: undefined,
+      backendCheckpoint: null,
+      createdAt: "2026-03-13T00:00:00.000Z",
+      updatedAt: "2026-03-13T00:00:00.000Z",
+      lastError: null,
+      contextUsage: null,
+    };
+
+    sessionRepo.create(session);
+    sessionRepo.updateBackendState(session.id, { sessionId: "claude-session-1" });
+
+    expect(sessionRepo.getBackendState(session.id)).toEqual({
+      sessionId: "claude-session-1",
+    });
+
+    sessionRepo.clearBackendState(session.id);
+    expect(sessionRepo.getBackendState(session.id)).toBeNull();
+  });
+
   it("hides archived sessions from list() unless explicitly included", () => {
     const db = createDatabase(":memory:");
     openDatabases.push(db);
@@ -94,7 +126,6 @@ describe("SQLite store repositories", () => {
       cwd: "/tmp/swarmd",
       model: "gpt-5",
       systemPrompt: undefined,
-      metadata: {},
       backendCheckpoint: null,
       createdAt: "2026-03-13T00:00:00.000Z",
       updatedAt: "2026-03-13T00:00:00.000Z",

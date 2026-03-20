@@ -85,7 +85,6 @@ async function createHarness(): Promise<Harness> {
         cwd: input.cwd,
         model: input.model ?? "",
         systemPrompt: input.systemPrompt,
-        metadata: {},
         backendCheckpoint: null,
         createdAt: timestamp,
         updatedAt: timestamp,
