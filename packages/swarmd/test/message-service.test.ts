@@ -50,7 +50,6 @@ function seedSession(sessionRepo: SessionRepo, status: SessionStatus): SessionRe
     cwd: "/tmp/swarmd",
     model: "gpt-5",
     systemPrompt: "You are swarmd.",
-    metadata: { suite: "message-service" },
     backendCheckpoint: null,
     createdAt: "2026-03-13T00:00:00.000Z",
     updatedAt: "2026-03-13T00:00:00.000Z",

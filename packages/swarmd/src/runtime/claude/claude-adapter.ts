@@ -318,16 +318,11 @@ export function createClaudeBackendAdapter(
 }
 
 function normalizeClaudeSdkModule(value: unknown): ClaudeSdkModule {
-  const maybeModule =
-    value && typeof value === "object" && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
-
-  if (!maybeModule || typeof maybeModule.query !== "function") {
+  if (!isClaudeSdkModule(value)) {
     throw new Error('Claude Agent SDK module is missing the required "query" entry point.');
   }
 
-  return maybeModule as unknown as ClaudeSdkModule;
+  return value;
 }
 
 function isMissingClaudeSdk(error: unknown): boolean {
@@ -353,6 +348,14 @@ function toErrorMessage(error: unknown): string {
 
 function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function isClaudeSdkModule(value: unknown): value is ClaudeSdkModule {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  return typeof Reflect.get(value, "query") === "function";
 }
 
 function readStringRecord(value: unknown): Record<string, string> | undefined {

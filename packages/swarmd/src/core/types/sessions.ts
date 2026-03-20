@@ -79,7 +79,6 @@ export interface SessionRecord {
   cwd: string;
   model: string;
   systemPrompt?: string;
-  metadata: Record<string, unknown>;
   backendCheckpoint: BackendCheckpoint | null;
   createdAt: string;
   updatedAt: string;
@@ -95,7 +94,6 @@ export const sessionRecordSchema = z.object({
   cwd: z.string(),
   model: z.string(),
   systemPrompt: z.string().optional(),
-  metadata: metadataSchema,
   backendCheckpoint: backendCheckpointSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -110,7 +108,6 @@ export interface CreateSessionInput {
   cwd: string;
   model?: string;
   systemPrompt?: string;
-  metadata?: Record<string, unknown>;
   autoStart?: boolean;
   deliveryDefaults?: { busyMode: DeliveryMode };
   backendConfig?: Record<string, unknown>;
@@ -123,7 +120,6 @@ export const createSessionInputSchema = z.object({
   cwd: z.string(),
   model: z.string().optional(),
   systemPrompt: z.string().optional(),
-  metadata: metadataSchema.optional(),
   autoStart: z.boolean().optional(),
   deliveryDefaults: z
     .object({

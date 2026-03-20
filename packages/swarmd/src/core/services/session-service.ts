@@ -1,12 +1,7 @@
 import { generateEventId, generateSessionId } from "../ids.js";
 import type { EventBus } from "../events/index.js";
 import type { OperationService } from "./operation-service.js";
-import type {
-  MessageRepo,
-  OperationRepo,
-  SessionBackendStateRepo,
-  SessionRepo,
-} from "../store/index.js";
+import type { MessageRepo, OperationRepo, SessionRepo } from "../store/index.js";
 import type { RuntimeSupervisor } from "../supervisor/runtime-supervisor.js";
 import type {
   BackendCheckpoint,
@@ -39,7 +34,6 @@ export class SessionService {
     private sessionRepo: SessionRepo,
     private messageRepo: MessageRepo,
     private operationRepo: OperationRepo,
-    private sessionBackendStateRepo: SessionBackendStateRepo,
     private supervisor: RuntimeSupervisor,
     private eventBus: EventBus,
     private operationService: OperationService,
@@ -57,7 +51,6 @@ export class SessionService {
       cwd: input.cwd,
       model: input.model ?? DEFAULT_MODELS[input.backend] ?? "",
       systemPrompt: input.systemPrompt,
-      metadata: { ...(input.metadata ?? {}) },
       backendCheckpoint: null,
       createdAt: now,
       updatedAt: now,
@@ -264,12 +257,6 @@ export class SessionService {
       .filter((session): session is SessionRecord => session !== null);
   }
 
-  updateMetadata(sessionId: string, metadata: Record<string, unknown>): SessionRecord {
-    this.getOrThrow(sessionId);
-    this.sessionRepo.updateMetadata(sessionId, { ...metadata });
-    return this.getOrThrow(sessionId);
-  }
-
   updateDisplayName(sessionId: string, displayName: string): SessionRecord {
     this.getOrThrow(sessionId);
     this.sessionRepo.updateDisplayName(sessionId, displayName);
@@ -328,12 +315,12 @@ export class SessionService {
 
   getBackendState(sessionId: string): Record<string, unknown> | null {
     this.getOrThrow(sessionId);
-    return this.sessionBackendStateRepo.getBySessionId(sessionId)?.state ?? null;
+    return this.sessionRepo.getBackendState(sessionId);
   }
 
   updateBackendState(sessionId: string, state: Record<string, unknown>): SessionRecord {
-    const session = this.getOrThrow(sessionId);
-    this.sessionBackendStateRepo.upsert(sessionId, session.backend, state);
+    this.getOrThrow(sessionId);
+    this.sessionRepo.updateBackendState(sessionId, state);
     return this.getOrThrow(sessionId);
   }
 
@@ -352,7 +339,7 @@ export class SessionService {
 
     this.messageRepo.deleteBySession(sessionId);
     this.operationRepo.deleteBySession(sessionId);
-    this.sessionBackendStateRepo.delete(sessionId);
+    this.sessionRepo.clearBackendState(sessionId);
     this.sessionRepo.resetState(sessionId, input);
 
     const updated = this.getOrThrow(sessionId);

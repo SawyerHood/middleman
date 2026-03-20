@@ -13,9 +13,7 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         manager_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
         archetype_id TEXT,
         memory_owner_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-        reply_target_json TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        reply_target_json TEXT
       );
 
       CREATE TABLE IF NOT EXISTS middleman_manager_order (
@@ -27,7 +25,6 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         namespace TEXT NOT NULL,
         key TEXT NOT NULL,
         value_json TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
         PRIMARY KEY (namespace, key)
       );
 
@@ -51,6 +48,53 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         ON middleman_schedules(manager_session_id, next_fire_at, created_at);
     `,
   },
+  {
+    id: "middleman_002_drop_dead_agent_and_settings_columns",
+    sql: `
+      CREATE TABLE middleman_agents_next (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+        role TEXT NOT NULL CHECK (role IN ('manager', 'worker')),
+        manager_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        archetype_id TEXT,
+        memory_owner_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        reply_target_json TEXT
+      );
+
+      INSERT INTO middleman_agents_next (
+        session_id,
+        role,
+        manager_session_id,
+        archetype_id,
+        memory_owner_session_id,
+        reply_target_json
+      )
+      SELECT
+        session_id,
+        role,
+        manager_session_id,
+        archetype_id,
+        memory_owner_session_id,
+        reply_target_json
+      FROM middleman_agents;
+
+      DROP TABLE middleman_agents;
+      ALTER TABLE middleman_agents_next RENAME TO middleman_agents;
+
+      CREATE TABLE middleman_settings_next (
+        namespace TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        PRIMARY KEY (namespace, key)
+      );
+
+      INSERT INTO middleman_settings_next (namespace, key, value_json)
+      SELECT namespace, key, value_json
+      FROM middleman_settings;
+
+      DROP TABLE middleman_settings;
+      ALTER TABLE middleman_settings_next RENAME TO middleman_settings;
+    `,
+  },
 ];
 
 export interface MiddlemanAgentRow {
@@ -60,8 +104,6 @@ export interface MiddlemanAgentRow {
   archetypeId?: string;
   memoryOwnerSessionId: string;
   replyTarget?: MessageTargetContext;
-  createdAt: string;
-  updatedAt: string;
 }
 
 function nowIso(): string {
@@ -137,8 +179,6 @@ export class MiddlemanAgentRepo {
           archetype_id: string | null;
           memory_owner_session_id: string;
           reply_target_json: string | null;
-          created_at: string;
-          updated_at: string;
         }
       >(
         `SELECT
@@ -147,11 +187,9 @@ export class MiddlemanAgentRepo {
            manager_session_id,
            archetype_id,
            memory_owner_session_id,
-           reply_target_json,
-           created_at,
-           updated_at
+           reply_target_json
          FROM middleman_agents
-         ORDER BY created_at ASC`,
+         ORDER BY manager_session_id ASC, session_id ASC`,
       )
       .all()
       .map(
@@ -162,8 +200,6 @@ export class MiddlemanAgentRepo {
           archetype_id: string | null;
           memory_owner_session_id: string;
           reply_target_json: string | null;
-          created_at: string;
-          updated_at: string;
         }) => ({
           sessionId: row.session_id,
           role: row.role,
@@ -173,8 +209,6 @@ export class MiddlemanAgentRepo {
           replyTarget: row.reply_target_json
             ? (parseJsonObject(row.reply_target_json) as MessageTargetContext)
             : undefined,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
         }),
       );
   }
@@ -190,9 +224,7 @@ export class MiddlemanAgentRepo {
     archetypeId?: string;
     memoryOwnerSessionId: string;
     replyTarget?: MessageTargetContext;
-    createdAt?: string;
   }): MiddlemanAgentRow {
-    const createdAt = input.createdAt ?? nowIso();
     this.db
       .prepare<{
         session_id: string;
@@ -201,8 +233,6 @@ export class MiddlemanAgentRepo {
         archetype_id: string | null;
         memory_owner_session_id: string;
         reply_target_json: string | null;
-        created_at: string;
-        updated_at: string;
       }>(
         `INSERT INTO middleman_agents (
            session_id,
@@ -210,18 +240,14 @@ export class MiddlemanAgentRepo {
            manager_session_id,
            archetype_id,
            memory_owner_session_id,
-           reply_target_json,
-           created_at,
-           updated_at
+           reply_target_json
          ) VALUES (
            @session_id,
            @role,
            @manager_session_id,
            @archetype_id,
            @memory_owner_session_id,
-           @reply_target_json,
-           @created_at,
-           @updated_at
+           @reply_target_json
          )`,
       )
       .run({
@@ -231,8 +257,6 @@ export class MiddlemanAgentRepo {
         archetype_id: input.archetypeId ?? null,
         memory_owner_session_id: input.memoryOwnerSessionId,
         reply_target_json: input.replyTarget ? serializeJson(input.replyTarget) : null,
-        created_at: createdAt,
-        updated_at: createdAt,
       });
 
     return this.get(input.sessionId)!;
@@ -240,16 +264,14 @@ export class MiddlemanAgentRepo {
 
   updateReplyTarget(sessionId: string, replyTarget?: MessageTargetContext): void {
     this.db
-      .prepare<{ session_id: string; reply_target_json: string | null; updated_at: string }>(
+      .prepare<{ session_id: string; reply_target_json: string | null }>(
         `UPDATE middleman_agents
-         SET reply_target_json = @reply_target_json,
-             updated_at = @updated_at
+         SET reply_target_json = @reply_target_json
          WHERE session_id = @session_id`,
       )
       .run({
         session_id: sessionId,
         reply_target_json: replyTarget ? serializeJson(replyTarget) : null,
-        updated_at: nowIso(),
       });
   }
 
@@ -578,22 +600,6 @@ export class MiddlemanScheduleRepo {
 export class MiddlemanSettingsRepo {
   constructor(private readonly db: Database) {}
 
-  listNamespace(namespace: string): Array<{ key: string; value: unknown; updatedAt: string }> {
-    return this.db
-      .prepare<{ namespace: string }, { key: string; value_json: string; updated_at: string }>(
-        `SELECT key, value_json, updated_at
-         FROM middleman_settings
-         WHERE namespace = @namespace
-         ORDER BY key ASC`,
-      )
-      .all({ namespace })
-      .map((row: { key: string; value_json: string; updated_at: string }) => ({
-        key: row.key,
-        value: JSON.parse(row.value_json),
-        updatedAt: row.updated_at,
-      }));
-  }
-
   get(namespace: string, key: string): unknown {
     const row = this.db
       .prepare<{ namespace: string; key: string }, { value_json: string }>(
@@ -609,18 +615,16 @@ export class MiddlemanSettingsRepo {
 
   set(namespace: string, key: string, value: unknown): void {
     this.db
-      .prepare<{ namespace: string; key: string; value_json: string; updated_at: string }>(
-        `INSERT INTO middleman_settings (namespace, key, value_json, updated_at)
-         VALUES (@namespace, @key, @value_json, @updated_at)
+      .prepare<{ namespace: string; key: string; value_json: string }>(
+        `INSERT INTO middleman_settings (namespace, key, value_json)
+         VALUES (@namespace, @key, @value_json)
          ON CONFLICT(namespace, key) DO UPDATE SET
-           value_json = excluded.value_json,
-           updated_at = excluded.updated_at`,
+           value_json = excluded.value_json`,
       )
       .run({
         namespace,
         key,
         value_json: serializeJson(value),
-        updated_at: nowIso(),
       });
   }
 
@@ -636,12 +640,16 @@ export class MiddlemanSettingsRepo {
 
   listEnv(): Record<string, string> {
     return Object.fromEntries(
-      this.listNamespace("env")
-        .filter(
-          (entry): entry is { key: string; value: string; updatedAt: string } =>
-            typeof entry.value === "string",
+      this.db
+        .prepare<{ namespace: string }, { key: string; value_json: string }>(
+          `SELECT key, value_json
+           FROM middleman_settings
+           WHERE namespace = @namespace
+           ORDER BY key ASC`,
         )
-        .map((entry) => [entry.key, entry.value]),
+        .all({ namespace: "env" })
+        .map((row) => [row.key, JSON.parse(row.value_json)] as const)
+        .filter((entry): entry is readonly [string, string] => typeof entry[1] === "string"),
     );
   }
 }

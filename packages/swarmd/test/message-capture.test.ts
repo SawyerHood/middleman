@@ -39,7 +39,6 @@ function createSession(): SessionRecord {
     displayName: "Capture Session",
     cwd: "/tmp/swarmd-message-capture",
     model: "gpt-5",
-    metadata: {},
     backendCheckpoint: null,
     createdAt: "2026-03-13T00:00:00.000Z",
     updatedAt: "2026-03-13T00:00:00.000Z",

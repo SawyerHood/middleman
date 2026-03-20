@@ -37,6 +37,7 @@ type Deferred<T> = {
   reject(error: unknown): void;
   settled: boolean;
 };
+type ClaudeInputIteratorResult = IteratorResult<ClaudeSdkUserMessage, void>;
 
 type PendingInterruptedInput = {
   input: UserInput;
@@ -135,7 +136,7 @@ export class ClaudeQuerySession {
   private pendingInterruptedInput: PendingInterruptedInput | null = null;
 
   private inputQueue: ClaudeSdkUserMessage[] = [];
-  private inputResolve: ((value: IteratorResult<ClaudeSdkUserMessage>) => void) | null = null;
+  private inputResolve: ((value: ClaudeInputIteratorResult) => void) | null = null;
   private inputDone = false;
 
   private stopRequested = false;
@@ -417,14 +418,11 @@ export class ClaudeQuerySession {
   private createInputStream(): AsyncIterable<ClaudeSdkUserMessage> {
     return {
       [Symbol.asyncIterator]: () => ({
-        next: async (): Promise<IteratorResult<ClaudeSdkUserMessage>> => {
+        next: async (): Promise<ClaudeInputIteratorResult> => {
           if (this.inputQueue.length > 0) {
             const next = this.inputQueue.shift();
             if (!next) {
-              return {
-                value: undefined as unknown as ClaudeSdkUserMessage,
-                done: true,
-              };
+              return createDoneInputIteratorResult();
             }
 
             return {
@@ -434,22 +432,16 @@ export class ClaudeQuerySession {
           }
 
           if (this.inputDone) {
-            return {
-              value: undefined as unknown as ClaudeSdkUserMessage,
-              done: true,
-            };
+            return createDoneInputIteratorResult();
           }
 
-          return await new Promise<IteratorResult<ClaudeSdkUserMessage>>((resolve) => {
+          return await new Promise<ClaudeInputIteratorResult>((resolve) => {
             this.inputResolve = resolve;
           });
         },
-        return: async (): Promise<IteratorResult<ClaudeSdkUserMessage>> => {
+        return: async (): Promise<ClaudeInputIteratorResult> => {
           this.finishInput();
-          return {
-            value: undefined as unknown as ClaudeSdkUserMessage,
-            done: true,
-          };
+          return createDoneInputIteratorResult();
         },
       }),
     };
@@ -482,10 +474,7 @@ export class ClaudeQuerySession {
 
     const resolve = this.inputResolve;
     this.inputResolve = null;
-    resolve({
-      value: undefined as unknown as ClaudeSdkUserMessage,
-      done: true,
-    });
+    resolve(createDoneInputIteratorResult());
   }
 
   private ensureUsable(): void {
@@ -963,6 +952,13 @@ function toClaudeUserMessage(input: UserInput, sessionId?: string): ClaudeSdkUse
       role: "user",
       content,
     },
+  };
+}
+
+function createDoneInputIteratorResult(): ClaudeInputIteratorResult {
+  return {
+    value: undefined,
+    done: true,
   };
 }
 

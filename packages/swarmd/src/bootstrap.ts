@@ -12,7 +12,6 @@ import { RecoveryManager, RuntimeSupervisor } from "./core/supervisor/index.js";
 import {
   MessageRepo,
   OperationRepo,
-  SessionBackendStateRepo,
   SessionRepo,
   createDatabase,
   runMigrations,
@@ -61,7 +60,6 @@ export async function createCore(
   runMigrations(db, { migrations: options?.migrations });
 
   const sessionRepo = new SessionRepo(db);
-  const sessionBackendStateRepo = new SessionBackendStateRepo(db);
   const messageRepo = new MessageRepo(db);
   const operationRepo = new OperationRepo(db);
 
@@ -138,7 +136,6 @@ export async function createCore(
     sessionRepo,
     messageRepo,
     operationRepo,
-    sessionBackendStateRepo,
     supervisor,
     eventBus,
     operationService,

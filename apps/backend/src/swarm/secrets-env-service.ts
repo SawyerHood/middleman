@@ -160,15 +160,12 @@ export class SecretsEnvService {
         throw new Error(`Auth value for ${resolvedProvider.provider} must be a non-empty string`);
       }
 
-      const credential = {
+      const credential: AuthCredential = {
         type: "api_key",
         key: normalizedValue,
-        access: normalizedValue,
-        refresh: "",
-        expires: "",
       };
 
-      authStorage.set(resolvedProvider.storageProvider, credential as unknown as AuthCredential);
+      authStorage.set(resolvedProvider.storageProvider, credential);
     }
   }
 

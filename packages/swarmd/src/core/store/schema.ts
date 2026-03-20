@@ -60,17 +60,6 @@ export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
     `,
   },
   {
-    id: "003_session_backend_state",
-    sql: `
-      CREATE TABLE IF NOT EXISTS session_backend_state (
-        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-        backend TEXT NOT NULL,
-        state_json TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `,
-  },
-  {
     id: "004_session_context_usage",
     sql: `
       ALTER TABLE sessions
@@ -82,6 +71,36 @@ export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
     sql: `
       ALTER TABLE sessions
       ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    id: "006_fold_backend_state_into_session_metadata",
+    sql: `
+      CREATE TABLE IF NOT EXISTS session_backend_state (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+        state_json TEXT NOT NULL
+      );
+
+      UPDATE sessions
+      SET metadata_json = json_set(
+        CASE
+          WHEN json_valid(metadata_json) AND json_type(metadata_json) = 'object' THEN metadata_json
+          ELSE '{}'
+        END,
+        '$._backendState',
+        json((
+          SELECT state_json
+          FROM session_backend_state
+          WHERE session_id = sessions.id
+        ))
+      )
+      WHERE EXISTS (
+        SELECT 1
+        FROM session_backend_state
+        WHERE session_id = sessions.id
+      );
+
+      DROP TABLE IF EXISTS session_backend_state;
     `,
   },
 ];

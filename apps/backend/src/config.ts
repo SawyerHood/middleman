@@ -24,8 +24,6 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
   const dataDir = resolveDataDir(options.dataDir);
   const installArchetypesDir = resolveInstallArchetypesDir(installDir);
   const installSkillsDir = resolveInstallSkillsDir(installDir);
-  const configFile = resolve(dataDir, "config.json");
-  const configEnvFile = resolve(dataDir, "config.env");
   const runDir = resolve(dataDir, "run");
   const logsDir = resolve(dataDir, "logs");
   const swarmdDbFile = resolve(dataDir, "swarmd.db");
@@ -54,7 +52,6 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
     cwdAllowlistRoots,
     paths: {
       installDir,
-      installAssetsDir: resolve(installArchetypesDir, ".."),
       installArchetypesDir,
       installSkillsDir,
       cliBinDir: resolveCliBinDir(installDir, options.cliBinDir),
@@ -67,8 +64,6 @@ export function createConfig(options: CreateConfigOptions = {}): SwarmConfig {
       dataDir,
       swarmdDbFile,
       runtimeScratchDir,
-      configFile,
-      configEnvFile,
       runDir,
       logsDir,
       uploadsDir,

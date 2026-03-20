@@ -23,7 +23,6 @@ interface SessionRow {
   cwd: string;
   model: string;
   system_prompt: string | null;
-  metadata_json: string;
   backend_checkpoint_json: string | null;
   runtime_config_json: string;
   created_at: string;
@@ -47,7 +46,6 @@ function mapSessionRow(row: SessionRow): SessionRecord {
     cwd: row.cwd,
     model: row.model,
     systemPrompt: row.system_prompt ?? undefined,
-    metadata: parseJsonObject(row.metadata_json, "metadata_json"),
     backendCheckpoint: parseJsonValue(
       row.backend_checkpoint_json,
       "backend_checkpoint_json",
@@ -150,7 +148,7 @@ export class SessionRepo {
         cwd: session.cwd,
         model: session.model,
         system_prompt: session.systemPrompt ?? null,
-        metadata_json: serializeJson(session.metadata),
+        metadata_json: serializeJson({}),
         backend_checkpoint_json:
           session.backendCheckpoint === null ? null : serializeJson(session.backendCheckpoint),
         runtime_config_json: serializeJson({
@@ -177,7 +175,6 @@ export class SessionRepo {
           cwd,
           model,
           system_prompt,
-          metadata_json,
           backend_checkpoint_json,
           runtime_config_json,
           created_at,
@@ -207,7 +204,6 @@ export class SessionRepo {
             cwd,
             model,
             system_prompt,
-            metadata_json,
             backend_checkpoint_json,
             runtime_config_json,
             created_at,
@@ -238,7 +234,6 @@ export class SessionRepo {
           cwd,
           model,
           system_prompt,
-          metadata_json,
           backend_checkpoint_json,
           runtime_config_json,
           created_at,
@@ -310,21 +305,6 @@ export class SessionRepo {
       });
   }
 
-  updateMetadata(id: string, metadata: Record<string, unknown>): void {
-    this.db
-      .prepare<{ id: string; metadata_json: string; updated_at: string }>(
-        `UPDATE sessions
-        SET metadata_json = @metadata_json,
-            updated_at = @updated_at
-        WHERE id = @id`,
-      )
-      .run({
-        id,
-        metadata_json: serializeJson(metadata),
-        updated_at: nowTimestamp(),
-      });
-  }
-
   updateDisplayName(id: string, displayName: string): void {
     this.db
       .prepare<{ id: string; display_name: string; updated_at: string }>(
@@ -353,6 +333,35 @@ export class SessionRepo {
         backend_checkpoint_json: checkpoint === null ? null : serializeJson(checkpoint),
         updated_at: nowTimestamp(),
       });
+  }
+
+  getBackendState(sessionId: string): Record<string, unknown> | null {
+    const metadata = this.getMetadata(sessionId);
+    const state = metadata?._backendState;
+
+    return state && typeof state === "object" && !Array.isArray(state)
+      ? (state as Record<string, unknown>)
+      : null;
+  }
+
+  updateBackendState(sessionId: string, state: Record<string, unknown>): void {
+    const metadata = this.getMetadata(sessionId);
+    if (!metadata) {
+      return;
+    }
+
+    metadata._backendState = state;
+    this.persistMetadata(sessionId, metadata);
+  }
+
+  clearBackendState(sessionId: string): void {
+    const metadata = this.getMetadata(sessionId);
+    if (!metadata) {
+      return;
+    }
+
+    delete metadata._backendState;
+    this.persistMetadata(sessionId, metadata);
   }
 
   getRuntimeConfig(sessionId: string): SessionRuntimeConfigExtras {
@@ -435,5 +444,32 @@ export class SessionRepo {
     });
 
     removeSession(id);
+  }
+
+  private getMetadata(sessionId: string): Record<string, unknown> | null {
+    const row = this.db
+      .prepare<{ id: string }, { metadata_json: string }>(
+        `SELECT metadata_json
+         FROM sessions
+         WHERE id = @id`,
+      )
+      .get({ id: sessionId });
+
+    return row ? parseJsonObject(row.metadata_json, "metadata_json") : null;
+  }
+
+  private persistMetadata(sessionId: string, metadata: Record<string, unknown>): void {
+    this.db
+      .prepare<{ id: string; metadata_json: string; updated_at: string }>(
+        `UPDATE sessions
+         SET metadata_json = @metadata_json,
+             updated_at = @updated_at
+         WHERE id = @id`,
+      )
+      .run({
+        id: sessionId,
+        metadata_json: serializeJson(metadata),
+        updated_at: nowTimestamp(),
+      });
   }
 }

@@ -6,7 +6,6 @@ import {
   OperationRepo,
   OperationService,
   RecoveryManager,
-  SessionBackendStateRepo,
   SessionRepo,
   SessionService,
   createDatabase,
@@ -57,7 +56,6 @@ function createSessionRecord(id: string, status: SessionStatus, index: number): 
     displayName: `Session ${id}`,
     cwd: "/tmp/swarmd-recovery",
     model: "codex",
-    metadata: {},
     backendCheckpoint: null,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -83,7 +81,6 @@ function createTestContext(failingSessionId?: string): RecoveryTestContext {
 
   const sessionRepo = new SessionRepo(db);
   const messageRepo = new MessageRepo(db);
-  const sessionBackendStateRepo = new SessionBackendStateRepo(db);
   const operationRepo = new OperationRepo(db);
   const eventBus = new EventBus();
   const operationService = new OperationService(operationRepo, eventBus);
@@ -92,7 +89,6 @@ function createTestContext(failingSessionId?: string): RecoveryTestContext {
     sessionRepo,
     messageRepo,
     operationRepo,
-    sessionBackendStateRepo,
     supervisor as unknown as RuntimeSupervisor,
     eventBus,
     operationService,

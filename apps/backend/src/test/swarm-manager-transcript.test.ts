@@ -30,7 +30,6 @@ function makeSession(
     displayName: overrides.id,
     cwd: "/tmp/project",
     model: "gpt-5.4",
-    metadata: {},
     backendCheckpoint: null,
     createdAt: "2026-03-15T00:00:00.000Z",
     updatedAt: "2026-03-15T00:00:00.000Z",

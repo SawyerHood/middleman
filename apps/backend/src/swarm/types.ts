@@ -1,7 +1,13 @@
 import {
   MANAGER_MODEL_PRESETS,
   type AcceptedDeliveryMode,
+  type AgentContextUsage,
+  type AgentDescriptor,
   type AgentMessageEvent,
+  type AgentModelDescriptor,
+  type AgentsSnapshotEvent,
+  type AgentStatus,
+  type AgentStatusEvent,
   type AgentThinkingLevel,
   type AgentToolCallEvent,
   type AgentToolCallKind,
@@ -25,52 +31,21 @@ export type AgentRole = "manager" | "worker";
 
 export type AgentArchetypeId = string;
 
-export type AgentStatus =
-  | "created"
-  | "starting"
-  | "idle"
-  | "busy"
-  | "interrupting"
-  | "stopping"
-  | "stopped"
-  | "errored"
-  | "terminated";
-
 export const SWARM_MODEL_PRESETS = MANAGER_MODEL_PRESETS;
 
 export type SwarmModelPreset = ManagerModelPreset;
-
-export interface AgentModelDescriptor {
-  provider: string;
-  modelId: string;
-  thinkingLevel: AgentThinkingLevel;
-}
-
-export interface AgentContextUsage {
-  tokens: number;
-  contextWindow: number;
-  percent: number;
-}
-
-export interface AgentDescriptor {
-  agentId: string;
-  displayName: string;
-  role: AgentRole;
-  managerId: string;
-  archetypeId?: AgentArchetypeId;
-  status: AgentStatus;
-  createdAt: string;
-  updatedAt: string;
-  cwd: string;
-  model: AgentModelDescriptor;
-  contextUsage?: AgentContextUsage;
-}
 
 export type RequestedDeliveryMode = DeliveryMode;
 
 export type {
   AcceptedDeliveryMode,
+  AgentContextUsage,
+  AgentDescriptor,
   AgentMessageEvent,
+  AgentModelDescriptor,
+  AgentsSnapshotEvent,
+  AgentStatus,
+  AgentStatusEvent,
   AgentThinkingLevel,
   AgentToolCallEvent,
   AgentToolCallKind,
@@ -106,7 +81,6 @@ export interface SpawnAgentInput {
 
 export interface SwarmPaths {
   installDir: string;
-  installAssetsDir: string;
   installArchetypesDir: string;
   installSkillsDir: string;
   cliBinDir: string;
@@ -119,8 +93,6 @@ export interface SwarmPaths {
   dataDir: string;
   swarmdDbFile: string;
   runtimeScratchDir: string;
-  configFile: string;
-  configEnvFile: string;
   runDir: string;
   logsDir: string;
   uploadsDir: string;
@@ -155,17 +127,4 @@ export interface SwarmConfig {
   defaultCwd: string;
   cwdAllowlistRoots: string[];
   paths: SwarmPaths;
-}
-
-export interface AgentStatusEvent {
-  type: "agent_status";
-  agentId: string;
-  status: AgentStatus;
-  pendingCount: number;
-  contextUsage?: AgentContextUsage | null;
-}
-
-export interface AgentsSnapshotEvent {
-  type: "agents_snapshot";
-  agents: AgentDescriptor[];
 }
