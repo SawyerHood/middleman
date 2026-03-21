@@ -36,6 +36,31 @@ describe("host tool bridge", () => {
     });
   });
 
+  it("includes all supported model presets in the spawn_agent tool schema", () => {
+    const spawnTool = buildHostToolDefinitions("manager").find(
+      (tool) => tool.name === "spawn_agent",
+    );
+
+    expect(spawnTool?.inputSchema).toMatchObject({
+      properties: {
+        model: {
+          enum: [
+            "pi-codex",
+            "pi-codex-mini",
+            "pi-opus",
+            "pi-sonnet",
+            "pi-haiku",
+            "codex-app",
+            "codex-app-mini",
+            "claude-code",
+            "claude-code-sonnet",
+            "claude-code-haiku",
+          ],
+        },
+      },
+    });
+  });
+
   it("formats codex host tool responses for replayable tool results", async () => {
     const hostRpc: HostRpcClient = {
       callTool: vi.fn(async () => ({

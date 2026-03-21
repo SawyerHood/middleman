@@ -49,7 +49,18 @@ export interface PiHostToolDefinition {
 }
 
 const DELIVERY_MODE_VALUES = ["auto", "followUp", "steer"] as const;
-const SPAWN_MODEL_PRESET_VALUES = ["pi-codex", "pi-opus", "codex-app", "claude-code"] as const;
+const SPAWN_MODEL_PRESET_VALUES = [
+  "pi-codex",
+  "pi-codex-mini",
+  "pi-opus",
+  "pi-sonnet",
+  "pi-haiku",
+  "codex-app",
+  "codex-app-mini",
+  "claude-code",
+  "claude-code-sonnet",
+  "claude-code-haiku",
+] as const;
 const THINKING_LEVEL_VALUES = ["off", "low", "medium", "high", "xhigh"] as const;
 const CLAUDE_SERVER_NAME = "middleman-swarm";
 

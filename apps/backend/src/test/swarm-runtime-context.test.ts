@@ -30,6 +30,54 @@ function createService(registry?: ArchetypePromptRegistry) {
 }
 
 describe("SwarmRuntimeContextService", () => {
+  it.each([
+    [
+      { provider: "openai-codex-app-server", modelId: "gpt-5.4-mini", thinkingLevel: "medium" },
+      { backend: "codex", model: "gpt-5.4-mini" },
+    ],
+    [
+      { provider: "anthropic-claude-code", modelId: "claude-sonnet-4-6", thinkingLevel: "high" },
+      { backend: "claude", model: "claude-sonnet-4-6" },
+    ],
+    [
+      { provider: "anthropic-claude-code", modelId: "claude-haiku-4-6", thinkingLevel: "medium" },
+      { backend: "claude", model: "claude-haiku-4-6" },
+    ],
+    [
+      { provider: "anthropic", modelId: "claude-sonnet-4-6", thinkingLevel: "high" },
+      { backend: "pi", model: "anthropic/claude-sonnet-4-6" },
+    ],
+    [
+      { provider: "openai-codex", modelId: "gpt-5.4-mini", thinkingLevel: "medium" },
+      { backend: "pi", model: "openai-codex/gpt-5.4-mini" },
+    ],
+  ] as const)("routes %j to the expected runtime backend", (model, expected) => {
+    const service = createService();
+
+    expect(
+      service.buildRuntimeConfig(
+        {
+          agentId: "worker-1",
+          role: "worker",
+          managerId: "manager-1",
+          cwd: REPO_ROOT,
+          model,
+          memoryOwnerAgentId: "manager-1",
+        },
+        {
+          memoryContextFile: {
+            path: "/tmp/memory.md",
+            content: "",
+          },
+          swarmContextFiles: [],
+          skillDescriptors: [],
+          additionalSkillPaths: [],
+          runtimeEnv: {},
+        },
+      ),
+    ).toMatchObject(expected);
+  });
+
   it("renders skill descriptors instead of full skill file contents", () => {
     const service = createService();
 

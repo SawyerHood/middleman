@@ -12,11 +12,25 @@ export type AgentStatus =
 export const AGENT_THINKING_LEVELS = ["off", "low", "medium", "high", "xhigh"] as const;
 export type AgentThinkingLevel = (typeof AGENT_THINKING_LEVELS)[number];
 
-export const MANAGER_MODEL_PRESETS = ["pi-codex", "pi-opus", "codex-app", "claude-code"] as const;
+export const MANAGER_MODEL_PRESETS = [
+  "pi-codex",
+  "pi-codex-mini",
+  "pi-opus",
+  "pi-sonnet",
+  "pi-haiku",
+  "codex-app",
+  "codex-app-mini",
+  "claude-code",
+  "claude-code-sonnet",
+  "claude-code-haiku",
+] as const;
 export type ManagerModelPreset = (typeof MANAGER_MODEL_PRESETS)[number];
 export const CREATE_MANAGER_MODEL_PRESETS = [
   "pi-codex",
+  "pi-codex-mini",
   "pi-opus",
+  "pi-sonnet",
+  "pi-haiku",
 ] as const satisfies readonly ManagerModelPreset[];
 export type CreateManagerModelPreset = (typeof CREATE_MANAGER_MODEL_PRESETS)[number];
 

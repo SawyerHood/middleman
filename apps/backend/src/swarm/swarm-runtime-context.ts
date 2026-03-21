@@ -191,6 +191,7 @@ export class SwarmRuntimeContextService {
 
     switch (preset) {
       case "codex-app":
+      case "codex-app-mini":
         return {
           backend: "codex",
           model: descriptor.model.modelId,
@@ -204,6 +205,8 @@ export class SwarmRuntimeContextService {
           },
         };
       case "claude-code":
+      case "claude-code-sonnet":
+      case "claude-code-haiku":
         return {
           backend: "claude",
           model: descriptor.model.modelId,
@@ -215,7 +218,10 @@ export class SwarmRuntimeContextService {
           },
         };
       case "pi-opus":
+      case "pi-sonnet":
+      case "pi-haiku":
       case "pi-codex":
+      case "pi-codex-mini":
       default:
         return {
           backend: "pi",

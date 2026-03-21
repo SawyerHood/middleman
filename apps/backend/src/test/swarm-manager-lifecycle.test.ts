@@ -1,3 +1,4 @@
+import { CREATE_MANAGER_MODEL_PRESETS } from "@middleman/protocol";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -330,7 +331,9 @@ describe("SwarmManager lifecycle", () => {
         cwd: REPO_ROOT,
         model: "codex-app",
       }),
-    ).rejects.toThrow("create_manager.model must be one of pi-codex|pi-opus");
+    ).rejects.toThrow(
+      `create_manager.model must be one of ${CREATE_MANAGER_MODEL_PRESETS.join("|")}`,
+    );
   });
 
   it("resets and deletes manager state through swarmd session APIs", async () => {
