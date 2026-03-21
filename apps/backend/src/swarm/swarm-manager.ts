@@ -1379,8 +1379,7 @@ function toContentParts(text: string, attachments: ConversationAttachment[]): Co
   return parts;
 }
 
-const MAX_WORKER_COMPLETION_REPORT_CHARS = 1_000;
-const WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX = "...";
+
 
 function buildWorkerCompletionReport(
   descriptor: Pick<AgentDescriptor, "agentId">,
@@ -1395,7 +1394,7 @@ function buildWorkerCompletionReport(
     };
   }
 
-  const summaryText = truncateWorkerCompletionText(latestSummary.text);
+  const summaryText = latestSummary.text.trim();
   const attachmentCount = latestSummary.attachments?.length ?? 0;
   const attachmentLine =
     attachmentCount > 0
@@ -1446,18 +1445,7 @@ function findLatestWorkerCompletionSummary(
   return undefined;
 }
 
-function truncateWorkerCompletionText(text: string): string {
-  const trimmed = text.trim();
-  if (trimmed.length <= MAX_WORKER_COMPLETION_REPORT_CHARS) {
-    return trimmed;
-  }
 
-  const limit = Math.max(
-    0,
-    MAX_WORKER_COMPLETION_REPORT_CHARS - WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX.length,
-  );
-  return `${trimmed.slice(0, limit).trimEnd()}${WORKER_COMPLETION_REPORT_TRUNCATED_SUFFIX}`;
-}
 
 function isExpectedShutdownErrorMessage(text: string | undefined): boolean {
   return (
