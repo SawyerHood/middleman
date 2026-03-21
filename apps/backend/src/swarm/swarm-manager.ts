@@ -1379,8 +1379,6 @@ function toContentParts(text: string, attachments: ConversationAttachment[]): Co
   return parts;
 }
 
-
-
 function buildWorkerCompletionReport(
   descriptor: Pick<AgentDescriptor, "agentId">,
   history: ConversationEntryEvent[],
@@ -1444,8 +1442,6 @@ function findLatestWorkerCompletionSummary(
 
   return undefined;
 }
-
-
 
 function isExpectedShutdownErrorMessage(text: string | undefined): boolean {
   return (
