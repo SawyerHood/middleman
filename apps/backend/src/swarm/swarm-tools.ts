@@ -66,6 +66,8 @@ const ACTIVE_AGENT_STATUSES = new Set<AgentStatus>([
   "idle",
   "busy",
   "interrupting",
+  "stopping",
+  "stopped",
 ]);
 
 function buildVisibleAgentEntries(
@@ -141,17 +143,18 @@ export function buildSwarmTools(
       name: "list_agents",
       label: "List Agents",
       description:
-        "List the caller's current team with ids, roles, manager ids, status, and model. Returns active, non-archived agents by default; set includeTerminated=true to include inactive agents, and includeArchived=true to include archived sessions. Managers can set includeManagers=true to also include other managers in the system, flagged with isExternal=true.",
+        "List the caller's current team with ids, roles, manager ids, status, and model. Returns non-archived team agents by default, including stopping/stopped sessions; set includeTerminated=true to include errored and terminated agents, and includeArchived=true to include archived sessions. Managers can set includeManagers=true to also include other managers in the system, flagged with isExternal=true.",
       parameters: Type.Object({
         includeTerminated: Type.Optional(
           Type.Boolean({
-            description: "When true, include stopped/terminated/error agents in the results.",
+            description:
+              "When true, include all agent statuses, including errored and terminated agents.",
           }),
         ),
         includeArchived: Type.Optional(
           Type.Boolean({
             description:
-              "When true, include archived agents in the candidate set. Combine with includeTerminated=true to surface archived terminated agents.",
+              "When true, include archived agents in the candidate set. Combine with includeTerminated=true to surface archived errored or terminated agents.",
           }),
         ),
         includeManagers: Type.Optional(

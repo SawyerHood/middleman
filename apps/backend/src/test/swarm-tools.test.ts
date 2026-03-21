@@ -64,32 +64,53 @@ function makeHost(
 }
 
 describe("buildSwarmTools", () => {
-  it("returns only active agents with a compact payload for list_agents", async () => {
+  it("returns stopped agents by default while keeping errored and terminated agents opt-in", async () => {
     const activeManager = makeManagerDescriptor();
-    const activeWorker = makeWorkerDescriptor("worker-active");
-    const externalManager = makeManagerDescriptor("manager-two");
-    const externalWorker = makeWorkerDescriptor("worker-external", externalManager.agentId);
+    const createdWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor("worker-created"),
+      status: "created",
+    };
+    const startingWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor("worker-starting"),
+      status: "starting",
+    };
+    const activeWorker = makeWorkerDescriptor("worker-idle");
+    const busyWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor("worker-busy"),
+      status: "busy",
+    };
+    const interruptingWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor("worker-interrupting"),
+      status: "interrupting",
+    };
+    const stoppingWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor("worker-stopping"),
+      status: "stopping",
+    };
     const stoppedWorker: AgentDescriptor = {
       ...makeWorkerDescriptor("worker-stopped"),
       status: "stopped",
+    };
+    const erroredWorker: AgentDescriptor = {
+      ...makeWorkerDescriptor("worker-errored"),
+      status: "errored",
     };
     const terminatedWorker: AgentDescriptor = {
       ...makeWorkerDescriptor("worker-terminated"),
       status: "terminated",
     };
-    const stoppedExternalManager: AgentDescriptor = {
-      ...makeManagerDescriptor("manager-stopped"),
-      status: "stopped",
-    };
 
     const host: SwarmToolHost = {
       listAgents: () => [
         activeManager,
-        externalManager,
-        stoppedExternalManager,
+        createdWorker,
+        startingWorker,
         activeWorker,
-        externalWorker,
+        busyWorker,
+        interruptingWorker,
+        stoppingWorker,
         stoppedWorker,
+        erroredWorker,
         terminatedWorker,
       ],
       spawnAgent: async () => makeWorkerDescriptor("worker"),
@@ -130,10 +151,76 @@ describe("buildSwarmTools", () => {
           },
         },
         {
-          agentId: "worker-active",
+          agentId: "worker-created",
+          role: "worker",
+          managerId: "manager",
+          status: "created",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-starting",
+          role: "worker",
+          managerId: "manager",
+          status: "starting",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-idle",
           role: "worker",
           managerId: "manager",
           status: "idle",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-busy",
+          role: "worker",
+          managerId: "manager",
+          status: "busy",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-interrupting",
+          role: "worker",
+          managerId: "manager",
+          status: "interrupting",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-stopping",
+          role: "worker",
+          managerId: "manager",
+          status: "stopping",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-stopped",
+          role: "worker",
+          managerId: "manager",
+          status: "stopped",
           model: {
             provider: "anthropic",
             modelId: "claude-opus-4-6",
@@ -144,10 +231,9 @@ describe("buildSwarmTools", () => {
     });
     const textContent = result.content.find((block) => block.type === "text");
     expect(textContent?.text).toContain('"agentId": "manager"');
-    expect(textContent?.text).toContain('"agentId": "worker-active"');
-    expect(textContent?.text).not.toContain("manager-two");
-    expect(textContent?.text).not.toContain("worker-external");
-    expect(textContent?.text).not.toContain("worker-stopped");
+    expect(textContent?.text).toContain('"agentId": "worker-stopped"');
+    expect(textContent?.text).toContain('"agentId": "worker-stopping"');
+    expect(textContent?.text).not.toContain("worker-errored");
     expect(textContent?.text).not.toContain("worker-terminated");
     expect(textContent?.text).not.toContain("sessionFile");
     expect(textContent?.text).not.toContain("cwd");
@@ -177,10 +263,65 @@ describe("buildSwarmTools", () => {
           },
         },
         {
-          agentId: "worker-active",
+          agentId: "worker-created",
+          role: "worker",
+          managerId: "manager",
+          status: "created",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-starting",
+          role: "worker",
+          managerId: "manager",
+          status: "starting",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-idle",
           role: "worker",
           managerId: "manager",
           status: "idle",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-busy",
+          role: "worker",
+          managerId: "manager",
+          status: "busy",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-interrupting",
+          role: "worker",
+          managerId: "manager",
+          status: "interrupting",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-stopping",
+          role: "worker",
+          managerId: "manager",
+          status: "stopping",
           model: {
             provider: "anthropic",
             modelId: "claude-opus-4-6",
@@ -192,6 +333,17 @@ describe("buildSwarmTools", () => {
           role: "worker",
           managerId: "manager",
           status: "stopped",
+          model: {
+            provider: "anthropic",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "xhigh",
+          },
+        },
+        {
+          agentId: "worker-errored",
+          role: "worker",
+          managerId: "manager",
+          status: "errored",
           model: {
             provider: "anthropic",
             modelId: "claude-opus-4-6",
@@ -212,10 +364,14 @@ describe("buildSwarmTools", () => {
       ],
     });
     const includeInactiveText = resultWithInactive.content.find((block) => block.type === "text");
+    expect(includeInactiveText?.text).toContain("worker-created");
+    expect(includeInactiveText?.text).toContain("worker-starting");
+    expect(includeInactiveText?.text).toContain("worker-busy");
+    expect(includeInactiveText?.text).toContain("worker-interrupting");
+    expect(includeInactiveText?.text).toContain("worker-stopping");
     expect(includeInactiveText?.text).toContain("worker-stopped");
+    expect(includeInactiveText?.text).toContain("worker-errored");
     expect(includeInactiveText?.text).toContain("worker-terminated");
-    expect(includeInactiveText?.text).not.toContain("manager-two");
-    expect(includeInactiveText?.text).not.toContain("manager-stopped");
     expect(includeInactiveText?.text).not.toContain("sessionFile");
     expect(includeInactiveText?.text).not.toContain("cwd");
   });
