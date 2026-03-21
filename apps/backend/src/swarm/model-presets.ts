@@ -6,6 +6,10 @@ export const DEFAULT_SWARM_MODEL_PRESET: SwarmModelPreset = "pi-codex";
 export type CreateManagerSwarmModelPreset = (typeof CREATE_MANAGER_MODEL_PRESETS)[number];
 export const DEFAULT_CREATE_MANAGER_MODEL_PRESET: CreateManagerSwarmModelPreset = "pi-codex";
 const GPT_5_4_MODEL_ID = "gpt-5.4";
+const GPT_5_4_MINI_MODEL_ID = "gpt-5.4-mini";
+const CLAUDE_OPUS_4_6_MODEL_ID = "claude-opus-4-6";
+const CLAUDE_SONNET_4_6_MODEL_ID = "claude-sonnet-4-6";
+const CLAUDE_HAIKU_4_6_MODEL_ID = "claude-haiku-4-6";
 
 const MODEL_PRESET_DESCRIPTORS: Record<SwarmModelPreset, AgentModelDescriptor> = {
   "pi-codex": {
@@ -13,24 +17,61 @@ const MODEL_PRESET_DESCRIPTORS: Record<SwarmModelPreset, AgentModelDescriptor> =
     modelId: GPT_5_4_MODEL_ID,
     thinkingLevel: "xhigh",
   },
+  "pi-codex-mini": {
+    provider: "openai-codex",
+    modelId: GPT_5_4_MINI_MODEL_ID,
+    thinkingLevel: "medium",
+  },
   "pi-opus": {
     // Anthropic OAuth tokens trigger Claude Code auth headers in pi-ai,
     // matching the existing Claude Code integration path.
     provider: "anthropic",
-    modelId: "claude-opus-4-6",
+    modelId: CLAUDE_OPUS_4_6_MODEL_ID,
     thinkingLevel: "xhigh",
+  },
+  "pi-sonnet": {
+    provider: "anthropic",
+    modelId: CLAUDE_SONNET_4_6_MODEL_ID,
+    thinkingLevel: "high",
+  },
+  "pi-haiku": {
+    provider: "anthropic",
+    modelId: CLAUDE_HAIKU_4_6_MODEL_ID,
+    thinkingLevel: "medium",
   },
   "codex-app": {
     provider: "openai-codex-app-server",
     modelId: GPT_5_4_MODEL_ID,
     thinkingLevel: "xhigh",
   },
+  "codex-app-mini": {
+    provider: "openai-codex-app-server",
+    modelId: GPT_5_4_MINI_MODEL_ID,
+    thinkingLevel: "medium",
+  },
   "claude-code": {
     provider: "anthropic-claude-code",
-    modelId: "claude-opus-4-6",
+    modelId: CLAUDE_OPUS_4_6_MODEL_ID,
     thinkingLevel: "xhigh",
   },
+  "claude-code-sonnet": {
+    provider: "anthropic-claude-code",
+    modelId: CLAUDE_SONNET_4_6_MODEL_ID,
+    thinkingLevel: "high",
+  },
+  "claude-code-haiku": {
+    provider: "anthropic-claude-code",
+    modelId: CLAUDE_HAIKU_4_6_MODEL_ID,
+    thinkingLevel: "medium",
+  },
 };
+
+const MODEL_PRESET_BY_DESCRIPTOR_KEY = new Map<string, SwarmModelPreset>(
+  Object.entries(MODEL_PRESET_DESCRIPTORS).map(([preset, descriptor]) => [
+    `${descriptor.provider.toLowerCase()}::${descriptor.modelId.toLowerCase()}`,
+    preset as SwarmModelPreset,
+  ]),
+);
 
 const VALID_SWARM_MODEL_PRESET_VALUES = new Set<string>(SWARM_MODEL_PRESETS);
 const VALID_CREATE_MANAGER_MODEL_PRESET_VALUES = new Set<string>(CREATE_MANAGER_MODEL_PRESETS);
@@ -133,22 +174,7 @@ export function inferSwarmModelPresetFromDescriptor(
 
   const provider = descriptor.provider?.trim().toLowerCase();
   const modelId = descriptor.modelId?.trim().toLowerCase();
-
-  if (provider === "openai-codex" && modelId === GPT_5_4_MODEL_ID) {
-    return "pi-codex";
-  }
-
-  if (provider === "anthropic" && modelId === "claude-opus-4-6") {
-    return "pi-opus";
-  }
-
-  if (provider === "openai-codex-app-server" && modelId === GPT_5_4_MODEL_ID) {
-    return "codex-app";
-  }
-
-  if (provider === "anthropic-claude-code" && modelId === "claude-opus-4-6") {
-    return "claude-code";
-  }
-
-  return undefined;
+  return provider && modelId
+    ? MODEL_PRESET_BY_DESCRIPTOR_KEY.get(`${provider}::${modelId}`)
+    : undefined;
 }

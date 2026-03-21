@@ -1,3 +1,4 @@
+import { CREATE_MANAGER_MODEL_PRESETS } from "@middleman/protocol";
 import { describe, expect, it } from "vitest";
 
 import { parseClientCommand } from "../ws/ws-command-parser.js";
@@ -26,7 +27,40 @@ describe("parseClientCommand create_manager", () => {
     });
   });
 
-  it.each(["codex-app", "claude-code"] as const)("rejects %s for manager creation", (model) => {
+  it.each(["pi-codex-mini", "pi-sonnet", "pi-haiku"] as const)(
+    "accepts %s for manager creation",
+    (model) => {
+      expect(
+        parseClientCommand(
+          Buffer.from(
+            JSON.stringify({
+              type: "create_manager",
+              name: "Ops",
+              cwd: "/tmp/project",
+              model,
+            }),
+          ),
+        ),
+      ).toEqual({
+        ok: true,
+        command: {
+          type: "create_manager",
+          name: "Ops",
+          cwd: "/tmp/project",
+          model,
+          requestId: undefined,
+        },
+      });
+    },
+  );
+
+  it.each([
+    "codex-app",
+    "codex-app-mini",
+    "claude-code",
+    "claude-code-sonnet",
+    "claude-code-haiku",
+  ] as const)("rejects %s for manager creation", (model) => {
     expect(
       parseClientCommand(
         Buffer.from(
@@ -40,7 +74,7 @@ describe("parseClientCommand create_manager", () => {
       ),
     ).toEqual({
       ok: false,
-      error: "create_manager.model must be one of pi-codex|pi-opus",
+      error: `create_manager.model must be one of ${CREATE_MANAGER_MODEL_PRESETS.join("|")}`,
     });
   });
 });

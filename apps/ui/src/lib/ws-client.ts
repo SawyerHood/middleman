@@ -433,7 +433,7 @@ export class ManagerWsClient {
     }
 
     if (!CREATE_MANAGER_MODEL_PRESETS.includes(model)) {
-      throw new Error("Manager model must be one of pi-codex|pi-opus.");
+      throw new Error(`Manager model must be one of ${CREATE_MANAGER_MODEL_PRESETS.join("|")}.`);
     }
 
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {

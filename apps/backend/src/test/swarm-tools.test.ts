@@ -1,3 +1,4 @@
+import { MANAGER_MODEL_PRESETS } from "@middleman/protocol";
 import { describe, expect, it } from "vitest";
 import { buildSwarmTools, type SwarmToolHost } from "../swarm/swarm-tools.js";
 import type { AgentDescriptor, SendMessageReceipt, SpawnAgentInput } from "../swarm/types.js";
@@ -628,7 +629,7 @@ describe("buildSwarmTools", () => {
         undefined,
         undefined as any,
       ),
-    ).rejects.toThrow("spawn_agent.model must be one of pi-codex|pi-opus|codex-app|claude-code");
+    ).rejects.toThrow(`spawn_agent.model must be one of ${MANAGER_MODEL_PRESETS.join("|")}`);
   });
 
   it("rejects invalid spawn_agent thinking levels with a clear error", async () => {

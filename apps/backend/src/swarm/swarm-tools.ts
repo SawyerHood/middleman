@@ -1,7 +1,12 @@
 import { AGENT_THINKING_LEVELS } from "@middleman/protocol";
 import { Type } from "@sinclair/typebox";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
-import { parseSwarmModelPreset, parseSwarmThinkingLevel } from "./model-presets.js";
+import {
+  describeSwarmModelPresets,
+  describeSwarmThinkingLevels,
+  parseSwarmModelPreset,
+  parseSwarmThinkingLevel,
+} from "./model-presets.js";
 import {
   type AgentDescriptor,
   type AgentStatus,
@@ -231,8 +236,7 @@ export function buildSwarmTools(
     {
       name: "spawn_agent",
       label: "Spawn Agent",
-      description:
-        "Create and start a new worker agent. agentId is required and normalized to lowercase kebab-case; if taken, a numeric suffix (-2, -3, …) is appended. archetypeId, systemPrompt, model, thinkingLevel, cwd, and initialMessage are optional. model accepts pi-codex|pi-opus|codex-app|claude-code. thinkingLevel accepts off|low|medium|high|xhigh.",
+      description: `Create and start a new worker agent. agentId is required and normalized to lowercase kebab-case; if taken, a numeric suffix (-2, -3, …) is appended. archetypeId, systemPrompt, model, thinkingLevel, cwd, and initialMessage are optional. model accepts ${describeSwarmModelPresets()}. thinkingLevel accepts ${describeSwarmThinkingLevels()}.`,
       parameters: Type.Object({
         agentId: Type.String({
           description:

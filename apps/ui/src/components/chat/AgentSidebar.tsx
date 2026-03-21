@@ -118,7 +118,7 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
   const provider = agent.model.provider.toLowerCase();
   const preset = inferModelPreset(agent);
 
-  if (preset === "pi-opus") {
+  if (preset === "pi-opus" || preset === "pi-sonnet" || preset === "pi-haiku") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
         <img
@@ -135,7 +135,7 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     );
   }
 
-  if (preset === "pi-codex") {
+  if (preset === "pi-codex" || preset === "pi-codex-mini") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
         <img
@@ -152,7 +152,7 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     );
   }
 
-  if (preset === "codex-app") {
+  if (preset === "codex-app" || preset === "codex-app-mini") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
         <img
@@ -169,7 +169,12 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     );
   }
 
-  if (preset === "claude-code" || provider === "anthropic-claude-code") {
+  if (
+    preset === "claude-code" ||
+    preset === "claude-code-sonnet" ||
+    preset === "claude-code-haiku" ||
+    provider === "anthropic-claude-code"
+  ) {
     return <ClaudeCodeIconPair className={className} />;
   }
 
