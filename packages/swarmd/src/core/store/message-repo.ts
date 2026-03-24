@@ -236,6 +236,93 @@ export class MessageRepo {
       .map(mapMessageRow);
   }
 
+  listVisibleTranscriptMessages(
+    sessionId: string,
+    options?: {
+      includeSendMessageToolResults?: boolean;
+    },
+  ): SwarmdMessage[] {
+    return this.db
+      .prepare<{ session_id: string; include_send_message_tool_results: number }, MessageRow>(
+        `SELECT
+          id,
+          session_id,
+          source,
+          source_msg_id,
+          kind,
+          role,
+          content_json,
+          order_key,
+          created_at,
+          metadata_json
+        FROM messages
+        WHERE session_id = @session_id
+          AND (
+            role = 'assistant'
+            OR (role = 'system' AND json_extract(metadata_json, '$.middleman.renderAs') IS NULL)
+            OR (
+              role IN ('user', 'system')
+              AND json_extract(metadata_json, '$.middleman.renderAs') = 'conversation_message'
+            )
+            OR (
+              role = 'system'
+              AND json_extract(metadata_json, '$.middleman.renderAs') = 'conversation_log'
+              AND json_extract(metadata_json, '$.middleman.event.isError') = 1
+            )
+            OR (
+              role = 'system'
+              AND json_extract(metadata_json, '$.middleman.renderAs') = 'hidden'
+              AND json_extract(metadata_json, '$.middleman.visibility') = 'internal'
+            )
+            OR (
+              role = 'tool'
+              AND (
+                json_extract(content_json, '$.toolName') = 'speak_to_user'
+                OR (
+                  @include_send_message_tool_results = 1
+                  AND json_extract(content_json, '$.toolName') = 'send_message_to_agent'
+                )
+              )
+            )
+          )
+        ORDER BY order_key ASC`,
+      )
+      .all({
+        session_id: sessionId,
+        include_send_message_tool_results: options?.includeSendMessageToolResults ? 1 : 0,
+      })
+      .map(mapMessageRow);
+  }
+
+  listManagerScopedHiddenMessages(managerId: string): SwarmdMessage[] {
+    return this.db
+      .prepare<{ manager_id: string }, MessageRow>(
+        `SELECT
+          id,
+          session_id,
+          source,
+          source_msg_id,
+          kind,
+          role,
+          content_json,
+          order_key,
+          created_at,
+          metadata_json
+        FROM messages
+        WHERE session_id <> @manager_id
+          AND role = 'system'
+          AND json_extract(metadata_json, '$.middleman.renderAs') = 'hidden'
+          AND json_extract(metadata_json, '$.middleman.visibility') = 'internal'
+          AND (
+            json_extract(metadata_json, '$.middleman.routing.fromAgentId') = @manager_id
+            OR json_extract(metadata_json, '$.middleman.routing.toAgentId') = @manager_id
+          )
+        ORDER BY order_key ASC`,
+      )
+      .all({ manager_id: managerId })
+      .map(mapMessageRow);
+  }
+
   updateMetadata(id: string, metadata: Record<string, unknown>): void {
     this.db
       .prepare<{ id: string; metadata_json: string }>(

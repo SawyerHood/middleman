@@ -78,6 +78,21 @@ export class MessageStore {
     return this.messageRepo.listBySession(sessionId, options);
   }
 
+  listVisibleTranscriptMessages(
+    sessionId: string,
+    options?: {
+      includeSendMessageToolResults?: boolean;
+    },
+  ): SwarmdMessage[] {
+    this.assertSessionExists(sessionId);
+    return this.messageRepo.listVisibleTranscriptMessages(sessionId, options);
+  }
+
+  listManagerScopedHiddenMessages(managerId: string): SwarmdMessage[] {
+    this.assertSessionExists(managerId);
+    return this.messageRepo.listManagerScopedHiddenMessages(managerId);
+  }
+
   getById(messageId: string): SwarmdMessage | null {
     return this.messageRepo.getById(messageId);
   }

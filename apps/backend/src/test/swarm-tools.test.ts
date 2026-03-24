@@ -243,7 +243,7 @@ describe("buildSwarmTools", () => {
     const resultWithInactive = await listAgentsTool!.execute(
       "tool-call",
       {
-        includeTerminated: true,
+        includeInactive: true,
       },
       undefined,
       undefined,
@@ -528,7 +528,7 @@ describe("buildSwarmTools", () => {
       "tool-call",
       {
         includeArchived: true,
-        includeTerminated: true,
+        includeInactive: true,
       },
       undefined,
       undefined,

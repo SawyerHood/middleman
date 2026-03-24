@@ -65,7 +65,7 @@ type ListAgentsEntry = Pick<
   isExternal?: boolean;
 };
 
-const ACTIVE_AGENT_STATUSES = new Set<AgentStatus>([
+const DEFAULT_VISIBLE_AGENT_STATUSES = new Set<AgentStatus>([
   "created",
   "starting",
   "idle",
@@ -81,14 +81,14 @@ function buildVisibleAgentEntries(
   options: {
     includeArchived?: boolean;
     includeManagers?: boolean;
-    includeTerminated?: boolean;
+    includeInactive?: boolean;
   },
 ): ListAgentsEntry[] {
   const teamManagerId = caller.role === "manager" ? caller.agentId : caller.managerId;
-  const includeInactive = options.includeTerminated === true;
+  const includeInactive = options.includeInactive === true;
 
   const isVisible = (agent: AgentDescriptor): boolean => {
-    if (!includeInactive && !ACTIVE_AGENT_STATUSES.has(agent.status)) {
+    if (!includeInactive && !DEFAULT_VISIBLE_AGENT_STATUSES.has(agent.status)) {
       return false;
     }
 
@@ -148,18 +148,18 @@ export function buildSwarmTools(
       name: "list_agents",
       label: "List Agents",
       description:
-        "List the caller's current team with ids, roles, manager ids, status, and model. Returns non-archived team agents by default, including stopping/stopped sessions; set includeTerminated=true to include errored and terminated agents, and includeArchived=true to include archived sessions. Managers can set includeManagers=true to also include other managers in the system, flagged with isExternal=true.",
+        "List the caller's current team with ids, roles, manager ids, status, and model. Returns non-archived team agents by default, including stopping/stopped sessions; set includeInactive=true to also include errored and terminated agents, and includeArchived=true to include archived sessions. Managers can set includeManagers=true to also include other managers in the system, flagged with isExternal=true.",
       parameters: Type.Object({
-        includeTerminated: Type.Optional(
+        includeInactive: Type.Optional(
           Type.Boolean({
             description:
-              "When true, include all agent statuses, including errored and terminated agents.",
+              "When true, also include errored and terminated agents beyond the default visible statuses.",
           }),
         ),
         includeArchived: Type.Optional(
           Type.Boolean({
             description:
-              "When true, include archived agents in the candidate set. Combine with includeTerminated=true to surface archived errored or terminated agents.",
+              "When true, include archived agents in the candidate set. Combine with includeInactive=true to surface archived errored or terminated agents.",
           }),
         ),
         includeManagers: Type.Optional(
@@ -171,7 +171,7 @@ export function buildSwarmTools(
       }),
       async execute(_toolCallId, params) {
         const parsed = params as {
-          includeTerminated?: boolean;
+          includeInactive?: boolean;
           includeArchived?: boolean;
           includeManagers?: boolean;
         };

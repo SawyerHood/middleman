@@ -1,12 +1,7 @@
 import { useCallback, useState, type FormEvent, type MutableRefObject } from "react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { ManagerWsClient } from "@/lib/ws-client";
-import {
-  activeAgentAtom,
-  agentsAtom,
-  clearPendingResponseForAgentAtom,
-  lastErrorAtom,
-} from "@/lib/ws-state";
+import { activeAgentAtom, agentsAtom } from "@/lib/ws-state";
 import type { AgentDescriptor, CreateManagerModelPreset } from "@middleman/protocol";
 import type { AppRouteState } from "./use-route-state";
 
@@ -43,8 +38,6 @@ export function useManagerActions({
   handleRequestDeleteManager: (managerId: string) => void;
   handleConfirmDeleteManager: () => Promise<void>;
   handleCloseDeleteManagerDialog: () => void;
-  isStoppingAllAgents: boolean;
-  handleStopAllAgents: () => Promise<void>;
 } {
   const [isCreateManagerDialogOpen, setIsCreateManagerDialogOpen] = useState(false);
   const [newManagerName, setNewManagerName] = useState("");
@@ -62,11 +55,8 @@ export function useManagerActions({
   const [deleteManagerError, setDeleteManagerError] = useState<string | null>(null);
   const [isDeletingManager, setIsDeletingManager] = useState(false);
 
-  const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false);
   const agents = useAtomValue(agentsAtom);
   const activeAgent = useAtomValue(activeAgentAtom);
-  const setLastError = useSetAtom(lastErrorAtom);
-  const clearPendingResponseForAgent = useSetAtom(clearPendingResponseForAgentAtom);
 
   const handleNewManagerNameChange = useCallback((value: string) => {
     setNewManagerName(value);
@@ -81,25 +71,6 @@ export function useManagerActions({
     setNewManagerModel(value);
     setCreateManagerError(null);
   }, []);
-
-  const handleStopAllAgents = useCallback(async () => {
-    const client = clientRef.current;
-    if (!client || activeAgent?.role !== "manager") {
-      return;
-    }
-
-    setIsStoppingAllAgents(true);
-
-    try {
-      await client.stopAllAgents(activeAgent.agentId);
-      clearPendingResponseForAgent(activeAgent.agentId);
-      setLastError(null);
-    } catch (error) {
-      setLastError(`Failed to stop manager and workers: ${toErrorMessage(error)}`);
-    } finally {
-      setIsStoppingAllAgents(false);
-    }
-  }, [activeAgent, clearPendingResponseForAgent, clientRef, setLastError]);
 
   const handleOpenCreateManagerDialog = useCallback(() => {
     const defaultCwd =
@@ -284,8 +255,6 @@ export function useManagerActions({
     handleRequestDeleteManager,
     handleConfirmDeleteManager,
     handleCloseDeleteManagerDialog,
-    isStoppingAllAgents,
-    handleStopAllAgents,
   };
 }
 

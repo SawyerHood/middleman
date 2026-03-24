@@ -1,8 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import type { SessionRecord, SwarmdMessage, SwarmdCoreHandle } from "swarmd";
+import {
+  MessageRepo,
+  MessageStore,
+  SessionRepo,
+  createDatabase,
+  runMigrations,
+  type SessionRecord,
+  type SwarmdMessage,
+  type SwarmdCoreHandle,
+} from "swarmd";
 
 import { SwarmTranscriptService, projectStoredMessage } from "../swarm/swarm-manager-transcript.js";
+import { MIDDLEMAN_STORE_MIGRATIONS } from "../swarm/swarm-sql.js";
 import type { AgentDescriptor } from "../swarm/types.js";
 
 function makeDescriptor(
@@ -49,6 +59,80 @@ function makeMessage(
     metadata: {},
     ...overrides,
   };
+}
+
+interface TranscriptHarness {
+  close(): void;
+  core: SwarmdCoreHandle;
+}
+
+const transcriptHarnesses: TranscriptHarness[] = [];
+
+afterEach(() => {
+  for (const harness of transcriptHarnesses.splice(0)) {
+    harness.close();
+  }
+});
+
+function createTranscriptCore(input: {
+  sessions: SessionRecord[];
+  messages?: SwarmdMessage[];
+  messagesBySession?: ReadonlyMap<string, SwarmdMessage[]>;
+}): SwarmdCoreHandle {
+  const db = createDatabase(":memory:");
+  runMigrations(db, { migrations: MIDDLEMAN_STORE_MIGRATIONS });
+
+  const sessionRepo = new SessionRepo(db);
+  const messageRepo = new MessageRepo(db);
+  const messageStore = new MessageStore(sessionRepo, messageRepo);
+
+  for (const session of input.sessions) {
+    sessionRepo.create(session, { backendConfig: {} });
+  }
+
+  const messages = input.messagesBySession
+    ? [...input.messagesBySession.values()].flat()
+    : (input.messages ?? []);
+  for (const message of messages) {
+    messageRepo.create(message);
+  }
+
+  const harness: TranscriptHarness = {
+    core: {
+      config: { dataDir: "", dbPath: ":memory:", logLevel: "error" } as SwarmdCoreHandle["config"],
+      db,
+      supervisor: {} as SwarmdCoreHandle["supervisor"],
+      sessionService: {
+        getById(sessionId: string) {
+          return sessionRepo.getById(sessionId);
+        },
+        list() {
+          return sessionRepo.list();
+        },
+      } as SwarmdCoreHandle["sessionService"],
+      messageService: {} as SwarmdCoreHandle["messageService"],
+      messageStore,
+      operationService: {} as SwarmdCoreHandle["operationService"],
+      eventBus: {} as SwarmdCoreHandle["eventBus"],
+      recoveryManager: {
+        async recover() {
+          return { attempted: 0, recovered: 0, failed: 0, results: [] };
+        },
+      } as unknown as SwarmdCoreHandle["recoveryManager"],
+      archiveSession(sessionId: string) {
+        sessionRepo.archiveSession(sessionId);
+      },
+      async shutdown() {
+        db.close();
+      },
+    },
+    close() {
+      db.close();
+    },
+  };
+
+  transcriptHarnesses.push(harness);
+  return harness.core;
 }
 
 describe("projectStoredMessage", () => {
@@ -260,7 +344,6 @@ describe("projectStoredMessage", () => {
               kind: "tool_execution_end",
               toolName: "spawn_agent",
               toolCallId: "call-1",
-              text: '{"ok":true}',
             },
           },
         },
@@ -671,17 +754,12 @@ describe("SwarmTranscriptService", () => {
         },
       }),
     ];
+    const core = createTranscriptCore({
+      sessions: [session],
+      messages,
+    });
     const transcript = new SwarmTranscriptService({
-      getCore: () =>
-        ({
-          sessionService: {
-            getById: () => session,
-            list: () => [session],
-          },
-          messageStore: {
-            list: () => messages,
-          },
-        }) as unknown as SwarmdCoreHandle,
+      getCore: () => core,
       getAgent: (agentId) => (agentId === "manager-1" ? manager : undefined),
       resolvePreferredManagerId: () => "manager-1",
       resolveRuntimeErrorMessage: () => "runtime exploded",
@@ -839,20 +917,12 @@ describe("SwarmTranscriptService", () => {
       ],
     ]);
 
+    const core = createTranscriptCore({
+      sessions: [managerSession, otherManagerSession, workerSession],
+      messagesBySession,
+    });
     const transcript = new SwarmTranscriptService({
-      getCore: () =>
-        ({
-          sessionService: {
-            getById: (sessionId: string) =>
-              [managerSession, otherManagerSession, workerSession].find(
-                (session) => session.id === sessionId,
-              ) ?? null,
-            list: () => [managerSession, otherManagerSession, workerSession],
-          },
-          messageStore: {
-            list: (sessionId: string) => messagesBySession.get(sessionId) ?? [],
-          },
-        }) as unknown as SwarmdCoreHandle,
+      getCore: () => core,
       getAgent: (agentId) =>
         [manager, otherManager, worker].find((descriptor) => descriptor.agentId === agentId),
       resolvePreferredManagerId: () => "manager-1",
@@ -935,17 +1005,12 @@ describe("SwarmTranscriptService", () => {
       }),
     ];
 
+    const core = createTranscriptCore({
+      sessions: [session],
+      messages,
+    });
     const transcript = new SwarmTranscriptService({
-      getCore: () =>
-        ({
-          sessionService: {
-            getById: (sessionId: string) => (sessionId === "worker-1" ? session : null),
-            list: () => [session],
-          },
-          messageStore: {
-            list: () => messages,
-          },
-        }) as unknown as SwarmdCoreHandle,
+      getCore: () => core,
       getAgent: (agentId) => (agentId === "worker-1" ? worker : undefined),
       resolvePreferredManagerId: () => undefined,
       resolveRuntimeErrorMessage: () => "ignored",
@@ -1056,17 +1121,12 @@ describe("SwarmTranscriptService", () => {
       }),
     ];
 
+    const core = createTranscriptCore({
+      sessions: [session],
+      messages,
+    });
     const transcript = new SwarmTranscriptService({
-      getCore: () =>
-        ({
-          sessionService: {
-            getById: (sessionId: string) => (sessionId === "worker-1" ? session : null),
-            list: () => [session],
-          },
-          messageStore: {
-            list: () => messages,
-          },
-        }) as unknown as SwarmdCoreHandle,
+      getCore: () => core,
       getAgent: (agentId) => (agentId === "worker-1" ? worker : undefined),
       resolvePreferredManagerId: () => undefined,
       resolveRuntimeErrorMessage: () => "worker exploded",

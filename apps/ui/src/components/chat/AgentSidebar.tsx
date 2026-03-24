@@ -47,7 +47,12 @@ import {
   statusEntryAtomFamily,
 } from "@/lib/ws-state";
 import { cn } from "@/lib/utils";
-import type { AgentDescriptor, AgentStatus, ManagerModelPreset } from "@middleman/protocol";
+import {
+  getManagerModelPresetDefinition,
+  type AgentDescriptor,
+  type AgentStatus,
+  type ManagerModelPreset,
+} from "@middleman/protocol";
 
 interface AgentSidebarProps {
   connected?: boolean;
@@ -117,8 +122,9 @@ function useAgentLiveStatus(
 function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?: string }) {
   const provider = agent.model.provider.toLowerCase();
   const preset = inferModelPreset(agent);
+  const iconFamily = preset ? getManagerModelPresetDefinition(preset).iconFamily : undefined;
 
-  if (preset === "pi-opus" || preset === "pi-sonnet" || preset === "pi-haiku") {
+  if (iconFamily === "pi-claude") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
         <img
@@ -135,7 +141,7 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     );
   }
 
-  if (preset === "pi-codex" || preset === "pi-codex-mini") {
+  if (iconFamily === "pi-codex") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
         <img
@@ -152,7 +158,7 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     );
   }
 
-  if (preset === "codex-app" || preset === "codex-app-mini") {
+  if (iconFamily === "codex-app") {
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
         <img
@@ -169,12 +175,7 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     );
   }
 
-  if (
-    preset === "claude-code" ||
-    preset === "claude-code-sonnet" ||
-    preset === "claude-code-haiku" ||
-    provider === "anthropic-claude-code"
-  ) {
+  if (iconFamily === "claude-code" || provider === "anthropic-claude-code") {
     return <ClaudeCodeIconPair className={className} />;
   }
 

@@ -1,3 +1,4 @@
+import { AGENT_THINKING_LEVELS, MANAGER_MODEL_PRESETS } from "@middleman/protocol";
 import { z } from "zod";
 
 import type { HostRpcClient } from "./adapter.js";
@@ -49,26 +50,21 @@ export interface PiHostToolDefinition {
 }
 
 const DELIVERY_MODE_VALUES = ["auto", "followUp", "steer"] as const;
-const SPAWN_MODEL_PRESET_VALUES = [
-  "pi-codex",
-  "pi-codex-mini",
-  "pi-opus",
-  "pi-sonnet",
-  "pi-haiku",
-  "codex-app",
-  "codex-app-mini",
-  "claude-code",
-  "claude-code-sonnet",
-  "claude-code-haiku",
-] as const;
-const THINKING_LEVEL_VALUES = ["off", "low", "medium", "high", "xhigh"] as const;
+const SPAWN_MODEL_PRESET_VALUES = MANAGER_MODEL_PRESETS as readonly [
+  (typeof MANAGER_MODEL_PRESETS)[number],
+  ...(typeof MANAGER_MODEL_PRESETS)[number][],
+];
+const THINKING_LEVEL_VALUES = AGENT_THINKING_LEVELS as readonly [
+  (typeof AGENT_THINKING_LEVELS)[number],
+  ...(typeof AGENT_THINKING_LEVELS)[number][],
+];
 const CLAUDE_SERVER_NAME = "middleman-swarm";
 
 function toolSchemaForName(name: string): Record<string, unknown> {
   switch (name) {
     case "list_agents":
       return objectSchema({
-        includeTerminated: { type: "boolean" },
+        includeInactive: { type: "boolean" },
         includeArchived: { type: "boolean" },
         includeManagers: { type: "boolean" },
       });
@@ -129,7 +125,7 @@ function zodShapeForToolName(name: string): z.ZodRawShape {
   switch (name) {
     case "list_agents":
       return {
-        includeTerminated: z.boolean().optional(),
+        includeInactive: z.boolean().optional(),
         includeArchived: z.boolean().optional(),
         includeManagers: z.boolean().optional(),
       };

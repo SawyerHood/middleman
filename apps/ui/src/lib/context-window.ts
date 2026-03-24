@@ -1,4 +1,4 @@
-import { inferModelPreset } from "./model-preset";
+import { getManagerModelPresetDefinition } from "@middleman/protocol";
 import type { AgentStatusEntry } from "./ws-state";
 import type {
   AgentContextUsage,
@@ -6,35 +6,10 @@ import type {
   ConversationEntry,
   ConversationMessageAttachment,
   ConversationTextAttachment,
-  ManagerModelPreset,
 } from "@middleman/protocol";
+import { inferModelPreset } from "./model-preset";
 
 const CHARS_PER_TOKEN_ESTIMATE = 4;
-const CONTEXT_WINDOW_BY_PRESET: Record<ManagerModelPreset, number> = {
-  "pi-codex-mini": 1_048_576,
-  "pi-opus": 200_000,
-  "pi-sonnet": 200_000,
-  "pi-haiku": 200_000,
-  "pi-codex": 1_048_576,
-  "codex-app": 1_048_576,
-  "codex-app-mini": 1_048_576,
-  "claude-code": 200_000,
-  "claude-code-sonnet": 200_000,
-  "claude-code-haiku": 200_000,
-};
-
-const TELEMETRY_BACKED_PRESETS = new Set<ManagerModelPreset>([
-  "pi-codex",
-  "pi-codex-mini",
-  "pi-opus",
-  "pi-sonnet",
-  "pi-haiku",
-  "codex-app",
-  "codex-app-mini",
-  "claude-code",
-  "claude-code-sonnet",
-  "claude-code-haiku",
-]);
 
 function contextWindowForAgent(agent: AgentDescriptor | null): number | null {
   if (!agent) {
@@ -42,7 +17,7 @@ function contextWindowForAgent(agent: AgentDescriptor | null): number | null {
   }
 
   const modelPreset = inferModelPreset(agent);
-  return modelPreset ? CONTEXT_WINDOW_BY_PRESET[modelPreset] : null;
+  return modelPreset ? getManagerModelPresetDefinition(modelPreset).contextWindow : null;
 }
 
 function shouldUseHeuristicFallback(agent: AgentDescriptor | null): boolean {
@@ -51,7 +26,7 @@ function shouldUseHeuristicFallback(agent: AgentDescriptor | null): boolean {
   }
 
   const modelPreset = inferModelPreset(agent);
-  return modelPreset ? !TELEMETRY_BACKED_PRESETS.has(modelPreset) : true;
+  return modelPreset ? !getManagerModelPresetDefinition(modelPreset).telemetryBacked : true;
 }
 
 function isTextAttachmentWithContent(
