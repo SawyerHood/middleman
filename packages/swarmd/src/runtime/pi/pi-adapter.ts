@@ -85,6 +85,7 @@ export class PiBackendAdapter implements BackendAdapter {
         {
           emitEvent: callbacks.emitEvent,
           emitStatusChange: callbacks.emitStatusChange,
+          emitBackendState: callbacks.emitBackendState,
           log: callbacks.log,
         },
         {
@@ -175,6 +176,10 @@ export class PiBackendAdapter implements BackendAdapter {
 
   async interrupt(): Promise<void> {
     await this.host.interrupt();
+  }
+
+  async compact(customInstructions?: string): Promise<unknown> {
+    return await this.host.compact(customInstructions);
   }
 
   async stop(): Promise<void> {

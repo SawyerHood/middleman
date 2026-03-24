@@ -118,6 +118,26 @@ export class MessageService {
     return operation.id;
   }
 
+  compact(sessionId: string, customInstructions?: string): string {
+    const session = this.sessionRepo.getById(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    if (!this.supervisor.hasWorker(sessionId)) {
+      throw new Error(`No running worker for session ${sessionId}`);
+    }
+
+    const operation = this.operationService.create(sessionId, "compact");
+    this.supervisor.sendCommand(sessionId, {
+      type: "compact",
+      operationId: operation.id,
+      ...(customInstructions === undefined ? {} : { customInstructions }),
+    });
+
+    return operation.id;
+  }
+
   private resolveDelivery(
     requested: DeliveryMode,
     sessionState: SendableSessionStatus,

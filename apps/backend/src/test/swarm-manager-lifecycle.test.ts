@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createConfig } from "../config.js";
 import { getAgentMemoryPath } from "../swarm/memory-paths.js";
@@ -19,6 +19,7 @@ import {
   createDatabase,
   runMigrations,
   SessionRepo,
+  type EventEnvelope,
   type SessionRecord,
   type SessionRuntimeConfig,
   type SwarmdCoreHandle,
@@ -29,6 +30,7 @@ const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 interface Harness {
   agentRepo: MiddlemanAgentRepo;
   close(): Promise<void>;
+  compactCalls: Array<{ sessionId: string; customInstructions?: string }>;
   createdMessages: Array<{ sessionId: string; text: string }>;
   interruptCalls: string[];
   manager: SwarmManager;
@@ -61,6 +63,21 @@ async function createHarness(): Promise<Harness> {
     string,
     Pick<SessionRuntimeConfig, "deliveryDefaults" | "backendConfig">
   >();
+  const operationRecords = new Map<
+    string,
+    {
+      id: string;
+      sessionId: string;
+      type: string;
+      status: "pending" | "completed" | "failed";
+      resultJson: string | null;
+      errorJson: string | null;
+      createdAt: string;
+      completedAt: string | null;
+    }
+  >();
+  const coreEventHandlers = new Set<(event: EventEnvelope) => void>();
+  const compactCalls: Array<{ sessionId: string; customInstructions?: string }> = [];
   const createdMessages: Array<{ sessionId: string; text: string }> = [];
   const interruptCalls: string[] = [];
   const resetCalls: Array<{ sessionId: string; systemPrompt: string }> = [];
@@ -165,6 +182,9 @@ async function createHarness(): Promise<Harness> {
     getRuntimeConfig(sessionId: string) {
       return runtimeConfigBySessionId.get(sessionId) ?? { backendConfig: {} };
     },
+    getBackendState() {
+      return null;
+    },
     list(filter?: { status?: SessionRecord["status"][]; includeArchived?: boolean }) {
       return sessionRepo.list(filter);
     },
@@ -227,19 +247,45 @@ async function createHarness(): Promise<Harness> {
         }
         return `interrupt-${interruptCalls.length}`;
       },
+      compact(sessionId: string, customInstructions?: string) {
+        compactCalls.push({ sessionId, customInstructions });
+        const operationId = `compact-${compactCalls.length}`;
+        const now = new Date().toISOString();
+        operationRecords.set(operationId, {
+          id: operationId,
+          sessionId,
+          type: "compact",
+          status: "completed",
+          resultJson: JSON.stringify({ compacted: true }),
+          errorJson: null,
+          createdAt: now,
+          completedAt: now,
+        });
+        return operationId;
+      },
     } as SwarmdCoreHandle["messageService"],
     messageStore: {
       list() {
         return [];
       },
     } as unknown as SwarmdCoreHandle["messageStore"],
-    operationService: {} as SwarmdCoreHandle["operationService"],
-    eventBus: {
-      subscribe() {
-        return () => undefined;
+    operationService: {
+      getById(operationId: string) {
+        return operationRecords.get(operationId) ?? null;
       },
-      publish() {
-        return null;
+    } as SwarmdCoreHandle["operationService"],
+    eventBus: {
+      subscribe(handler: (event: EventEnvelope) => void) {
+        coreEventHandlers.add(handler);
+        return () => {
+          coreEventHandlers.delete(handler);
+        };
+      },
+      publish(event: EventEnvelope) {
+        for (const handler of [...coreEventHandlers]) {
+          handler(event);
+        }
+        return event;
       },
     } as unknown as SwarmdCoreHandle["eventBus"],
     recoveryManager: {
@@ -268,6 +314,7 @@ async function createHarness(): Promise<Harness> {
       await rm(dataDir, { recursive: true, force: true });
       db.close();
     },
+    compactCalls,
     createdMessages,
     interruptCalls,
     manager,
@@ -679,6 +726,171 @@ describe("SwarmManager lifecycle", () => {
     });
     expect(harness.interruptCalls).toEqual([]);
     expect(harness.sessions.get(workerDescriptor.agentId)?.status).toBe("idle");
+  });
+
+  it("compacts an idle Pi manager session", async () => {
+    const harness = await createHarness();
+    harnesses.push(harness);
+
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+
+    const compacted = await harness.manager.compactAgentForUser(
+      managerDescriptor.agentId,
+      managerDescriptor.agentId,
+      "  Keep the current plan and latest findings only.  ",
+    );
+
+    expect(compacted).toEqual({
+      agentId: managerDescriptor.agentId,
+      compacted: true,
+    });
+    expect(harness.compactCalls).toEqual([
+      {
+        sessionId: managerDescriptor.agentId,
+        customInstructions: "Keep the current plan and latest findings only.",
+      },
+    ]);
+  });
+
+  it("waits for Pi worker compaction to complete before resolving", async () => {
+    const harness = await createHarness();
+    harnesses.push(harness);
+
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const workerDescriptor = await harness.manager.spawnAgent(managerDescriptor.agentId, {
+      agentId: "worker",
+      model: "pi-codex",
+    });
+
+    const core = (harness.manager as any).core as SwarmdCoreHandle;
+    const operationId = "compact-async-1";
+    let status: "pending" | "completed" = "pending";
+
+    core.messageService.compact = vi.fn((sessionId: string, customInstructions?: string) => {
+      harness.compactCalls.push({ sessionId, customInstructions });
+      return operationId;
+    }) as SwarmdCoreHandle["messageService"]["compact"];
+    core.operationService.getById = vi.fn((requestedOperationId: string) => {
+      if (requestedOperationId !== operationId) {
+        return null;
+      }
+
+      return {
+        id: operationId,
+        sessionId: workerDescriptor.agentId,
+        type: "compact",
+        status,
+        resultJson: status === "completed" ? JSON.stringify({ compacted: true }) : null,
+        errorJson: null,
+        createdAt: "2026-03-23T00:00:00.000Z",
+        completedAt: status === "completed" ? "2026-03-23T00:00:01.000Z" : null,
+      };
+    }) as SwarmdCoreHandle["operationService"]["getById"];
+
+    let settled = false;
+    const compactPromise = harness.manager
+      .compactAgentForUser(
+        managerDescriptor.agentId,
+        workerDescriptor.agentId,
+        "Compress stale notes",
+      )
+      .then((result) => {
+        settled = true;
+        return result;
+      });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    status = "completed";
+    core.eventBus.publish({
+      id: "evt-compact-1",
+      cursor: null,
+      sessionId: workerDescriptor.agentId,
+      threadId: null,
+      timestamp: "2026-03-23T00:00:01.000Z",
+      source: "server",
+      type: "operation.completed",
+      payload: {
+        operationId,
+        status: "completed",
+        result: { compacted: true },
+      },
+    });
+
+    await expect(compactPromise).resolves.toEqual({
+      agentId: workerDescriptor.agentId,
+      compacted: true,
+    });
+    expect(harness.compactCalls).toEqual([
+      {
+        sessionId: workerDescriptor.agentId,
+        customInstructions: "Compress stale notes",
+      },
+    ]);
+  });
+
+  it("rejects compacting a worker owned by another manager", async () => {
+    const harness = await createHarness();
+    harnesses.push(harness);
+
+    const firstManager = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager One",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const secondManager = await harness.manager.createManager(firstManager.agentId, {
+      name: "Manager Two",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const workerDescriptor = await harness.manager.spawnAgent(firstManager.agentId, {
+      agentId: "worker",
+      model: "pi-codex",
+    });
+
+    await expect(
+      harness.manager.compactAgentForUser(secondManager.agentId, workerDescriptor.agentId),
+    ).rejects.toThrow(`Only the owning manager can compact ${workerDescriptor.agentId}.`);
+  });
+
+  it("rejects compacting non-Pi sessions and busy Pi sessions", async () => {
+    const harness = await createHarness();
+    harnesses.push(harness);
+
+    const managerDescriptor = await harness.manager.createManager("__bootstrap_manager__", {
+      name: "Manager",
+      cwd: REPO_ROOT,
+      model: "pi-codex",
+    });
+    const nonPiWorker = await harness.manager.spawnAgent(managerDescriptor.agentId, {
+      agentId: "worker-codex",
+      model: "codex-app",
+    });
+    const piWorker = await harness.manager.spawnAgent(managerDescriptor.agentId, {
+      agentId: "worker-pi",
+      model: "pi-codex",
+    });
+
+    await expect(
+      harness.manager.compactAgentForUser(managerDescriptor.agentId, nonPiWorker.agentId),
+    ).rejects.toThrow(`Agent ${nonPiWorker.agentId} is not using the Pi backend.`);
+
+    (harness.sessionService as any).applyRuntimeStatus(piWorker.agentId, "busy", null, null);
+
+    await expect(
+      harness.manager.compactAgentForUser(managerDescriptor.agentId, piWorker.agentId),
+    ).rejects.toThrow(
+      `Agent ${piWorker.agentId} is busy. Wait for the current turn to finish or interrupt it before compacting.`,
+    );
   });
 
   it("archives killed workers and omits them from default listings while keeping manager deletion cleanup intact", async () => {

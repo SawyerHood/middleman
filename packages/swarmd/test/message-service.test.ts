@@ -225,6 +225,26 @@ describe("MessageService", () => {
     });
   });
 
+  it("sends compact commands through the supervisor and tracks the operation", () => {
+    const { messageService, operationService, session, supervisor } =
+      createTestContext(openDatabases);
+
+    const operationId = messageService.compact(session.id, "Keep recent tasks only");
+
+    expect(operationId).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(supervisor.sendCommand).toHaveBeenCalledWith(session.id, {
+      type: "compact",
+      operationId,
+      customInstructions: "Keep recent tasks only",
+    });
+    expect(operationService.getById(operationId)).toMatchObject({
+      id: operationId,
+      sessionId: session.id,
+      type: "compact",
+      status: "pending",
+    });
+  });
+
   it("rejects sends when the session is not running", () => {
     const { messageService, operationService, session, supervisor } = createTestContext(
       openDatabases,

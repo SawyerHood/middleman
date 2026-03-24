@@ -340,6 +340,10 @@ export class CodexBackendAdapter implements BackendAdapter {
     });
   }
 
+  async compact(): Promise<unknown> {
+    throw new Error("Manual compaction is not supported for the codex backend.");
+  }
+
   async stop(): Promise<void> {
     if (!this.#client) {
       return;

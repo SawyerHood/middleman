@@ -197,6 +197,11 @@ async function main(): Promise<void> {
           return undefined;
         });
         break;
+      case "compact":
+        await withAdapter(cmd, async (activeAdapter) => {
+          return await activeAdapter.compact(cmd.customInstructions);
+        });
+        break;
       case "host_call_result": {
         const pending = pendingHostCalls.get(cmd.requestId);
         if (!pending) {

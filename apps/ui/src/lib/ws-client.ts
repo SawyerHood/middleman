@@ -65,6 +65,10 @@ type WsRequestResultMap = {
     agentId: string;
     interrupted: boolean;
   };
+  compact_agent: {
+    agentId: string;
+    compacted: true;
+  };
   stop_all_agents: {
     managerId: string;
     stoppedWorkerIds: string[];
@@ -81,6 +85,7 @@ const WS_REQUEST_TYPES: WsRequestType[] = [
   "delete_manager",
   "reorder_managers",
   "interrupt_agent",
+  "compact_agent",
   "stop_all_agents",
   "list_directories",
   "validate_directory",
@@ -95,6 +100,7 @@ const WS_REQUEST_ERROR_HINTS: Array<{
   { requestType: "delete_manager", codeFragment: "delete_manager" },
   { requestType: "reorder_managers", codeFragment: "reorder_managers" },
   { requestType: "interrupt_agent", codeFragment: "interrupt_agent" },
+  { requestType: "compact_agent", codeFragment: "compact_agent" },
   { requestType: "stop_all_agents", codeFragment: "stop_all_agents" },
   { requestType: "list_directories", codeFragment: "list_directories" },
   { requestType: "validate_directory", codeFragment: "validate_directory" },
@@ -391,6 +397,32 @@ export class ManagerWsClient {
       type: "interrupt_agent",
       agentId: trimmed,
       requestId,
+    }));
+  }
+
+  async compactAgent(
+    agentId: string,
+    customInstructions?: string,
+  ): Promise<{
+    agentId: string;
+    compacted: true;
+  }> {
+    const trimmed = agentId.trim();
+    if (!trimmed) {
+      throw new Error("Agent id is required.");
+    }
+
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error("WebSocket is disconnected. Reconnecting...");
+    }
+
+    const normalizedInstructions = customInstructions?.trim();
+
+    return this.enqueueRequest("compact_agent", (requestId) => ({
+      type: "compact_agent",
+      agentId: trimmed,
+      requestId,
+      ...(normalizedInstructions ? { customInstructions: normalizedInstructions } : {}),
     }));
   }
 
@@ -831,6 +863,14 @@ export class ManagerWsClient {
         this.requestTracker.resolve("interrupt_agent", event.requestId, {
           agentId: event.agentId,
           interrupted: event.interrupted,
+        });
+        break;
+      }
+
+      case "compact_agent_result": {
+        this.requestTracker.resolve("compact_agent", event.requestId, {
+          agentId: event.agentId,
+          compacted: event.compacted,
         });
         break;
       }

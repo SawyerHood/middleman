@@ -88,6 +88,7 @@ import type {
 } from "./types.js";
 
 const DEFAULT_REPLY_TARGET: MessageTargetContext = { channel: "web" };
+const COMPACT_OPERATION_TIMEOUT_MS = 300_000;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -147,6 +148,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private readonly lastWorkerCompletionReportTimestampByAgentId = new Map<string, string>();
   private readonly pendingWorkerCompletionReportAgentIds = new Set<string>();
   private readonly suppressNextWorkerCompletionReportAgentIds = new Set<string>();
+  private readonly compactingAgentIds = new Set<string>();
 
   private readonly runtimeContext: SwarmRuntimeContextService;
   private readonly lifecycle: SwarmLifecycleService;
@@ -413,6 +415,61 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       agentId: target.agentId,
       interrupted,
     };
+  }
+
+  async compactAgentForUser(
+    callerAgentId: string,
+    targetAgentId: string,
+    customInstructions?: string,
+  ): Promise<{ agentId: string; compacted: true }> {
+    const manager = this.lifecycle.assertManager(callerAgentId, "compact agents");
+    const target = this.lifecycle.requireDescriptor(targetAgentId);
+
+    if (target.role === "manager") {
+      if (target.agentId !== manager.agentId) {
+        throw new Error(`Only ${target.agentId} can compact itself.`);
+      }
+    } else if (target.managerId !== manager.agentId) {
+      throw new Error(`Only the owning manager can compact ${targetAgentId}.`);
+    }
+
+    const core = this.coreOrThrow();
+    const session = core.sessionService.getById(target.agentId);
+    if (!session || !core.supervisor.hasWorker(target.agentId)) {
+      throw new Error(`Agent ${target.agentId} does not have a running Pi session.`);
+    }
+
+    if (session.backend !== "pi") {
+      throw new Error(`Agent ${target.agentId} is not using the Pi backend.`);
+    }
+
+    if (this.isAgentCompacting(target.agentId)) {
+      throw new Error(`Manual compaction is already in progress for ${target.agentId}.`);
+    }
+
+    if (session.status !== "idle") {
+      throw new Error(
+        `Agent ${target.agentId} is busy. Wait for the current turn to finish or interrupt it before compacting.`,
+      );
+    }
+
+    const trimmedInstructions = customInstructions?.trim();
+
+    this.compactingAgentIds.add(target.agentId);
+
+    try {
+      const operationId = core.messageService.compact(
+        target.agentId,
+        trimmedInstructions && trimmedInstructions.length > 0 ? trimmedInstructions : undefined,
+      );
+      await this.waitForOperationCompletion(target.agentId, operationId);
+      return {
+        agentId: target.agentId,
+        compacted: true,
+      };
+    } finally {
+      this.compactingAgentIds.delete(target.agentId);
+    }
   }
 
   async stopAllAgents(
@@ -1064,6 +1121,12 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       );
     }
 
+    if (this.isAgentCompacting(descriptor.agentId)) {
+      throw new Error(
+        `Agent ${descriptor.agentId} is compacting. Wait for compaction to finish before sending another message.`,
+      );
+    }
+
     if (descriptor.status === "errored") {
       await core.sessionService.stop(descriptor.agentId);
       await core.sessionService.start(descriptor.agentId);
@@ -1229,10 +1292,11 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private async interruptSessionIfActive(agentId: string): Promise<boolean> {
     const core = this.coreOrThrow();
     const session = core.sessionService.getById(agentId);
+    const compacting = this.isAgentCompacting(agentId);
     if (
       !session ||
       session.status === "created" ||
-      session.status === "idle" ||
+      (session.status === "idle" && !compacting) ||
       session.status === "stopped" ||
       session.status === "errored" ||
       session.status === "terminated"
@@ -1248,6 +1312,119 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     core.sessionService.applyRuntimeStatus(agentId, "idle", null, session.contextUsage);
     return true;
+  }
+
+  private isAgentCompacting(agentId: string): boolean {
+    if (this.compactingAgentIds.has(agentId)) {
+      return true;
+    }
+
+    const sessionService = this.core?.sessionService as
+      | {
+          getBackendState?: (sessionId: string) => Record<string, unknown> | null;
+        }
+      | undefined;
+    if (typeof sessionService?.getBackendState !== "function") {
+      return false;
+    }
+
+    return (
+      readString(readObject(sessionService.getBackendState(agentId))?.lifecycle) === "compacting"
+    );
+  }
+
+  private async waitForOperationCompletion(
+    sessionId: string,
+    operationId: string,
+  ): Promise<unknown> {
+    const core = this.coreOrThrow();
+
+    return await new Promise((resolve, reject) => {
+      let settled = false;
+
+      const settle = (callback: () => void) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timeout);
+        unsubscribe();
+        callback();
+      };
+
+      const resolveIfCompleted = () => {
+        const operation = core.operationService.getById(operationId);
+        if (!operation || operation.status === "pending") {
+          return false;
+        }
+
+        if (operation.status === "completed") {
+          let result: unknown = {};
+          if (operation.resultJson) {
+            try {
+              result = JSON.parse(operation.resultJson);
+            } catch {
+              result = operation.resultJson;
+            }
+          }
+
+          settle(() => resolve(result));
+          return true;
+        }
+
+        let errorMessage = `Operation ${operationId} failed.`;
+        if (operation.errorJson) {
+          try {
+            const parsedError = JSON.parse(operation.errorJson);
+            errorMessage = readString(readObject(parsedError)?.message) ?? errorMessage;
+          } catch {
+            errorMessage = operation.errorJson;
+          }
+        }
+
+        settle(() => reject(new Error(errorMessage)));
+        return true;
+      };
+
+      const unsubscribe = core.eventBus.subscribe((event) => {
+        if (event.type === "operation.completed") {
+          const payload = readObject(event.payload);
+          if (readString(payload?.operationId) !== operationId) {
+            return;
+          }
+
+          resolveIfCompleted();
+          return;
+        }
+
+        if (event.sessionId !== sessionId) {
+          return;
+        }
+
+        if (event.type === "session.errored") {
+          const errorMessage =
+            readString(readObject(readObject(event.payload)?.error)?.message) ??
+            `Agent ${sessionId} errored before compaction finished.`;
+          settle(() => reject(new Error(errorMessage)));
+          return;
+        }
+
+        if (event.type === "session.stopped") {
+          settle(() => reject(new Error(`Agent ${sessionId} stopped before compaction finished.`)));
+        }
+      });
+
+      const timeout = setTimeout(() => {
+        settle(() =>
+          reject(new Error(`Timed out waiting for compaction to finish for ${sessionId}.`)),
+        );
+      }, COMPACT_OPERATION_TIMEOUT_MS);
+
+      if (resolveIfCompleted()) {
+        return;
+      }
+    });
   }
 
   private suppressExpectedShutdownErrors(): void {

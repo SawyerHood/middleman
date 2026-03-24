@@ -181,6 +181,41 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
     };
   }
 
+  if (maybe.type === "compact_agent") {
+    const agentId = (maybe as { agentId?: unknown }).agentId;
+    const requestId = (maybe as { requestId?: unknown }).requestId;
+    const customInstructions = (maybe as { customInstructions?: unknown }).customInstructions;
+
+    if (typeof agentId !== "string" || agentId.trim().length === 0) {
+      return {
+        ok: false,
+        error: "compact_agent.agentId must be a non-empty string",
+      };
+    }
+    if (requestId !== undefined && typeof requestId !== "string") {
+      return {
+        ok: false,
+        error: "compact_agent.requestId must be a string when provided",
+      };
+    }
+    if (customInstructions !== undefined && typeof customInstructions !== "string") {
+      return {
+        ok: false,
+        error: "compact_agent.customInstructions must be a string when provided",
+      };
+    }
+
+    return {
+      ok: true,
+      command: {
+        type: "compact_agent",
+        agentId: agentId.trim(),
+        requestId,
+        ...(customInstructions === undefined ? {} : { customInstructions }),
+      },
+    };
+  }
+
   if (maybe.type === "stop_all_agents") {
     const managerId = (maybe as { managerId?: unknown }).managerId;
     const requestId = (maybe as { requestId?: unknown }).requestId;
@@ -421,6 +456,7 @@ export function extractRequestId(command: ClientCommand): string | undefined {
     case "create_manager":
     case "delete_manager":
     case "interrupt_agent":
+    case "compact_agent":
     case "stop_all_agents":
     case "list_directories":
     case "validate_directory":

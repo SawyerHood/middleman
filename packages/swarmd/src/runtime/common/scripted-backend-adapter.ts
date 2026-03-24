@@ -471,6 +471,17 @@ export class ScriptedBackendAdapter implements BackendAdapter {
     this.currentAbortController.abort();
   }
 
+  async compact(customInstructions?: string): Promise<unknown> {
+    if (!this.capabilities.canManualCompact) {
+      throw new Error(`Manual compaction is not supported for the ${this.kind} backend.`);
+    }
+
+    return {
+      compacted: true,
+      ...(customInstructions === undefined ? {} : { customInstructions }),
+    };
+  }
+
   async stop(): Promise<void> {
     this.isShuttingDown = true;
     this.pendingTurns = [];

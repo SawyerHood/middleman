@@ -9,6 +9,7 @@ const workerCommandTypes = new Set<WorkerCommand["type"]>([
   "bootstrap",
   "send_input",
   "interrupt",
+  "compact",
   "stop",
   "terminate",
   "host_call_result",

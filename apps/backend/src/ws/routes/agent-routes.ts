@@ -107,6 +107,42 @@ export async function handleAgentCommand(context: AgentCommandRouteContext): Pro
     return true;
   }
 
+  if (command.type === "compact_agent") {
+    const managerContextId = resolveManagerContextAgentId(subscribedAgentId);
+    if (!managerContextId) {
+      send(socket, {
+        type: "error",
+        code: "UNKNOWN_AGENT",
+        message: `Agent ${subscribedAgentId} does not exist.`,
+        requestId: command.requestId,
+      });
+      return true;
+    }
+
+    try {
+      const compacted = await swarmManager.compactAgentForUser(
+        managerContextId,
+        command.agentId,
+        command.customInstructions,
+      );
+      send(socket, {
+        type: "compact_agent_result",
+        agentId: compacted.agentId,
+        compacted: true,
+        requestId: command.requestId,
+      });
+    } catch (error) {
+      send(socket, {
+        type: "error",
+        code: "COMPACT_AGENT_FAILED",
+        message: error instanceof Error ? error.message : String(error),
+        requestId: command.requestId,
+      });
+    }
+
+    return true;
+  }
+
   if (command.type === "list_directories") {
     try {
       const listed = await swarmManager.listDirectories(command.path);

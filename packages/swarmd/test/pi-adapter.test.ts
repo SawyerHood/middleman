@@ -14,6 +14,7 @@ function createCallbacks() {
   return {
     emitEvent: vi.fn(),
     emitStatusChange: vi.fn(),
+    emitBackendState: vi.fn(),
     emitCheckpoint: vi.fn(),
     log: vi.fn(),
   };
@@ -209,6 +210,44 @@ describe("PiEventMapper", () => {
       }),
     ).toBeNull();
   });
+
+  it("surfaces auto compaction events as backend raw events", () => {
+    const mapper = new PiEventMapper({
+      sessionId: "ses_pi",
+      threadId: "thr_pi",
+    });
+
+    const normalized = [
+      mapper.mapEvent({ type: "auto_compaction_start", reason: "threshold" }),
+      mapper.mapEvent({
+        type: "auto_compaction_end",
+        result: { compacted: true },
+        aborted: false,
+        willRetry: false,
+      }),
+    ].flat();
+
+    expect(normalized).toEqual([
+      expect.objectContaining({
+        type: "backend.raw",
+        source: "backend",
+        payload: {
+          type: "auto_compaction_start",
+          reason: "threshold",
+        },
+      }),
+      expect.objectContaining({
+        type: "backend.raw",
+        source: "backend",
+        payload: {
+          type: "auto_compaction_end",
+          result: { compacted: true },
+          aborted: false,
+          willRetry: false,
+        },
+      }),
+    ]);
+  });
 });
 
 describe("Pi delivery resolution", () => {
@@ -267,6 +306,7 @@ describe("PiBackendAdapter", () => {
       sendSteer: vi.fn().mockResolvedValue(undefined),
       sendFollowUp: vi.fn(),
       interrupt: vi.fn(),
+      compact: vi.fn(),
       stop: vi.fn(),
       terminate: vi.fn(),
     };
@@ -497,5 +537,124 @@ describe("PiSessionHost", () => {
     });
 
     expect(callbacks.emitStatusChange).toHaveBeenCalledWith("idle", undefined, null);
+  });
+
+  it("treats manual compaction as a busy lifecycle and emits backend state", async () => {
+    let resolveCompact: ((value: unknown) => void) | null = null;
+    const compactPromise = new Promise((resolve) => {
+      resolveCompact = resolve;
+    });
+    const sessionManager = {
+      appendMessage: vi.fn(),
+      branch: vi.fn(),
+      getSessionFile: vi.fn().mockReturnValue("/tmp/pi-session.jsonl"),
+      getSessionDir: vi.fn().mockReturnValue("/tmp"),
+      getCwd: vi.fn().mockReturnValue("/tmp"),
+      _rewriteFile: vi.fn(),
+    };
+
+    const session = {
+      isStreaming: false,
+      sessionManager,
+      prompt: vi.fn(),
+      steer: vi.fn(),
+      followUp: vi.fn(),
+      abort: vi.fn(),
+      compact: vi.fn().mockReturnValue(compactPromise),
+      subscribe: vi.fn().mockReturnValue(() => {}),
+      dispose: vi.fn(),
+    };
+
+    const callbacks = createCallbacks();
+    const host = new PiSessionHost(callbacks, {
+      sessionId: "ses_pi",
+      threadId: "thr_pi",
+      loadModule: async () => ({
+        createAgentSession: vi.fn().mockResolvedValue({ session }),
+        SessionManager: {
+          create: vi.fn().mockReturnValue(sessionManager),
+          open: vi.fn().mockReturnValue(sessionManager),
+          forkFrom: vi.fn().mockReturnValue(sessionManager),
+        },
+      }),
+    });
+
+    await host.bootstrap({
+      backend: "pi",
+      cwd: "/tmp/project",
+      model: "openai-codex/gpt-5.4",
+      backendConfig: {
+        authFile: "/tmp/auth.json",
+        modelProvider: "openai-codex",
+        modelId: "gpt-5.4",
+      },
+    });
+
+    const pendingCompaction = host.compact("Keep the latest plan");
+
+    expect(host.isBusy()).toBe(true);
+    expect(session.compact).toHaveBeenCalledWith("Keep the latest plan");
+    expect(callbacks.emitBackendState).toHaveBeenCalledWith({ lifecycle: "compacting" });
+
+    resolveCompact?.({ compacted: true });
+
+    await expect(pendingCompaction).resolves.toEqual({ compacted: true });
+    expect(host.isBusy()).toBe(false);
+    expect(callbacks.emitBackendState).toHaveBeenLastCalledWith({});
+    expect(callbacks.emitStatusChange).toHaveBeenLastCalledWith("idle", undefined, null);
+  });
+
+  it("rejects duplicate manual compaction requests", async () => {
+    const compactPromise = new Promise(() => undefined);
+    const sessionManager = {
+      appendMessage: vi.fn(),
+      branch: vi.fn(),
+      getSessionFile: vi.fn().mockReturnValue("/tmp/pi-session.jsonl"),
+      getSessionDir: vi.fn().mockReturnValue("/tmp"),
+      getCwd: vi.fn().mockReturnValue("/tmp"),
+      _rewriteFile: vi.fn(),
+    };
+
+    const session = {
+      isStreaming: false,
+      sessionManager,
+      prompt: vi.fn(),
+      steer: vi.fn(),
+      followUp: vi.fn(),
+      abort: vi.fn(),
+      compact: vi.fn().mockReturnValue(compactPromise),
+      subscribe: vi.fn().mockReturnValue(() => {}),
+      dispose: vi.fn(),
+    };
+
+    const host = new PiSessionHost(createCallbacks(), {
+      sessionId: "ses_pi",
+      threadId: "thr_pi",
+      loadModule: async () => ({
+        createAgentSession: vi.fn().mockResolvedValue({ session }),
+        SessionManager: {
+          create: vi.fn().mockReturnValue(sessionManager),
+          open: vi.fn().mockReturnValue(sessionManager),
+          forkFrom: vi.fn().mockReturnValue(sessionManager),
+        },
+      }),
+    });
+
+    await host.bootstrap({
+      backend: "pi",
+      cwd: "/tmp/project",
+      model: "openai-codex/gpt-5.4",
+      backendConfig: {
+        authFile: "/tmp/auth.json",
+        modelProvider: "openai-codex",
+        modelId: "gpt-5.4",
+      },
+    });
+
+    void host.compact();
+
+    await expect(host.compact()).rejects.toThrow(
+      "Manual compaction is already in progress for ses_pi.",
+    );
   });
 });

@@ -117,3 +117,61 @@ describe("parseClientCommand interrupt_agent", () => {
     });
   });
 });
+
+describe("parseClientCommand compact_agent", () => {
+  it("parses a valid compact_agent command", () => {
+    expect(
+      parseClientCommand(
+        Buffer.from(
+          JSON.stringify({
+            type: "compact_agent",
+            agentId: "worker-1",
+            customInstructions: "Keep recent findings only",
+            requestId: "req-compact-1",
+          }),
+        ),
+      ),
+    ).toEqual({
+      ok: true,
+      command: {
+        type: "compact_agent",
+        agentId: "worker-1",
+        customInstructions: "Keep recent findings only",
+        requestId: "req-compact-1",
+      },
+    });
+  });
+
+  it("rejects compact_agent without a non-empty agent id", () => {
+    expect(
+      parseClientCommand(
+        Buffer.from(
+          JSON.stringify({
+            type: "compact_agent",
+            agentId: "   ",
+          }),
+        ),
+      ),
+    ).toEqual({
+      ok: false,
+      error: "compact_agent.agentId must be a non-empty string",
+    });
+  });
+
+  it("rejects compact_agent when customInstructions is not a string", () => {
+    expect(
+      parseClientCommand(
+        Buffer.from(
+          JSON.stringify({
+            type: "compact_agent",
+            agentId: "worker-1",
+            customInstructions: 42,
+          }),
+        ),
+      ),
+    ).toEqual({
+      ok: false,
+      error: "compact_agent.customInstructions must be a string when provided",
+    });
+  });
+});

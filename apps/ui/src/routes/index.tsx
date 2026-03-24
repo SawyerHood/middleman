@@ -22,7 +22,9 @@ import { chooseFallbackAgentId } from "@/lib/agent-hierarchy";
 import type { ArtifactReference } from "@/lib/artifacts";
 import { pruneMessageDraftsAtom } from "@/lib/message-drafts";
 import {
+  activeAgentAtom,
   activeAgentIdAtom,
+  activeAgentStatusAtom,
   activeWorkerCountByManagerAtomFamily,
   activeManagerIdAtom,
   agentsAtom,
@@ -120,6 +122,10 @@ function writeStoredSidebarWidth(width: number): void {
   }
 }
 
+function isPiModelProvider(provider: string | null | undefined): boolean {
+  return provider === "openai-codex" || provider === "anthropic";
+}
+
 function useDesktopSidebarLayout(): boolean {
   const [matches, setMatches] = useState(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -188,7 +194,9 @@ export function IndexPage() {
   const hasReceivedAgentsSnapshot = useAtomValue(hasReceivedAgentsSnapshotAtom);
   const targetAgentId = useAtomValue(targetAgentIdAtom);
   const subscribedAgentId = useAtomValue(subscribedAgentIdAtom);
+  const activeAgent = useAtomValue(activeAgentAtom);
   const activeAgentId = useAtomValue(activeAgentIdAtom);
+  const activeAgentStatus = useAtomValue(activeAgentStatusAtom);
   const isActiveManager = useAtomValue(isActiveManagerAtom);
   const isWorkerDetailView = useAtomValue(isWorkerDetailViewAtom);
   const activeManagerId = useAtomValue(activeManagerIdAtom);
@@ -211,6 +219,7 @@ export function IndexPage() {
   const [isArtifactsPanelOpen, setIsArtifactsPanelOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isStoppingCurrentSelection, setIsStoppingCurrentSelection] = useState(false);
+  const [compactingAgentId, setCompactingAgentId] = useState<string | null>(null);
   useDynamicFavicon();
 
   const { clearPendingResponseForAgent, markPendingResponse } = usePendingResponse();
@@ -408,6 +417,15 @@ export function IndexPage() {
   };
 
   const canStopCurrentSelection = isActiveManager ? isLoading || activeWorkerCount > 0 : isLoading;
+  const isCompactingCurrentSelection =
+    activeAgentId !== null && compactingAgentId === activeAgentId;
+  const showCompactCurrentSelection =
+    activeAgent !== null && isPiModelProvider(activeAgent.model.provider);
+  const canCompactCurrentSelection =
+    showCompactCurrentSelection &&
+    activeAgentStatus === "idle" &&
+    !isStoppingCurrentSelection &&
+    !isCompactingCurrentSelection;
   const stopLabel = isActiveManager ? "Stop manager and workers" : "Stop agent";
 
   const handleStopCurrentSelection = useCallback(async () => {
@@ -445,6 +463,31 @@ export function IndexPage() {
     isStoppingCurrentSelection,
     setLastError,
   ]);
+
+  const handleCompactCurrentSelection = useCallback(async () => {
+    const client = clientRef.current;
+    if (
+      !client ||
+      !activeAgentId ||
+      !activeAgent ||
+      isCompactingCurrentSelection ||
+      !isPiModelProvider(activeAgent.model.provider)
+    ) {
+      return;
+    }
+
+    setCompactingAgentId(activeAgentId);
+
+    try {
+      await client.compactAgent(activeAgentId);
+      setLastError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+      setLastError(`Failed to compact context: ${message}`);
+    } finally {
+      setCompactingAgentId((current) => (current === activeAgentId ? null : current));
+    }
+  }, [activeAgent, activeAgentId, clientRef, isCompactingCurrentSelection, setLastError]);
 
   const handleMessageInputSubmitted = useCallback(() => {
     messageListRef.current?.scrollToBottom("smooth");
@@ -582,6 +625,10 @@ export function IndexPage() {
         ) : (
           <>
             <ChatHeader
+              showCompactContext={showCompactCurrentSelection}
+              compactContextInProgress={isCompactingCurrentSelection}
+              compactContextDisabled={!canCompactCurrentSelection}
+              onCompactContext={() => void handleCompactCurrentSelection()}
               stopAllInProgress={isStoppingCurrentSelection}
               onStopAll={() => void handleStopCurrentSelection()}
               onNewChat={handleNewChat}

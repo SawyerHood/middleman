@@ -43,6 +43,7 @@ export interface BackendAdapter {
   forkThread(source: BackendCheckpoint, sourceMessageId?: string): Promise<BackendCheckpoint>;
   resumeThread(checkpoint: BackendCheckpoint): Promise<BackendCheckpoint>;
   interrupt(): Promise<void>;
+  compact(customInstructions?: string): Promise<unknown>;
   stop(): Promise<void>;
   terminate(): Promise<void>;
 }

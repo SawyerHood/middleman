@@ -1,5 +1,6 @@
 import { useAtom, useAtomValue } from "jotai";
 import {
+  Archive,
   CircleDashed,
   Loader2,
   Menu,
@@ -47,6 +48,10 @@ interface ChatHeaderProps {
   stopAllInProgress: boolean;
   stopAllDisabled?: boolean;
   onStopAll: () => void;
+  showCompactContext?: boolean;
+  compactContextInProgress?: boolean;
+  compactContextDisabled?: boolean;
+  onCompactContext?: () => void;
   showNewChat?: boolean;
   onNewChat: () => void;
   showInternalChatter?: boolean;
@@ -92,6 +97,10 @@ export function ChatHeader({
   stopAllInProgress,
   stopAllDisabled,
   onStopAll,
+  showCompactContext,
+  compactContextInProgress,
+  compactContextDisabled,
+  onCompactContext,
   showNewChat,
   onNewChat,
   showInternalChatter,
@@ -119,6 +128,9 @@ export function ChatHeader({
   const resolvedShowStopAll = showStopAll ?? activeAgent?.role === "manager";
   const resolvedShowNewChat = showNewChat ?? activeAgent?.role === "manager";
   const resolvedStopAllDisabled = stopAllDisabled ?? (!resolvedConnected || !canStopAllAgents);
+  const resolvedShowCompactContext = showCompactContext ?? false;
+  const resolvedCompactContextInProgress = compactContextInProgress ?? false;
+  const resolvedCompactContextDisabled = compactContextDisabled ?? !resolvedConnected;
   const resolvedShowInternalChatter = showInternalChatter ?? showInternalChatterFromAtom;
   const handleShowInternalChatterChange = onShowInternalChatterChange ?? setShowInternalChatter;
 
@@ -131,7 +143,10 @@ export function ChatHeader({
     : "Reconnecting";
   const archetypeLabel = resolvedActiveAgentArchetypeId?.trim();
   const hasMenu =
-    resolvedShowNewChat || resolvedShowStopAll || handleShowInternalChatterChange !== undefined;
+    resolvedShowNewChat ||
+    resolvedShowStopAll ||
+    resolvedShowCompactContext ||
+    handleShowInternalChatterChange !== undefined;
 
   return (
     <header className="app-top-bar sticky top-0 z-20 flex w-full shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/80 bg-card/80 px-2 backdrop-blur md:px-4">
@@ -231,6 +246,21 @@ export function ChatHeader({
                   <DropdownMenuItem onClick={onNewChat} className="gap-2 text-xs">
                     <Trash2 className="size-3.5" />
                     Clear conversation
+                  </DropdownMenuItem>
+                ) : null}
+
+                {resolvedShowCompactContext ? (
+                  <DropdownMenuItem
+                    onClick={onCompactContext}
+                    disabled={resolvedCompactContextDisabled || resolvedCompactContextInProgress}
+                    className="gap-2 text-xs"
+                  >
+                    {resolvedCompactContextInProgress ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Archive className="size-3.5" />
+                    )}
+                    {resolvedCompactContextInProgress ? "Compacting…" : "Compact context"}
                   </DropdownMenuItem>
                 ) : null}
 

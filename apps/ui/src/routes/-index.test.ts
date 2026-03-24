@@ -844,6 +844,67 @@ describe("IndexPage create manager model selection", () => {
     });
   });
 
+  it("shows Compact context for Pi agents and sends compact_agent from the header menu", async () => {
+    const socket = await renderPage();
+
+    emitServerEvent(socket, {
+      type: "agents_snapshot",
+      agents: [
+        buildManager("manager", "/tmp/manager"),
+        buildWorker("worker-1", "manager", "/tmp/manager"),
+      ],
+    });
+
+    await flushWsUiUpdates();
+
+    const sidebar = getSidebar();
+    click(within(sidebar).getByRole("button", { name: "Expand manager manager" }));
+    click(within(sidebar).getByRole("button", { name: "worker-1" }));
+
+    await flushWsUiUpdates();
+
+    click(getByRole(document.body, "button", { name: "More actions" }));
+    click(getByRole(document.body, "menuitem", { name: "Compact context" }));
+
+    const compactPayload = JSON.parse(socket.sentPayloads.at(-1) ?? "{}");
+    expect(compactPayload).toMatchObject({
+      type: "compact_agent",
+      agentId: "worker-1",
+    });
+    expect(typeof compactPayload.requestId).toBe("string");
+  });
+
+  it("hides Compact context for non-Pi agents", async () => {
+    const socket = await renderPage();
+
+    emitServerEvent(socket, {
+      type: "agents_snapshot",
+      agents: [
+        buildManager("manager", "/tmp/manager"),
+        {
+          ...buildWorker("worker-1", "manager", "/tmp/manager"),
+          model: {
+            provider: "anthropic-claude-code",
+            modelId: "claude-opus-4-6",
+            thinkingLevel: "high" as const,
+          },
+        },
+      ],
+    });
+
+    await flushWsUiUpdates();
+
+    const sidebar = getSidebar();
+    click(within(sidebar).getByRole("button", { name: "Expand manager manager" }));
+    click(within(sidebar).getByRole("button", { name: "worker-1" }));
+
+    await flushWsUiUpdates();
+
+    click(getByRole(document.body, "button", { name: "More actions" }));
+
+    expect(queryByText(document.body, "Compact context")).toBeNull();
+  });
+
   it("shows a manager stop button when workers are busy even if the manager is idle", async () => {
     const socket = await renderPage();
 

@@ -16,6 +16,12 @@ export type ClientCommand =
     }
   | { type: "kill_agent"; agentId: string }
   | { type: "interrupt_agent"; agentId: string; requestId?: string }
+  | {
+      type: "compact_agent";
+      agentId: string;
+      customInstructions?: string;
+      requestId?: string;
+    }
   | { type: "stop_all_agents"; managerId: string; requestId?: string }
   | {
       type: "create_manager";

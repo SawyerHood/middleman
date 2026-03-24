@@ -164,6 +164,10 @@ export class ClaudeBackendAdapter implements BackendAdapter {
     await this.requireSession().interrupt();
   }
 
+  async compact(): Promise<unknown> {
+    throw new Error("Manual compaction is not supported for the claude backend.");
+  }
+
   async stop(): Promise<void> {
     if (!this.activeSession) {
       return;

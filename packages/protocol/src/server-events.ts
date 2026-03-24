@@ -109,6 +109,13 @@ export interface InterruptAgentResultEvent {
   requestId?: string;
 }
 
+export interface CompactAgentResultEvent {
+  type: "compact_agent_result";
+  agentId: string;
+  compacted: true;
+  requestId?: string;
+}
+
 export interface DirectoriesListedEvent {
   type: "directories_listed";
   path: string;
@@ -188,6 +195,7 @@ export type ServerEvent =
   | ManagerOrderUpdatedEvent
   | StopAllAgentsResultEvent
   | InterruptAgentResultEvent
+  | CompactAgentResultEvent
   | DirectoriesListedEvent
   | DirectoryValidatedEvent
   | DirectoryPickedEvent

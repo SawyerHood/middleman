@@ -251,6 +251,34 @@ describe("SwarmManager.handleHostCall", () => {
     expect(stop.mock.invocationCallOrder[0]).toBeLessThan(start.mock.invocationCallOrder[0]);
   });
 
+  it("rejects new input while manual compaction is in progress", async () => {
+    const descriptor = makeDescriptor({
+      agentId: "worker-1",
+      managerId: "manager-1",
+      role: "worker",
+      status: "idle",
+      model: {
+        provider: "openai-codex",
+        modelId: "gpt-5.4",
+        thinkingLevel: "xhigh",
+      },
+    });
+    const manager = createManager();
+
+    (manager as any).lifecycle = {
+      requireDescriptor: vi.fn(() => descriptor),
+    };
+    (manager as any).core = {
+      sessionService: {
+        getBackendState: vi.fn(() => ({ lifecycle: "compacting" })),
+      },
+    };
+
+    await expect((manager as any).ensureAgentReadyForInput("worker-1")).rejects.toThrow(
+      "Agent worker-1 is compacting. Wait for compaction to finish before sending another message.",
+    );
+  });
+
   it("revives terminated manager sessions before accepting new input", async () => {
     const terminatedDescriptor = makeDescriptor({
       agentId: "manager-1",

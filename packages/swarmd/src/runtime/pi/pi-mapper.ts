@@ -1,5 +1,6 @@
 import type { EventEnvelope } from "../../core/types/index.js";
 import {
+  backendRawEvent,
   createNormalizedEvent,
   messageCompletedEvent,
   messageDeltaEvent,
@@ -349,6 +350,15 @@ export class PiEventMapper {
             toolCallId: event.toolCallId,
             ok: !event.isError,
             result: event.result,
+          }),
+        ];
+      case "auto_compaction_start":
+      case "auto_compaction_end":
+        return [
+          backendRawEvent({
+            sessionId: this.sessionId,
+            threadId: this.threadId,
+            payload: event,
           }),
         ];
       default:
