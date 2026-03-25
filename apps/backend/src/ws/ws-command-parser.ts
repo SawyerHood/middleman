@@ -27,10 +27,6 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
 
   const maybe = parsed as Partial<ClientCommand> & { type?: unknown };
 
-  if (maybe.type === "ping") {
-    return { ok: true, command: { type: "ping" } };
-  }
-
   if (maybe.type === "subscribe") {
     if (maybe.agentId !== undefined && typeof maybe.agentId !== "string") {
       return {
@@ -184,7 +180,6 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
   if (maybe.type === "compact_agent") {
     const agentId = (maybe as { agentId?: unknown }).agentId;
     const requestId = (maybe as { requestId?: unknown }).requestId;
-    const customInstructions = (maybe as { customInstructions?: unknown }).customInstructions;
 
     if (typeof agentId !== "string" || agentId.trim().length === 0) {
       return {
@@ -196,12 +191,6 @@ export function parseClientCommand(raw: RawData): ParsedClientCommand {
       return {
         ok: false,
         error: "compact_agent.requestId must be a string when provided",
-      };
-    }
-    if (customInstructions !== undefined) {
-      return {
-        ok: false,
-        error: "compact_agent.customInstructions is no longer supported",
       };
     }
 
@@ -468,7 +457,6 @@ export function extractRequestId(command: ClientCommand): string | undefined {
     case "load_older_history":
     case "user_message":
     case "kill_agent":
-    case "ping":
       return undefined;
   }
 }

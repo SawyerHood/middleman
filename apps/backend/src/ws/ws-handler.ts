@@ -109,17 +109,6 @@ export class WsHandler {
       requestId: extractRequestId(command),
     });
 
-    if (command.type === "ping") {
-      this.send(socket, {
-        type: "ready",
-        serverTime: new Date().toISOString(),
-        subscribedAgentId:
-          this.subscriptions.get(socket) ?? this.resolveDefaultSubscriptionAgentId(),
-        buildHash: BUILD_HASH,
-      });
-      return;
-    }
-
     if (command.type === "subscribe") {
       await this.handleSubscribe(socket, command.agentId);
       return;

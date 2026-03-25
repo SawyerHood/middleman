@@ -1,6 +1,7 @@
 import { MANAGER_MODEL_PRESETS } from "@middleman/protocol";
 import { describe, expect, it } from "vitest";
 import {
+  inferSettingsAuthProviderFromDescriptor,
   inferSwarmModelPresetFromDescriptor,
   parseSwarmModelPreset,
   parseSwarmThinkingLevel,
@@ -108,5 +109,14 @@ describe("model presets", () => {
     expect(() => parseSwarmThinkingLevel("max", "spawn_agent.thinkingLevel")).toThrow(
       "spawn_agent.thinkingLevel must be one of off|low|medium|high|xhigh",
     );
+  });
+
+  it.each([
+    [{ provider: "openai-codex", modelId: "gpt-5.4" }, "openai-codex"],
+    [{ provider: "openai-codex-app-server", modelId: "gpt-5.4-mini" }, "openai-codex"],
+    [{ provider: "anthropic", modelId: "claude-opus-4-6" }, "anthropic"],
+    [{ provider: "anthropic-claude-code", modelId: "claude-haiku-4-6" }, "anthropic"],
+  ] as const)("infers auth provider %s for descriptor %#", (descriptor, expected) => {
+    expect(inferSettingsAuthProviderFromDescriptor(descriptor)).toBe(expected);
   });
 });

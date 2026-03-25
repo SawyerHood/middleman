@@ -20,7 +20,9 @@ export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
         runtime_config_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        last_error_json TEXT
+        last_error_json TEXT,
+        context_usage_json TEXT,
+        archived INTEGER NOT NULL DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS operations (
@@ -57,50 +59,6 @@ export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
 
       CREATE INDEX IF NOT EXISTS idx_messages_source_msg
         ON messages(session_id, source_msg_id);
-    `,
-  },
-  {
-    id: "004_session_context_usage",
-    sql: `
-      ALTER TABLE sessions
-      ADD COLUMN context_usage_json TEXT;
-    `,
-  },
-  {
-    id: "005_session_archived",
-    sql: `
-      ALTER TABLE sessions
-      ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
-    `,
-  },
-  {
-    id: "006_fold_backend_state_into_session_metadata",
-    sql: `
-      CREATE TABLE IF NOT EXISTS session_backend_state (
-        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-        state_json TEXT NOT NULL
-      );
-
-      UPDATE sessions
-      SET metadata_json = json_set(
-        CASE
-          WHEN json_valid(metadata_json) AND json_type(metadata_json) = 'object' THEN metadata_json
-          ELSE '{}'
-        END,
-        '$._backendState',
-        json((
-          SELECT state_json
-          FROM session_backend_state
-          WHERE session_id = sessions.id
-        ))
-      )
-      WHERE EXISTS (
-        SELECT 1
-        FROM session_backend_state
-        WHERE session_id = sessions.id
-      );
-
-      DROP TABLE IF EXISTS session_backend_state;
     `,
   },
 ];

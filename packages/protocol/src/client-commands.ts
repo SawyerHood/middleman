@@ -28,5 +28,4 @@ export type ClientCommand =
   | { type: "delete_manager"; managerId: string; requestId?: string }
   | { type: "list_directories"; path?: string; requestId?: string }
   | { type: "validate_directory"; path: string; requestId?: string }
-  | { type: "pick_directory"; defaultPath?: string; requestId?: string }
-  | { type: "ping" };
+  | { type: "pick_directory"; defaultPath?: string; requestId?: string };

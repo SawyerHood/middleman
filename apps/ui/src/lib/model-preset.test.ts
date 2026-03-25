@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inferModelPreset } from "./model-preset";
+import { inferModelPreset, inferModelPresetIconFamily } from "./model-preset";
 import type { AgentDescriptor } from "@middleman/protocol";
 
 function buildAgent(
@@ -38,5 +38,14 @@ describe("inferModelPreset", () => {
 
   it("returns undefined for unknown descriptors", () => {
     expect(inferModelPreset(buildAgent("anthropic", "claude-unknown"))).toBeUndefined();
+  });
+
+  it.each([
+    ["openai-codex", "gpt-5.4-mini", "pi-codex"],
+    ["anthropic", "claude-sonnet-4-6", "pi-claude"],
+    ["openai-codex-app-server", "gpt-5.4-mini", "codex-app"],
+    ["anthropic-claude-code", "claude-haiku-4-6", "claude-code"],
+  ] as const)("maps %s/%s to icon family %s", (provider, modelId, expectedIconFamily) => {
+    expect(inferModelPresetIconFamily(buildAgent(provider, modelId))).toBe(expectedIconFamily);
   });
 });

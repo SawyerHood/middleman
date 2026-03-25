@@ -36,7 +36,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { buildManagerTreeRows } from "@/lib/agent-hierarchy";
 import { isWorkingAgentStatus } from "@/lib/agent-status";
 import { moveVisibleManagersWithinOrder, normalizeManagerOrder } from "@/lib/manager-order";
-import { inferModelPreset } from "@/lib/model-preset";
+import { inferModelPreset, inferModelPresetIconFamily } from "@/lib/model-preset";
 import {
   activeAgentIdAtom,
   activeWorkerCountByManagerAtomFamily,
@@ -48,7 +48,6 @@ import {
 } from "@/lib/ws-state";
 import { cn } from "@/lib/utils";
 import {
-  getManagerModelPresetDefinition,
   type AgentDescriptor,
   type AgentStatus,
   type ManagerModelPreset,
@@ -120,9 +119,7 @@ function useAgentLiveStatus(
 }
 
 function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?: string }) {
-  const provider = agent.model.provider.toLowerCase();
-  const preset = inferModelPreset(agent);
-  const iconFamily = preset ? getManagerModelPresetDefinition(preset).iconFamily : undefined;
+  const iconFamily = inferModelPresetIconFamily(agent);
 
   if (iconFamily === "pi-claude") {
     return (
@@ -175,23 +172,8 @@ function RuntimeIcon({ agent, className }: { agent: AgentDescriptor; className?:
     );
   }
 
-  if (iconFamily === "claude-code" || provider === "anthropic-claude-code") {
+  if (iconFamily === "claude-code") {
     return <ClaudeCodeIconPair className={className} />;
-  }
-
-  if (provider.includes("anthropic") || provider.includes("claude")) {
-    return <img src="/agents/claude-logo.svg" alt="" aria-hidden="true" className={className} />;
-  }
-
-  if (provider.includes("openai")) {
-    return (
-      <img
-        src="/agents/codex-logo.svg"
-        alt=""
-        aria-hidden="true"
-        className={cn("dark:invert", className)}
-      />
-    );
   }
 
   return (
