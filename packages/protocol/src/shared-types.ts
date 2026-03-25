@@ -19,6 +19,7 @@ export interface AgentModelDescriptor {
   thinkingLevel: AgentThinkingLevel;
 }
 
+export type ModelPresetAuthProvider = "openai-codex" | "anthropic";
 export type ModelPresetIconFamily = "pi-codex" | "pi-claude" | "codex-app" | "claude-code";
 
 export const MANAGER_MODEL_PRESET_REGISTRY = {
@@ -29,6 +30,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 1_048_576,
     telemetryBacked: true,
     availableForManagerCreation: true,
+    authProvider: "openai-codex",
     iconFamily: "pi-codex",
     supportsManualCompaction: true,
   },
@@ -39,6 +41,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 1_048_576,
     telemetryBacked: true,
     availableForManagerCreation: true,
+    authProvider: "openai-codex",
     iconFamily: "pi-codex",
     supportsManualCompaction: true,
   },
@@ -49,6 +52,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 200_000,
     telemetryBacked: true,
     availableForManagerCreation: true,
+    authProvider: "anthropic",
     iconFamily: "pi-claude",
     supportsManualCompaction: true,
   },
@@ -59,6 +63,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 200_000,
     telemetryBacked: true,
     availableForManagerCreation: true,
+    authProvider: "anthropic",
     iconFamily: "pi-claude",
     supportsManualCompaction: true,
   },
@@ -69,6 +74,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 200_000,
     telemetryBacked: true,
     availableForManagerCreation: true,
+    authProvider: "anthropic",
     iconFamily: "pi-claude",
     supportsManualCompaction: true,
   },
@@ -79,6 +85,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 1_048_576,
     telemetryBacked: true,
     availableForManagerCreation: false,
+    authProvider: "openai-codex",
     iconFamily: "codex-app",
     supportsManualCompaction: false,
   },
@@ -89,6 +96,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 1_048_576,
     telemetryBacked: true,
     availableForManagerCreation: false,
+    authProvider: "openai-codex",
     iconFamily: "codex-app",
     supportsManualCompaction: false,
   },
@@ -99,6 +107,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 200_000,
     telemetryBacked: true,
     availableForManagerCreation: false,
+    authProvider: "anthropic",
     iconFamily: "claude-code",
     supportsManualCompaction: false,
   },
@@ -109,6 +118,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 200_000,
     telemetryBacked: true,
     availableForManagerCreation: false,
+    authProvider: "anthropic",
     iconFamily: "claude-code",
     supportsManualCompaction: false,
   },
@@ -119,6 +129,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: 200_000,
     telemetryBacked: true,
     availableForManagerCreation: false,
+    authProvider: "anthropic",
     iconFamily: "claude-code",
     supportsManualCompaction: false,
   },
@@ -131,6 +142,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
     contextWindow: number;
     telemetryBacked: boolean;
     availableForManagerCreation: boolean;
+    authProvider: ModelPresetAuthProvider;
     iconFamily: ModelPresetIconFamily;
     supportsManualCompaction: boolean;
   }
@@ -169,6 +181,13 @@ export function getManagerModelPresetDefinition(
   return MANAGER_MODEL_PRESET_REGISTRY[preset];
 }
 
+export function inferManagerModelPresetDefinitionFromDescriptor(
+  descriptor: Pick<AgentModelDescriptor, "provider" | "modelId"> | undefined,
+): ManagerModelPresetDefinition | undefined {
+  const preset = inferManagerModelPresetFromDescriptor(descriptor);
+  return preset ? MANAGER_MODEL_PRESET_REGISTRY[preset] : undefined;
+}
+
 export function inferManagerModelPresetFromDescriptor(
   descriptor: Pick<AgentModelDescriptor, "provider" | "modelId"> | undefined,
 ): ManagerModelPreset | undefined {
@@ -181,11 +200,24 @@ export function inferManagerModelPresetFromDescriptor(
   );
 }
 
+export function inferManagerModelPresetAuthProviderFromDescriptor(
+  descriptor: Pick<AgentModelDescriptor, "provider" | "modelId"> | undefined,
+): ModelPresetAuthProvider | undefined {
+  return inferManagerModelPresetDefinitionFromDescriptor(descriptor)?.authProvider;
+}
+
+export function inferManagerModelPresetIconFamilyFromDescriptor(
+  descriptor: Pick<AgentModelDescriptor, "provider" | "modelId"> | undefined,
+): ModelPresetIconFamily | undefined {
+  return inferManagerModelPresetDefinitionFromDescriptor(descriptor)?.iconFamily;
+}
+
 export function supportsManualCompactionForDescriptor(
   descriptor: Pick<AgentModelDescriptor, "provider" | "modelId"> | undefined,
 ): boolean {
-  const preset = inferManagerModelPresetFromDescriptor(descriptor);
-  return preset ? MANAGER_MODEL_PRESET_REGISTRY[preset].supportsManualCompaction : false;
+  return (
+    inferManagerModelPresetDefinitionFromDescriptor(descriptor)?.supportsManualCompaction ?? false
+  );
 }
 
 function buildManagerModelPresetDescriptorKey(provider: string, modelId: string): string {

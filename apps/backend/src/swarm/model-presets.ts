@@ -2,9 +2,15 @@ import {
   AGENT_THINKING_LEVELS,
   CREATE_MANAGER_MODEL_PRESETS,
   getManagerModelPresetDefinition,
+  inferManagerModelPresetAuthProviderFromDescriptor,
   inferManagerModelPresetFromDescriptor,
 } from "@middleman/protocol";
-import type { AgentModelDescriptor, AgentThinkingLevel, SwarmModelPreset } from "./types.js";
+import type {
+  AgentModelDescriptor,
+  AgentThinkingLevel,
+  SettingsAuthProviderName,
+  SwarmModelPreset,
+} from "./types.js";
 import { SWARM_MODEL_PRESETS } from "./types.js";
 
 export const DEFAULT_SWARM_MODEL_PRESET: SwarmModelPreset = "pi-codex";
@@ -107,4 +113,10 @@ export function inferSwarmModelPresetFromDescriptor(
   descriptor: Pick<AgentModelDescriptor, "provider" | "modelId"> | undefined,
 ): SwarmModelPreset | undefined {
   return inferManagerModelPresetFromDescriptor(descriptor);
+}
+
+export function inferSettingsAuthProviderFromDescriptor(
+  descriptor: Pick<AgentModelDescriptor, "provider" | "modelId"> | undefined,
+): SettingsAuthProviderName | undefined {
+  return inferManagerModelPresetAuthProviderFromDescriptor(descriptor);
 }

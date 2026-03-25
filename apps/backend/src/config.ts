@@ -90,7 +90,7 @@ function resolveInstallDir(explicitInstallDir?: string): string {
         nearestPackageRoot = current;
       }
 
-      if (readPackageName(packageJsonPath) === "middleman") {
+      if (readPackageName(packageJsonPath) === "middleman-app") {
         return current;
       }
     }

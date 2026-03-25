@@ -46,63 +46,7 @@ export const MIDDLEMAN_STORE_MIGRATIONS: readonly MigrationDefinition[] = [
 
       CREATE INDEX IF NOT EXISTS idx_middleman_schedules_manager_next_fire
         ON middleman_schedules(manager_session_id, next_fire_at, created_at);
-    `,
-  },
-  {
-    id: "middleman_002_drop_dead_agent_and_settings_columns",
-    sql: `
-      CREATE TABLE middleman_agents_next (
-        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-        role TEXT NOT NULL CHECK (role IN ('manager', 'worker')),
-        manager_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-        archetype_id TEXT,
-        memory_owner_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-        reply_target_json TEXT
-      );
-
-      INSERT INTO middleman_agents_next (
-        session_id,
-        role,
-        manager_session_id,
-        archetype_id,
-        memory_owner_session_id,
-        reply_target_json
-      )
-      SELECT
-        session_id,
-        role,
-        manager_session_id,
-        archetype_id,
-        memory_owner_session_id,
-        reply_target_json
-      FROM middleman_agents;
-
-      DROP TABLE middleman_agents;
-      ALTER TABLE middleman_agents_next RENAME TO middleman_agents;
-
-      CREATE TABLE middleman_settings_next (
-        namespace TEXT NOT NULL,
-        key TEXT NOT NULL,
-        value_json TEXT NOT NULL,
-        PRIMARY KEY (namespace, key)
-      );
-
-      INSERT INTO middleman_settings_next (namespace, key, value_json)
-      SELECT namespace, key, value_json
-      FROM middleman_settings;
-
-      DROP TABLE middleman_settings;
-      ALTER TABLE middleman_settings_next RENAME TO middleman_settings;
-    `,
-  },
-  {
-    id: "middleman_003_compact_agent_tool_call_storage",
-    sql: `
-      UPDATE messages
-      SET metadata_json = json_remove(metadata_json, '$.middleman.event.text')
-      WHERE json_extract(metadata_json, '$.middleman.renderAs') = 'agent_tool_call'
-        AND json_type(metadata_json, '$.middleman.event.text') IS NOT NULL;
-
+      
       CREATE INDEX IF NOT EXISTS idx_messages_middleman_visible_session
         ON messages(
           session_id,

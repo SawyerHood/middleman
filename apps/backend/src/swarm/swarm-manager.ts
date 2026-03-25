@@ -33,6 +33,7 @@ import { pickDirectory as pickNativeDirectory } from "./directory-picker.js";
 import {
   resolveCreateManagerModelPreset,
   DEFAULT_SWARM_MODEL_PRESET,
+  inferSettingsAuthProviderFromDescriptor,
   inferSwarmModelPresetFromDescriptor,
   parseSwarmModelPreset,
   parseSwarmThinkingLevel,
@@ -80,7 +81,6 @@ import type {
   RequestedDeliveryMode,
   SendMessageReceipt,
   SettingsAuthProvider,
-  SettingsAuthProviderName,
   SkillEnvRequirement,
   SpawnAgentInput,
   SwarmConfig,
@@ -1017,13 +1017,12 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   }
 
   private resolveRuntimeErrorMessage(descriptor: AgentDescriptor, payload: unknown): string {
-    const configuredAuthProvider = this.resolveSettingsAuthProviderForModel(
-      descriptor.model.provider,
-    );
-    if (
+    const configuredAuthProvider = inferSettingsAuthProviderFromDescriptor(descriptor.model);
+    const isMissingConfiguredAuth =
       configuredAuthProvider &&
-      !this.secretsEnvServiceOrThrow().hasSettingsAuth(configuredAuthProvider)
-    ) {
+      this.secretsEnvService &&
+      !this.secretsEnvService.hasSettingsAuth(configuredAuthProvider);
+    if (isMissingConfiguredAuth) {
       return `Missing authentication for ${configuredAuthProvider}. Configure credentials in Settings.`;
     }
 
@@ -1037,24 +1036,6 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     }
 
     return "Agent runtime failed.";
-  }
-
-  private resolveSettingsAuthProviderForModel(
-    provider: string,
-  ): SettingsAuthProviderName | undefined {
-    if (provider === "openai-codex") {
-      return "openai-codex";
-    }
-
-    if (provider === "anthropic") {
-      return "anthropic";
-    }
-
-    if (provider === "anthropic-claude-code") {
-      return "anthropic";
-    }
-
-    return undefined;
   }
 
   private async handleHostCall(sessionId: string, request: HostCallRequest): Promise<unknown> {

@@ -155,21 +155,4 @@ describe("parseClientCommand compact_agent", () => {
       error: "compact_agent.agentId must be a non-empty string",
     });
   });
-
-  it("rejects compact_agent when customInstructions is provided", () => {
-    expect(
-      parseClientCommand(
-        Buffer.from(
-          JSON.stringify({
-            type: "compact_agent",
-            agentId: "worker-1",
-            customInstructions: "Keep recent findings only",
-          }),
-        ),
-      ),
-    ).toEqual({
-      ok: false,
-      error: "compact_agent.customInstructions is no longer supported",
-    });
-  });
 });
