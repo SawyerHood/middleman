@@ -10,7 +10,6 @@ const REQUIRED_SKILL_NAMES = [
   "memory",
   "brave-search",
   "cron-scheduling",
-  "agent-browser",
   "image-generation",
 ] as const;
 
@@ -64,7 +63,6 @@ export class SkillMetadataService {
       this.resolveMemorySkillPath(skillPathIndex),
       this.resolveBraveSearchSkillPath(skillPathIndex),
       this.resolveCronSchedulingSkillPath(skillPathIndex),
-      this.resolveAgentBrowserSkillPath(skillPathIndex),
       this.resolveImageGenerationSkillPath(skillPathIndex),
     ];
 
@@ -107,10 +105,6 @@ export class SkillMetadataService {
 
   private resolveCronSchedulingSkillPath(skillPathIndex: Map<string, string[]>): string {
     return this.resolveRequiredSkillPath("cron-scheduling", skillPathIndex);
-  }
-
-  private resolveAgentBrowserSkillPath(skillPathIndex: Map<string, string[]>): string {
-    return this.resolveRequiredSkillPath("agent-browser", skillPathIndex);
   }
 
   private resolveImageGenerationSkillPath(skillPathIndex: Map<string, string[]>): string {

@@ -92,7 +92,7 @@ Currently installed: badge, button, card, checkbox, context-menu, dialog, input,
 
 ## Visual Testing with Agent Browser
 
-For any UI/visual changes, use `agent-browser` to verify your work in a real browser. Start a dev server on **unique ports** (not the default `47187`/`47188` — those are used by the running production instance) and use `agent-browser` to screenshot and interact with the UI.
+For any UI/visual changes, use `dev-browser` to verify your work in a real browser. Start a dev server on **unique ports** (not the default `47187`/`47188` — those are used by the running production instance) and use `dev-browser` to screenshot and interact with the UI.
 
 ```bash
 # Pick unique ports that don't collide with other workers or production
@@ -100,11 +100,11 @@ MIDDLEMAN_PORT=48387 MIDDLEMAN_UI_PORT=48388 \
   MIDDLEMAN_HOME=~/worktrees/<your-worktree>/.test-data pnpm dev &
 
 # Open and screenshot
-npx agent-browser open http://localhost:48388 --screenshot /tmp/my-test.png
+npx dev-browser open http://localhost:48388 --screenshot /tmp/my-test.png
 
 # Navigate to specific views
-npx agent-browser open http://localhost:48388/?view=notes --screenshot /tmp/notes-test.png
-npx agent-browser open http://localhost:48388/?view=settings --screenshot /tmp/settings-test.png
+npx dev-browser open http://localhost:48388/?view=notes --screenshot /tmp/notes-test.png
+npx dev-browser open http://localhost:48388/?view=settings --screenshot /tmp/settings-test.png
 ```
 
 **Important:** Each worker must use a different port pair to avoid collisions when running in parallel. Suggested ranges: `484xx`, `485xx`, `486xx`, `487xx`, `488xx`, `489xx`.
