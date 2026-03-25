@@ -1,6 +1,24 @@
 export interface MigrationDefinition {
   id: string;
-  sql: string;
+  sql?: string;
+  apply?: (db: import("./db.js").Database) => void;
+}
+
+function hasTableColumn(
+  db: import("./db.js").Database,
+  tableName: string,
+  columnName: string,
+): boolean {
+  const escapedTableName = tableName.replaceAll("'", "''");
+  const row = db
+    .prepare<{ columnName: string }, { name: string }>(
+      `SELECT name
+       FROM pragma_table_info('${escapedTableName}')
+       WHERE name = @columnName`,
+    )
+    .get({ columnName });
+
+  return row !== undefined;
 }
 
 export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
@@ -59,6 +77,62 @@ export const STORE_MIGRATIONS: readonly MigrationDefinition[] = [
 
       CREATE INDEX IF NOT EXISTS idx_messages_source_msg
         ON messages(session_id, source_msg_id);
+    `,
+  },
+  {
+    id: "004_session_context_usage",
+    apply(db) {
+      if (hasTableColumn(db, "sessions", "context_usage_json")) {
+        return;
+      }
+
+      db.exec(`
+        ALTER TABLE sessions
+        ADD COLUMN context_usage_json TEXT;
+      `);
+    },
+  },
+  {
+    id: "005_session_archived",
+    apply(db) {
+      if (hasTableColumn(db, "sessions", "archived")) {
+        return;
+      }
+
+      db.exec(`
+        ALTER TABLE sessions
+        ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+      `);
+    },
+  },
+  {
+    id: "006_fold_backend_state_into_session_metadata",
+    sql: `
+      CREATE TABLE IF NOT EXISTS session_backend_state (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+        state_json TEXT NOT NULL
+      );
+
+      UPDATE sessions
+      SET metadata_json = json_set(
+        CASE
+          WHEN json_valid(metadata_json) AND json_type(metadata_json) = 'object' THEN metadata_json
+          ELSE '{}'
+        END,
+        '$._backendState',
+        json((
+          SELECT state_json
+          FROM session_backend_state
+          WHERE session_id = sessions.id
+        ))
+      )
+      WHERE EXISTS (
+        SELECT 1
+        FROM session_backend_state
+        WHERE session_id = sessions.id
+      );
+
+      DROP TABLE IF EXISTS session_backend_state;
     `,
   },
 ];

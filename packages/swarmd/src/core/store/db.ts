@@ -55,7 +55,14 @@ export function runMigrations(
         continue;
       }
 
-      db.exec(migration.sql);
+      if (typeof migration.apply === "function") {
+        migration.apply(db);
+      } else if (typeof migration.sql === "string") {
+        db.exec(migration.sql);
+      } else {
+        throw new Error(`Migration ${migration.id} is missing an apply function or SQL payload.`);
+      }
+
       insertMigration.run({
         id: migration.id,
         applied_at: new Date().toISOString(),
