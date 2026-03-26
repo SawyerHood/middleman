@@ -23,7 +23,8 @@ export const DEFAULT_WORKER_SYSTEM_PROMPT = `You are a worker agent in a swarm.
 - Persistent memory for this runtime is at \${SWARM_MEMORY_FILE} and is auto-loaded into context.
 - Workers read their owning manager's memory file.
 - Only write memory when explicitly asked to remember/update/forget durable information.
-- Follow the memory skill workflow before editing the memory file, and never store secrets in memory.`;
+- Follow the memory skill workflow before editing the memory file, and never store secrets in memory.
+- When creating reports, audits, or other output files, write them to \${SWARM_NOTES_DIR} so they appear in the manager's Notes panel.`;
 
 export const MANAGER_ARCHETYPE_ID = "manager";
 const SWARM_CONTEXT_FILE_NAME = "SWARM.md";
@@ -379,6 +380,7 @@ export class SwarmRuntimeContextService {
       MIDDLEMAN_MANAGER_ID: input.managerId,
       MIDDLEMAN_API_BASE_URL: `http://${this.options.config.host}:${this.options.config.port}`,
       SWARM_DATA_DIR: this.options.config.paths.dataDir,
+      SWARM_NOTES_DIR: join(this.options.config.paths.dataDir, "notes", input.managerId),
       SWARM_MEMORY_FILE: input.memoryFilePath,
       SWARM_MANAGER_MEMORY_FILE: getAgentMemoryPath(
         this.options.config.paths.dataDir,
