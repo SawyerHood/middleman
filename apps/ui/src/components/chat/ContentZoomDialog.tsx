@@ -1,11 +1,11 @@
 import type { MouseEvent, ReactNode } from "react";
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
   DialogOverlay,
+  DialogPopup,
   DialogPortal,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -42,7 +42,7 @@ export function ContentZoomDialog({
           )}
         />
 
-        <DialogPrimitive.Popup
+        <DialogPopup
           data-content-zoom-dialog="true"
           className={cn(
             "fixed inset-0 z-[121] flex items-center justify-center overflow-auto outline-none",
@@ -82,7 +82,7 @@ export function ContentZoomDialog({
           >
             {children}
           </div>
-        </DialogPrimitive.Popup>
+        </DialogPopup>
       </DialogPortal>
     </Dialog>
   );

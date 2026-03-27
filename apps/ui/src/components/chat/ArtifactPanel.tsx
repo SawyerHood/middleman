@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   Check,
   ChevronDown,
@@ -16,7 +15,13 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogOverlay,
+  DialogPopup,
+  DialogPortal,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -307,7 +312,7 @@ export function ArtifactPanel({
             isClosing && !isVisible && "pointer-events-none",
           )}
         />
-        <DialogPrimitive.Popup
+        <DialogPopup
           className={cn(
             "app-shell-height fixed inset-y-0 right-0 z-50 flex w-full flex-col",
             "max-md:inset-x-0 max-md:w-dvw max-md:max-w-none md:max-w-[min(880px,90vw)]",
@@ -493,7 +498,7 @@ export function ArtifactPanel({
               )}
             </div>
           </ScrollArea>
-        </DialogPrimitive.Popup>
+        </DialogPopup>
       </DialogPortal>
     </Dialog>
   );

@@ -52,6 +52,16 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   );
 }
 
+function DialogPopup({ initialFocus, ...props }: DialogPrimitive.Popup.Props) {
+  return (
+    <DialogPrimitive.Popup
+      data-slot="dialog-content"
+      initialFocus={initialFocus ?? resolveDialogInitialFocus}
+      {...props}
+    />
+  );
+}
+
 function DialogContent({
   className,
   children,
@@ -64,13 +74,12 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
+      <DialogPopup
         className={cn(
           "app-scroll-area fixed left-1/2 z-50 grid w-full max-w-[calc(100%-1rem)] -translate-x-1/2 gap-4 overflow-y-auto rounded-xl bg-background p-4 text-sm ring-1 ring-foreground/10 duration-100 outline-none max-md:top-[calc(var(--app-safe-top)+0.5rem)] max-md:max-h-[calc(var(--app-viewport-height)-var(--app-safe-top)-var(--app-safe-bottom)-1rem)] md:top-1/2 md:max-h-[calc(var(--app-viewport-height)-2rem)] md:-translate-y-1/2 sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}
-        initialFocus={initialFocus ?? resolveDialogInitialFocus}
+        initialFocus={initialFocus}
         {...props}
       >
         {children}
@@ -83,7 +92,7 @@ function DialogContent({
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
-      </DialogPrimitive.Popup>
+      </DialogPopup>
     </DialogPortal>
   );
 }
@@ -150,6 +159,7 @@ export {
   DialogFooter,
   DialogHeader,
   DialogOverlay,
+  DialogPopup,
   DialogPortal,
   DialogTitle,
   DialogTrigger,
