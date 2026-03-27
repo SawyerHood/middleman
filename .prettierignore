@@ -1,6 +1,7 @@
 node_modules
 dist
 .output
+.profiles
 pnpm-lock.yaml
 *.gen.ts
 packages/protocol/src/*.js
