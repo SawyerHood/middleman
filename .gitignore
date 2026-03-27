@@ -16,3 +16,4 @@ node_modules/
 
 data/
 packages/protocol/src/*.js
+/main-*.js
