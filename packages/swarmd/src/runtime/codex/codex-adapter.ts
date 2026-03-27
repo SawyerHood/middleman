@@ -794,8 +794,8 @@ function resolveCodexConfig(config: SessionRuntimeConfig): ResolvedCodexConfig {
     approvalPolicy: readApprovalPolicy(backendConfig.approvalPolicy) ?? "never",
     sandbox: readSandboxMode(backendConfig.sandbox) ?? "danger-full-access",
     clientInfo: {
-      name: readString(readObject(backendConfig.clientInfo)?.name) ?? "swarmd",
-      title: readString(readObject(backendConfig.clientInfo)?.title) ?? "swarmd",
+      name: readString(readObject(backendConfig.clientInfo)?.name) ?? "Codex Desktop",
+      title: readString(readObject(backendConfig.clientInfo)?.title) ?? "Codex Desktop",
       version: readString(readObject(backendConfig.clientInfo)?.version) ?? "0.1.0",
     },
     experimentalApi: readBoolean(backendConfig.experimentalApi) ?? true,
