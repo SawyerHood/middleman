@@ -89,6 +89,7 @@ import type {
 
 const DEFAULT_REPLY_TARGET: MessageTargetContext = { channel: "web" };
 const COMPACT_OPERATION_TIMEOUT_MS = 300_000;
+const TOOL_PROGRESS_BROADCAST_INTERVAL_MS = 500;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -149,6 +150,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
   private readonly pendingWorkerCompletionReportAgentIds = new Set<string>();
   private readonly suppressNextWorkerCompletionReportAgentIds = new Set<string>();
   private readonly compactingAgentIds = new Set<string>();
+  private readonly lastToolProgressBroadcastAtByKey = new Map<string, number>();
 
   private readonly runtimeContext: SwarmRuntimeContextService;
   private readonly lifecycle: SwarmLifecycleService;
@@ -253,6 +255,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
     this.secretsEnvService = null;
     this.lastWorkerCompletionReportTimestampByAgentId.clear();
     this.pendingWorkerCompletionReportAgentIds.clear();
+    this.lastToolProgressBroadcastAtByKey.clear();
   }
 
   getConfig(): SwarmConfig {
@@ -901,6 +904,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
         this.emitStatus(descriptor.agentId, status, 0, contextUsage);
         if (descriptor.role === "worker") {
           if (status === "idle") {
+            this.clearToolProgressBroadcastStateForAgent(descriptor.agentId);
             void this.maybeEmitWorkerCompletionSummary(descriptor.agentId);
           } else if (
             (status === "starting" || status === "busy") &&
@@ -915,6 +919,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
     switch (event.type) {
       case "session.errored": {
+        this.clearToolProgressBroadcastStateForAgent(descriptor.agentId);
         if (descriptor.role === "worker") {
           this.pendingWorkerCompletionReportAgentIds.delete(descriptor.agentId);
           this.suppressNextWorkerCompletionReportAgentIds.delete(descriptor.agentId);
@@ -980,6 +985,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
           toolCallId: readString(readObject(event.payload)?.toolCallId),
           text: safeJson(readObject(event.payload)?.input),
         };
+        this.resetToolProgressBroadcastState(toolStartedEvent);
         this.persistAgentToolCall(toolStartedEvent);
         this.emitAgentToolCall(toolStartedEvent);
         return;
@@ -995,8 +1001,9 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
           toolCallId: readString(readObject(event.payload)?.toolCallId),
           text: safeJson(readObject(event.payload)?.progress),
         };
-        this.persistAgentToolCall(toolProgressEvent);
-        this.emitAgentToolCall(toolProgressEvent);
+        if (this.shouldBroadcastToolProgress(toolProgressEvent)) {
+          this.emitAgentToolCall(toolProgressEvent);
+        }
         return;
       }
       case "tool.completed": {
@@ -1011,6 +1018,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
           text: safeJson(readObject(event.payload)?.result),
           isError: readObject(event.payload)?.ok === false,
         };
+        this.resetToolProgressBroadcastState(toolCompletedEvent);
         this.persistAgentToolCall(toolCompletedEvent);
         this.emitAgentToolCall(toolCompletedEvent);
         return;
@@ -1391,25 +1399,21 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
   private suppressExpectedShutdownErrors(): void {
     const core = this.coreOrThrow();
-
-    for (const session of core.sessionService.list()) {
-      for (const message of core.messageStore.list(session.id)) {
-        const middleman = readObject(readObject(message.metadata)?.middleman);
-        const event = readObject(middleman?.event);
-        if (
-          readString(middleman?.renderAs) === "conversation_log" &&
-          readBoolean(middleman?.suppressed) !== true &&
-          isExpectedShutdownErrorMessage(readString(event?.text))
-        ) {
-          core.messageStore.annotate(message.id, {
-            middleman: {
-              ...middleman,
-              suppressed: true,
-            },
-          });
-        }
-      }
-    }
+    core.db
+      .prepare<{ sigint_pattern: string; sigterm_pattern: string }>(
+        `UPDATE messages
+         SET metadata_json = json_set(metadata_json, '$.middleman.suppressed', json('true'))
+         WHERE json_extract(metadata_json, '$.middleman.renderAs') = 'conversation_log'
+           AND coalesce(json_extract(metadata_json, '$.middleman.suppressed'), 0) != 1
+           AND (
+             json_extract(metadata_json, '$.middleman.event.text') LIKE @sigint_pattern
+             OR json_extract(metadata_json, '$.middleman.event.text') LIKE @sigterm_pattern
+           )`,
+      )
+      .run({
+        sigint_pattern: "Worker exited with code null, signal SIGINT%",
+        sigterm_pattern: "Worker exited with code null, signal SIGTERM%",
+      });
   }
 
   private emitConversationMessage(event: ConversationMessageEvent): void {
@@ -1426,6 +1430,55 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
 
   private emitAgentToolCall(event: AgentToolCallEvent): void {
     this.emit("agent_tool_call", event);
+  }
+
+  private shouldBroadcastToolProgress(event: AgentToolCallEvent): boolean {
+    const key = this.getToolProgressBroadcastKey(event);
+    if (!key) {
+      return true;
+    }
+
+    const currentTimestampMs = Date.parse(event.timestamp);
+    if (!Number.isFinite(currentTimestampMs)) {
+      return true;
+    }
+
+    const lastBroadcastAt = this.lastToolProgressBroadcastAtByKey.get(key);
+    if (
+      lastBroadcastAt !== undefined &&
+      currentTimestampMs - lastBroadcastAt < TOOL_PROGRESS_BROADCAST_INTERVAL_MS
+    ) {
+      return false;
+    }
+
+    this.lastToolProgressBroadcastAtByKey.set(key, currentTimestampMs);
+    return true;
+  }
+
+  private resetToolProgressBroadcastState(event: AgentToolCallEvent): void {
+    const key = this.getToolProgressBroadcastKey(event);
+    if (!key) {
+      return;
+    }
+
+    this.lastToolProgressBroadcastAtByKey.delete(key);
+  }
+
+  private clearToolProgressBroadcastStateForAgent(agentId: string): void {
+    for (const key of this.lastToolProgressBroadcastAtByKey.keys()) {
+      if (key.startsWith(`${agentId}:`)) {
+        this.lastToolProgressBroadcastAtByKey.delete(key);
+      }
+    }
+  }
+
+  private getToolProgressBroadcastKey(event: AgentToolCallEvent): string | null {
+    const toolCallId = event.toolCallId?.trim();
+    if (!toolCallId) {
+      return null;
+    }
+
+    return `${event.actorAgentId}:${toolCallId}`;
   }
 
   private emitStatus(
@@ -1601,12 +1654,6 @@ function findLatestWorkerCompletionSummary(
   }
 
   return undefined;
-}
-
-function isExpectedShutdownErrorMessage(text: string | undefined): boolean {
-  return (
-    typeof text === "string" && /Worker exited with code null, signal (SIGINT|SIGTERM)/.test(text)
-  );
 }
 
 function toSwarmdDeliveryMode(delivery?: RequestedDeliveryMode): SwarmdDeliveryMode {

@@ -26,6 +26,10 @@ export interface ClaudeEventContext {
   turnId?: string | null;
 }
 
+export interface ClaudeEventMapperOptions {
+  emitRawEvents?: boolean;
+}
+
 export class ClaudeEventMapper {
   private assistantMessageCounter = 0;
   private startedAssistantMessages = new Set<string>();
@@ -33,6 +37,8 @@ export class ClaudeEventMapper {
   private streamedAssistantMessages = new Set<string>();
   private activeStreamAssistantMessageId: string | null = null;
   private toolNameByCallId = new Map<string, string>();
+
+  constructor(private readonly options: ClaudeEventMapperOptions = {}) {}
 
   mapEvent(
     context: ClaudeEventContext,
@@ -299,13 +305,15 @@ export class ClaudeEventMapper {
         break;
     }
 
-    normalized.push(
-      backendRawEvent({
-        sessionId: context.sessionId,
-        threadId: context.threadId,
-        payload: event,
-      }),
-    );
+    if (this.options.emitRawEvents === true) {
+      normalized.push(
+        backendRawEvent({
+          sessionId: context.sessionId,
+          threadId: context.threadId,
+          payload: event,
+        }),
+      );
+    }
 
     return normalized;
   }

@@ -168,7 +168,7 @@ function createCallbacks() {
   };
 }
 
-function createConfig(): SessionRuntimeConfig {
+function createConfig(backendConfigOverrides?: Record<string, unknown>): SessionRuntimeConfig {
   return {
     backend: "claude",
     cwd: "/tmp/swarmd",
@@ -177,6 +177,7 @@ function createConfig(): SessionRuntimeConfig {
     backendConfig: {
       sessionId: "ses_claude_adapter_test",
       threadId: "thr_claude_adapter_test",
+      ...(backendConfigOverrides ?? {}),
     },
   };
 }
@@ -212,11 +213,33 @@ afterEach(() => {
 });
 
 describe("ClaudeEventMapper", () => {
+  it("omits raw backend events unless explicitly enabled", () => {
+    const mapper = new ClaudeEventMapper();
+
+    expect(
+      mapper.mapEvent(
+        {
+          sessionId: "ses_mapper",
+          threadId: "thr_mapper",
+          turnId: "turn_mapper",
+        },
+        {
+          type: "system:init",
+          session_id: "claude-session-1",
+        },
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        type: "session.started",
+      }),
+    ]);
+  });
+
   it("maps Claude SDK events into normalized swarmd events", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-13T18:00:00.000Z"));
 
-    const mapper = new ClaudeEventMapper();
+    const mapper = new ClaudeEventMapper({ emitRawEvents: true });
     const context = {
       sessionId: "ses_mapper",
       threadId: "thr_mapper",
@@ -359,7 +382,7 @@ describe("ClaudeEventMapper", () => {
   });
 
   it("streams assistant text from partial Claude events without completing on thinking-only frames", () => {
-    const mapper = new ClaudeEventMapper();
+    const mapper = new ClaudeEventMapper({ emitRawEvents: true });
     const context = {
       sessionId: "ses_mapper",
       threadId: "thr_mapper",
@@ -412,6 +435,40 @@ describe("ClaudeEventMapper", () => {
 });
 
 describe("ClaudeQuerySession", () => {
+  it("emits raw backend events only when experimentalRawEvents is enabled", async () => {
+    const callbacks = createCallbacks();
+    const handle = new FakeClaudeQueryHandle();
+    const sdk: Pick<ClaudeSdkModule, "query"> = {
+      query: vi.fn(({ prompt }) => {
+        handle.attachPrompt(prompt);
+        return handle;
+      }),
+    };
+
+    const session = new ClaudeQuerySession({
+      sdk,
+      callbacks: callbacks.callbacks,
+      config: createConfig({ experimentalRawEvents: true }),
+      sessionId: "ses_runtime",
+      threadId: "thr_runtime",
+    });
+
+    const startPromise = session.start();
+    handle.pushEvent({
+      type: "system:init",
+      session_id: "claude-session-live",
+    });
+
+    await expect(startPromise).resolves.toEqual({
+      backend: "claude",
+      sessionId: "claude-session-live",
+    });
+
+    expect(callbacks.events.map((event) => event.type)).toContain("backend.raw");
+
+    await session.dispose();
+  });
+
   it("becomes idle during bootstrap when a provisional checkpoint is supplied", async () => {
     const callbacks = createCallbacks();
     const handle = new FakeClaudeQueryHandle();

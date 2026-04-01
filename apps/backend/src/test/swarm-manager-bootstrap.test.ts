@@ -204,4 +204,110 @@ describe("SwarmManager bootstrap transcript", () => {
       await rm(dataDir, { recursive: true, force: true });
     }
   });
+
+  it("suppresses expected shutdown errors with a targeted boot-time update", async () => {
+    const dataDir = await mkdtemp(resolve(tmpdir(), "middleman-swarm-shutdown-errors-"));
+    const dbPath = resolve(dataDir, "swarmd.db");
+    const seededCore = await createCore(
+      {
+        dataDir,
+        dbPath,
+        logLevel: "error",
+      },
+      {
+        migrations: MIDDLEMAN_STORE_MIGRATIONS,
+        runRecovery: false,
+      },
+    );
+
+    const agentRepo = new MiddlemanAgentRepo(seededCore.db);
+    const managerOrderRepo = new MiddlemanManagerOrderRepo(seededCore.db);
+    seededCore.sessionService.create({
+      id: "manager-1",
+      backend: "codex",
+      cwd: REPO_ROOT,
+      model: "gpt-5.4",
+      displayName: "Manager 1",
+      systemPrompt: "manager prompt",
+    });
+    seededCore.sessionService.applyRuntimeStatus("manager-1", "idle");
+    agentRepo.create({
+      sessionId: "manager-1",
+      role: "manager",
+      managerSessionId: "manager-1",
+      memoryOwnerSessionId: "manager-1",
+    });
+    managerOrderRepo.ensure(["manager-1"]);
+
+    seededCore.messageStore.append("manager-1", {
+      source: "system",
+      kind: "middleman_event",
+      role: "system",
+      content: {
+        text: "Worker exited with code null, signal SIGTERM",
+      },
+      metadata: {
+        middleman: {
+          version: 1,
+          renderAs: "conversation_log",
+          event: {
+            type: "conversation_log",
+            agentId: "manager-1",
+            timestamp: "2026-03-14T00:00:01.000Z",
+            source: "runtime_log",
+            kind: "message_end",
+            text: "Worker exited with code null, signal SIGTERM",
+            isError: true,
+          },
+        },
+      },
+    });
+    seededCore.messageStore.append("manager-1", {
+      source: "system",
+      kind: "middleman_event",
+      role: "system",
+      content: {
+        text: "Real runtime failure",
+      },
+      metadata: {
+        middleman: {
+          version: 1,
+          renderAs: "conversation_log",
+          event: {
+            type: "conversation_log",
+            agentId: "manager-1",
+            timestamp: "2026-03-14T00:00:02.000Z",
+            source: "runtime_log",
+            kind: "message_end",
+            text: "Real runtime failure",
+            isError: true,
+          },
+        },
+      },
+    });
+
+    await seededCore.shutdown();
+
+    const swarmManager = new SwarmManager(
+      createConfig({
+        installDir: REPO_ROOT,
+        projectRoot: REPO_ROOT,
+        dataDir,
+      }),
+    );
+
+    try {
+      await swarmManager.boot();
+
+      expect(swarmManager.getVisibleTranscript("manager-1")).toEqual([
+        expect.objectContaining({
+          type: "conversation_log",
+          text: "Real runtime failure",
+        }),
+      ]);
+    } finally {
+      await swarmManager.shutdown();
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
 });

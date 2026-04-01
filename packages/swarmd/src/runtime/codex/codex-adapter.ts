@@ -21,6 +21,7 @@ import {
   type CodexHostToolBridge,
   type MiddlemanRole,
 } from "../common/host-tools.js";
+import { shouldEmitRawBackendEvents } from "../common/raw-events.js";
 import {
   CodexJsonRpcClient,
   type CodexJsonRpcClientOptions,
@@ -635,7 +636,7 @@ export class CodexBackendAdapter implements BackendAdapter {
   }
 
   #emitRawNotification(notification: JsonRpcNotificationMessage): void {
-    if (!this.#resolvedConfig) {
+    if (!this.#resolvedConfig || !this.#resolvedConfig.experimentalRawEvents) {
       return;
     }
 
@@ -799,7 +800,7 @@ function resolveCodexConfig(config: SessionRuntimeConfig): ResolvedCodexConfig {
       version: readString(readObject(backendConfig.clientInfo)?.version) ?? "0.1.0",
     },
     experimentalApi: readBoolean(backendConfig.experimentalApi) ?? true,
-    experimentalRawEvents: readBoolean(backendConfig.experimentalRawEvents) ?? false,
+    experimentalRawEvents: shouldEmitRawBackendEvents(backendConfig),
     persistExtendedHistory: readBoolean(backendConfig.persistExtendedHistory) ?? true,
     ephemeralThreads: readBoolean(backendConfig.ephemeralThreads) ?? false,
     reasoningEffort: readCodexReasoningEffort(backendConfig.thinkingLevel),
