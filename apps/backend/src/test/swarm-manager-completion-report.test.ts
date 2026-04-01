@@ -140,7 +140,7 @@ async function createHarness(): Promise<Harness> {
   );
 
   const core = {
-    config: { dataDir, dbPath: ":memory:", logLevel: "error" },
+    config: { dataDir, dbPath: ":memory:" },
     db,
     supervisor: supervisor as never,
     sessionService,

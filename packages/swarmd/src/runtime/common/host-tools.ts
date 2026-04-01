@@ -1,6 +1,7 @@
 import { AGENT_THINKING_LEVELS, MANAGER_MODEL_PRESETS } from "@middleman/protocol";
 import { z } from "zod";
 
+import { loadClaudeSdkMcpHelpers } from "../claude/claude-sdk-loader.js";
 import type { HostRpcClient } from "./adapter.js";
 
 export type MiddlemanRole = "manager" | "worker";
@@ -382,50 +383,4 @@ export function createPiHostTools(
       }
     },
   }));
-}
-
-async function loadClaudeSdkMcpHelpers(): Promise<{
-  createSdkMcpServer: (config: { name: string; version: string; tools: unknown[] }) => unknown;
-  tool: (
-    name: string,
-    description: string,
-    shape: z.ZodRawShape,
-    handler: (args: unknown) => Promise<unknown>,
-  ) => unknown;
-}> {
-  try {
-    const dynamicImport = new Function("specifier", "return import(specifier);") as (
-      specifier: string,
-    ) => Promise<unknown>;
-    const imported = await dynamicImport("@anthropic-ai/claude-agent-sdk");
-    const maybeModule =
-      imported && typeof imported === "object" && !Array.isArray(imported)
-        ? (imported as Record<string, unknown>)
-        : null;
-
-    if (
-      !maybeModule ||
-      typeof maybeModule.createSdkMcpServer !== "function" ||
-      typeof maybeModule.tool !== "function"
-    ) {
-      throw new Error("Claude Agent SDK MCP helpers are unavailable.");
-    }
-
-    return {
-      createSdkMcpServer: maybeModule.createSdkMcpServer as (config: {
-        name: string;
-        version: string;
-        tools: unknown[];
-      }) => unknown,
-      tool: maybeModule.tool as (
-        name: string,
-        description: string,
-        shape: z.ZodRawShape,
-        handler: (args: unknown) => Promise<unknown>,
-      ) => unknown,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Claude host tools require @anthropic-ai/claude-agent-sdk. ${message}`);
-  }
 }

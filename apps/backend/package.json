@@ -14,7 +14,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.89",
     "@google/genai": "^1.48.0",
     "@hono/node-server": "^1.19.11",
     "@mariozechner/pi-ai": "^0.64.0",

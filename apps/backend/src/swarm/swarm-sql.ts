@@ -141,10 +141,6 @@ export interface MiddlemanAgentRow {
   replyTarget?: MessageTargetContext;
 }
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
 function parseJsonObject(value: string | null | undefined): Record<string, unknown> {
   if (!value) {
     return {};

@@ -1,11 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { Hono } from "hono";
-import {
-  isPathWithinRoots,
-  normalizeAllowlistRoots,
-  resolveDirectoryPath,
-} from "../../swarm/cwd-policy.js";
+import { resolveDirectoryPath } from "../../swarm/cwd-policy.js";
 import type { SwarmManager } from "../../swarm/swarm-manager.js";
 import { resolveReadFileContentType } from "../http-utils.js";
 import {
@@ -79,16 +74,6 @@ async function handleReadFileRequest(
 
     const config = swarmManager.getConfig();
     const resolvedPath = resolveDirectoryPath(requestedPath, config.paths.projectRoot);
-    const allowedRoots = normalizeAllowlistRoots([
-      ...config.cwdAllowlistRoots,
-      config.paths.projectRoot,
-      homedir(),
-      "/tmp",
-    ]);
-
-    if (!(await isPathWithinRoots(resolvedPath, allowedRoots))) {
-      return Response.json({ error: "Path is outside allowed roots." }, { status: 403 });
-    }
 
     let fileStats;
     try {

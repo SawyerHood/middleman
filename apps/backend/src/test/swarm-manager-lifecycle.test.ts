@@ -211,7 +211,7 @@ async function createHarness(): Promise<Harness> {
   };
 
   const core = {
-    config: { dataDir, dbPath: ":memory:", logLevel: "error" },
+    config: { dataDir, dbPath: ":memory:" },
     db,
     supervisor: {
       hasWorker(sessionId: string) {

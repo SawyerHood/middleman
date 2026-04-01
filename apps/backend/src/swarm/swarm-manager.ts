@@ -202,7 +202,6 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       {
         dataDir: this.config.paths.dataDir,
         dbPath: this.config.paths.swarmdDbFile,
-        logLevel: "debug",
       },
       {
         migrations: MIDDLEMAN_STORE_MIGRATIONS,
@@ -1051,13 +1050,7 @@ export class SwarmManager extends EventEmitter implements SwarmToolHost {
       throw new Error(`Unknown tool: ${request.payload.toolName}`);
     }
 
-    return await tool.execute(
-      request.requestId,
-      request.payload.args,
-      undefined,
-      undefined,
-      undefined as never,
-    );
+    return await tool.execute(request.requestId, request.payload.args);
   }
 
   private async ensureAgentReadyForInput(

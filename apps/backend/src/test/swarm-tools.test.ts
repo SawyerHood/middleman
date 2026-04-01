@@ -130,13 +130,7 @@ describe("buildSwarmTools", () => {
     const listAgentsTool = tools.find((tool) => tool.name === "list_agents");
     expect(listAgentsTool).toBeDefined();
 
-    const result = await listAgentsTool!.execute(
-      "tool-call",
-      {},
-      undefined,
-      undefined,
-      undefined as any,
-    );
+    const result = await listAgentsTool!.execute("tool-call", {});
 
     expect(result.details).toEqual({
       agents: [
@@ -240,15 +234,9 @@ describe("buildSwarmTools", () => {
     expect(textContent?.text).not.toContain("cwd");
     expect(textContent?.text).not.toContain("displayName");
 
-    const resultWithInactive = await listAgentsTool!.execute(
-      "tool-call",
-      {
-        includeInactive: true,
-      },
-      undefined,
-      undefined,
-      undefined as any,
-    );
+    const resultWithInactive = await listAgentsTool!.execute("tool-call", {
+      includeInactive: true,
+    });
 
     expect(resultWithInactive.details).toEqual({
       agents: [
@@ -401,15 +389,9 @@ describe("buildSwarmTools", () => {
     const listAgentsTool = tools.find((tool) => tool.name === "list_agents");
     expect(listAgentsTool).toBeDefined();
 
-    const result = await listAgentsTool!.execute(
-      "tool-call",
-      {
-        includeManagers: true,
-      },
-      undefined,
-      undefined,
-      undefined as any,
-    );
+    const result = await listAgentsTool!.execute("tool-call", {
+      includeManagers: true,
+    });
 
     expect(result.details).toEqual({
       agents: [
@@ -488,13 +470,7 @@ describe("buildSwarmTools", () => {
     const listAgentsTool = tools.find((tool) => tool.name === "list_agents");
     expect(listAgentsTool).toBeDefined();
 
-    const defaultResult = await listAgentsTool!.execute(
-      "tool-call",
-      {},
-      undefined,
-      undefined,
-      undefined as any,
-    );
+    const defaultResult = await listAgentsTool!.execute("tool-call", {});
 
     expect(listCalls[0]).toEqual({ includeArchived: false });
     expect(defaultResult.details).toEqual({
@@ -524,16 +500,10 @@ describe("buildSwarmTools", () => {
       ],
     });
 
-    const archivedResult = await listAgentsTool!.execute(
-      "tool-call",
-      {
-        includeArchived: true,
-        includeInactive: true,
-      },
-      undefined,
-      undefined,
-      undefined as any,
-    );
+    const archivedResult = await listAgentsTool!.execute("tool-call", {
+      includeArchived: true,
+      includeInactive: true,
+    });
 
     expect(listCalls[1]).toEqual({ includeArchived: true });
     expect(archivedResult.details).toEqual({
@@ -587,17 +557,11 @@ describe("buildSwarmTools", () => {
     const spawnTool = tools.find((tool) => tool.name === "spawn_agent");
     expect(spawnTool).toBeDefined();
 
-    const result = await spawnTool!.execute(
-      "tool-call",
-      {
-        agentId: "Worker Opus",
-        model: "pi-opus",
-        thinkingLevel: "low",
-      },
-      undefined,
-      undefined,
-      undefined as any,
-    );
+    const result = await spawnTool!.execute("tool-call", {
+      agentId: "Worker Opus",
+      model: "pi-opus",
+      thinkingLevel: "low",
+    });
 
     expect(receivedInput?.model).toBe("pi-opus");
     expect(receivedInput?.thinkingLevel).toBe("low");
@@ -619,16 +583,10 @@ describe("buildSwarmTools", () => {
     expect(spawnTool).toBeDefined();
 
     await expect(
-      spawnTool!.execute(
-        "tool-call",
-        {
-          agentId: "Worker Invalid",
-          model: "not-allowed-model",
-        } as any,
-        undefined,
-        undefined,
-        undefined as any,
-      ),
+      spawnTool!.execute("tool-call", {
+        agentId: "Worker Invalid",
+        model: "not-allowed-model",
+      } as any),
     ).rejects.toThrow(`spawn_agent.model must be one of ${MANAGER_MODEL_PRESETS.join("|")}`);
   });
 
@@ -640,16 +598,10 @@ describe("buildSwarmTools", () => {
     expect(spawnTool).toBeDefined();
 
     await expect(
-      spawnTool!.execute(
-        "tool-call",
-        {
-          agentId: "Worker Invalid Thinking",
-          thinkingLevel: "max",
-        } as any,
-        undefined,
-        undefined,
-        undefined as any,
-      ),
+      spawnTool!.execute("tool-call", {
+        agentId: "Worker Invalid Thinking",
+        thinkingLevel: "max",
+      } as any),
     ).rejects.toThrow("spawn_agent.thinkingLevel must be one of off|low|medium|high|xhigh");
   });
 
@@ -705,15 +657,9 @@ describe("buildSwarmTools", () => {
     const speakTool = tools.find((tool) => tool.name === "speak_to_user");
     expect(speakTool).toBeDefined();
 
-    const result = await speakTool!.execute(
-      "tool-call",
-      {
-        text: "Reply on the web",
-      },
-      undefined,
-      undefined,
-      undefined as any,
-    );
+    const result = await speakTool!.execute("tool-call", {
+      text: "Reply on the web",
+    });
 
     expect(receivedTarget).toBeUndefined();
     expect(result.details).toMatchObject({

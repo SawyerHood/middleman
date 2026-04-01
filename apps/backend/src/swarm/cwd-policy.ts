@@ -1,5 +1,5 @@
 import { readdir, realpath, stat } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 
 const CWD_ERROR_MESSAGES = {
   REQUIRED: "Directory path must be a non-empty string.",
@@ -71,7 +71,10 @@ export function resolveDirectoryPath(input: string, rootDir: string): string {
   return trimmed.startsWith("/") ? resolve(trimmed) : resolve(rootDir, trimmed);
 }
 
-export async function validateDirectoryPath(input: string, policy: CwdPolicy): Promise<string> {
+export async function validateDirectoryPath(
+  input: string,
+  policy: Pick<CwdPolicy, "rootDir">,
+): Promise<string> {
   const resolved = resolveDirectoryPath(input, policy.rootDir);
 
   let stats;
@@ -157,19 +160,6 @@ export async function validateDirectory(
       message: CWD_ERROR_MESSAGES.NOT_FOUND,
     };
   }
-}
-
-export async function isPathWithinRoots(pathValue: string, roots: string[]): Promise<boolean> {
-  const normalizedPath = await resolveToRealPath(pathValue);
-  const normalizedRoots = await Promise.all(roots.map((root) => resolveToRealPath(root)));
-
-  return normalizedRoots.some((normalizedRoot) => {
-    if (normalizedPath === normalizedRoot) {
-      return true;
-    }
-
-    return normalizedPath.startsWith(`${normalizedRoot}${sep}`);
-  });
 }
 
 async function resolveToRealPath(pathValue: string): Promise<string> {

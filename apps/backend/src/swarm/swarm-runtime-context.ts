@@ -94,7 +94,6 @@ export class SwarmRuntimeContextService {
   async resolveAndValidateCwd(cwd: string): Promise<string> {
     return await validateDirectoryPath(cwd, {
       rootDir: this.options.config.defaultCwd,
-      allowlistRoots: this.options.cwdAllowlistRoots,
     });
   }
 

@@ -1,6 +1,5 @@
 import { AGENT_THINKING_LEVELS } from "@middleman/protocol";
-import { Type } from "@sinclair/typebox";
-import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
+import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import {
   describeSwarmModelPresets,
   describeSwarmThinkingLevels,
@@ -40,6 +39,19 @@ export interface SwarmToolHost {
 
 interface BuildSwarmToolsOptions {
   availableArchetypeIds?: string[];
+}
+
+export interface SwarmToolResult<TDetails = unknown> {
+  content: Array<{ type: "text"; text: string }>;
+  details?: TDetails;
+}
+
+export interface SwarmToolDefinition<TParams extends TSchema = TSchema, TDetails = unknown> {
+  name: string;
+  label: string;
+  description: string;
+  parameters: TParams;
+  execute(toolCallId: string, params: Static<TParams>): Promise<SwarmToolResult<TDetails>>;
 }
 
 const deliveryModeSchema = Type.Union([
@@ -138,13 +150,13 @@ export function buildSwarmTools(
   host: SwarmToolHost,
   descriptor: AgentDescriptor,
   options: BuildSwarmToolsOptions = {},
-): ToolDefinition[] {
+): SwarmToolDefinition[] {
   const availableArchetypeIds = options.availableArchetypeIds ?? [];
   const archetypeIdDescriptionSuffix =
     availableArchetypeIds.length > 0
       ? ` Available archetype ids: ${availableArchetypeIds.join(", ")}.`
       : "";
-  const shared: ToolDefinition[] = [
+  const shared: SwarmToolDefinition[] = [
     {
       name: "list_agents",
       label: "List Agents",
@@ -233,7 +245,7 @@ export function buildSwarmTools(
     return shared;
   }
 
-  const managerOnly: ToolDefinition[] = [
+  const managerOnly: SwarmToolDefinition[] = [
     {
       name: "spawn_agent",
       label: "Spawn Agent",

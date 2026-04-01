@@ -20,6 +20,7 @@ import {
   type ClaudeQuerySessionOptions,
   type ClaudeSdkModule,
 } from "./claude-query-session.js";
+import { loadClaudeSdkModule } from "./claude-sdk-loader.js";
 
 type ClaudeCheckpoint = Extract<BackendCheckpoint, { backend: "claude" }>;
 
@@ -296,50 +297,11 @@ export class ClaudeBackendAdapter implements BackendAdapter {
   }
 }
 
-export async function loadClaudeSdkModule(): Promise<ClaudeSdkModule> {
-  try {
-    const dynamicImport = new Function("specifier", "return import(specifier);") as (
-      specifier: string,
-    ) => Promise<unknown>;
-    const imported = await dynamicImport("@anthropic-ai/claude-agent-sdk");
-    return normalizeClaudeSdkModule(imported);
-  } catch (error) {
-    if (isMissingClaudeSdk(error)) {
-      throw new Error(
-        'Claude backend requires "@anthropic-ai/claude-agent-sdk" to be installed by the runtime consumer.',
-      );
-    }
-
-    throw error;
-  }
-}
-
 export function createClaudeBackendAdapter(
   callbacks: AdapterCallbacks,
   options?: ClaudeBackendAdapterOptions,
 ): BackendAdapter {
   return new ClaudeBackendAdapter(callbacks, options);
-}
-
-function normalizeClaudeSdkModule(value: unknown): ClaudeSdkModule {
-  if (!isClaudeSdkModule(value)) {
-    throw new Error('Claude Agent SDK module is missing the required "query" entry point.');
-  }
-
-  return value;
-}
-
-function isMissingClaudeSdk(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const code = (error as NodeJS.ErrnoException).code;
-  if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") {
-    return true;
-  }
-
-  return error.message.includes("@anthropic-ai/claude-agent-sdk");
 }
 
 function isMissingClaudeConversation(error: unknown): boolean {
@@ -352,14 +314,6 @@ function toErrorMessage(error: unknown): string {
 
 function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
-}
-
-function isClaudeSdkModule(value: unknown): value is ClaudeSdkModule {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  return typeof Reflect.get(value, "query") === "function";
 }
 
 function readStringRecord(value: unknown): Record<string, string> | undefined {

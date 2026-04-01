@@ -99,7 +99,7 @@ function createTranscriptCore(input: {
 
   const harness: TranscriptHarness = {
     core: {
-      config: { dataDir: "", dbPath: ":memory:", logLevel: "error" } as SwarmdCoreHandle["config"],
+      config: { dataDir: "", dbPath: ":memory:" } as SwarmdCoreHandle["config"],
       db,
       supervisor: {} as SwarmdCoreHandle["supervisor"],
       sessionService: {

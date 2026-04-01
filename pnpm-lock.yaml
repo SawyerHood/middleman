@@ -31,9 +31,6 @@ importers:
 
   apps/backend:
     dependencies:
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.2.89
-        version: 0.2.89(zod@4.3.6)
       '@google/genai':
         specifier: ^1.48.0
         version: 1.48.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
