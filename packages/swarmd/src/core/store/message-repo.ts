@@ -15,6 +15,43 @@ interface MessageRow {
   metadata_json: string;
 }
 
+interface ListVisibleBySessionOptions {
+  beforeOrderKey?: string;
+  includeSendMessageToolResults?: boolean;
+  limit?: number;
+}
+
+const VISIBLE_TRANSCRIPT_SQL_PREDICATE = `
+  (
+    role = 'assistant'
+    OR (role = 'system' AND json_extract(metadata_json, '$.middleman.renderAs') IS NULL)
+    OR (
+      role IN ('user', 'system')
+      AND json_extract(metadata_json, '$.middleman.renderAs') = 'conversation_message'
+    )
+    OR (
+      role = 'system'
+      AND json_extract(metadata_json, '$.middleman.renderAs') = 'conversation_log'
+      AND json_extract(metadata_json, '$.middleman.event.isError') = 1
+    )
+    OR (
+      role = 'system'
+      AND json_extract(metadata_json, '$.middleman.renderAs') = 'hidden'
+      AND json_extract(metadata_json, '$.middleman.visibility') = 'internal'
+    )
+    OR (
+      role = 'tool'
+      AND (
+        json_extract(content_json, '$.toolName') = 'speak_to_user'
+        OR (
+          @include_send_message_tool_results = 1
+          AND json_extract(content_json, '$.toolName') = 'send_message_to_agent'
+        )
+      )
+    )
+  )
+`;
+
 function mapMessageRow(row: MessageRow): SwarmdMessage {
   return {
     id: row.id,
@@ -238,12 +275,22 @@ export class MessageRepo {
 
   listVisibleTranscriptMessages(
     sessionId: string,
-    options?: {
-      includeSendMessageToolResults?: boolean;
-    },
+    options?: ListVisibleBySessionOptions,
   ): SwarmdMessage[] {
-    return this.db
-      .prepare<{ session_id: string; include_send_message_tool_results: number }, MessageRow>(
+    return this.listVisibleBySession(sessionId, options);
+  }
+
+  listVisibleBySession(sessionId: string, options?: ListVisibleBySessionOptions): SwarmdMessage[] {
+    const rows = this.db
+      .prepare<
+        {
+          session_id: string;
+          before_order_key: string | null;
+          include_send_message_tool_results: number;
+          limit: number;
+        },
+        MessageRow
+      >(
         `SELECT
           id,
           session_id,
@@ -257,41 +304,20 @@ export class MessageRepo {
           metadata_json
         FROM messages
         WHERE session_id = @session_id
-          AND (
-            role = 'assistant'
-            OR (role = 'system' AND json_extract(metadata_json, '$.middleman.renderAs') IS NULL)
-            OR (
-              role IN ('user', 'system')
-              AND json_extract(metadata_json, '$.middleman.renderAs') = 'conversation_message'
-            )
-            OR (
-              role = 'system'
-              AND json_extract(metadata_json, '$.middleman.renderAs') = 'conversation_log'
-              AND json_extract(metadata_json, '$.middleman.event.isError') = 1
-            )
-            OR (
-              role = 'system'
-              AND json_extract(metadata_json, '$.middleman.renderAs') = 'hidden'
-              AND json_extract(metadata_json, '$.middleman.visibility') = 'internal'
-            )
-            OR (
-              role = 'tool'
-              AND (
-                json_extract(content_json, '$.toolName') = 'speak_to_user'
-                OR (
-                  @include_send_message_tool_results = 1
-                  AND json_extract(content_json, '$.toolName') = 'send_message_to_agent'
-                )
-              )
-            )
-          )
-        ORDER BY order_key ASC`,
+          AND (@before_order_key IS NULL OR order_key < @before_order_key)
+          AND ${VISIBLE_TRANSCRIPT_SQL_PREDICATE}
+        ORDER BY order_key DESC
+        LIMIT @limit`,
       )
       .all({
         session_id: sessionId,
+        before_order_key: options?.beforeOrderKey ?? null,
         include_send_message_tool_results: options?.includeSendMessageToolResults ? 1 : 0,
-      })
-      .map(mapMessageRow);
+        limit: options?.limit ?? -1,
+      });
+
+    rows.reverse();
+    return rows.map(mapMessageRow);
   }
 
   listManagerScopedHiddenMessages(managerId: string): SwarmdMessage[] {

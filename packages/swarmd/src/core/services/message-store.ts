@@ -81,11 +81,17 @@ export class MessageStore {
   listVisibleTranscriptMessages(
     sessionId: string,
     options?: {
+      beforeOrderKey?: string;
       includeSendMessageToolResults?: boolean;
+      limit?: number;
     },
   ): SwarmdMessage[] {
     this.assertSessionExists(sessionId);
-    return this.messageRepo.listVisibleTranscriptMessages(sessionId, options);
+    if (options?.limit !== undefined && options.limit < 1) {
+      throw new Error(`Invalid visible transcript message limit ${options.limit}`);
+    }
+
+    return this.messageRepo.listVisibleBySession(sessionId, options);
   }
 
   listManagerScopedHiddenMessages(managerId: string): SwarmdMessage[] {

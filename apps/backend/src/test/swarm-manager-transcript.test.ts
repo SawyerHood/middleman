@@ -1161,4 +1161,109 @@ describe("SwarmTranscriptService", () => {
       }),
     ]);
   });
+
+  it("pages visible transcript entries without stopping on malformed visible candidates", () => {
+    const worker = makeDescriptor({
+      agentId: "worker-1",
+      managerId: "manager-1",
+      role: "worker",
+    });
+    const session = makeSession({
+      id: "worker-1",
+      backend: "codex",
+      status: "idle",
+    });
+    const messages = [
+      makeMessage({
+        id: "entry-1",
+        sessionId: "worker-1",
+        source: "user",
+        kind: "text",
+        role: "user",
+        createdAt: "2026-03-15T00:00:01.000Z",
+        content: { text: "first visible" },
+        metadata: {
+          middleman: {
+            renderAs: "conversation_message",
+          },
+        },
+      }),
+      makeMessage({
+        id: "entry-2",
+        sessionId: "worker-1",
+        source: "assistant",
+        kind: "text",
+        role: "assistant",
+        createdAt: "2026-03-15T00:00:02.000Z",
+        content: {},
+      }),
+      makeMessage({
+        id: "entry-3",
+        sessionId: "worker-1",
+        source: "assistant",
+        kind: "text",
+        role: "assistant",
+        createdAt: "2026-03-15T00:00:03.000Z",
+        content: { text: "second visible" },
+      }),
+      makeMessage({
+        id: "entry-4",
+        sessionId: "worker-1",
+        source: "system",
+        kind: "middleman_event",
+        role: "system",
+        createdAt: "2026-03-15T00:00:04.000Z",
+        content: {},
+        metadata: {
+          middleman: {
+            renderAs: "conversation_log",
+            event: {
+              isError: true,
+            },
+          },
+        },
+      }),
+      makeMessage({
+        id: "entry-5",
+        sessionId: "worker-1",
+        source: "tool",
+        kind: "tool_result",
+        role: "tool",
+        createdAt: "2026-03-15T00:00:05.000Z",
+        content: {
+          toolName: "speak_to_user",
+          result: {
+            details: {
+              text: "latest visible",
+            },
+          },
+        },
+      }),
+    ];
+
+    const core = createTranscriptCore({
+      sessions: [session],
+      messages,
+    });
+    const transcript = new SwarmTranscriptService({
+      getCore: () => core,
+      getAgent: (agentId) => (agentId === "worker-1" ? worker : undefined),
+      resolvePreferredManagerId: () => undefined,
+      resolveRuntimeErrorMessage: () => "ignored",
+    });
+
+    const firstPage = transcript.getVisibleTranscriptPage("worker-1", { limit: 2 });
+    expect(firstPage.entries.map((entry) => entry.text)).toEqual([
+      "second visible",
+      "latest visible",
+    ]);
+    expect(firstPage.hasMore).toBe(true);
+
+    const secondPage = transcript.getVisibleTranscriptPage("worker-1", {
+      before: firstPage.entries[0]?.historyCursor,
+      limit: 2,
+    });
+    expect(secondPage.entries.map((entry) => entry.text)).toEqual(["first visible"]);
+    expect(secondPage.hasMore).toBe(false);
+  });
 });

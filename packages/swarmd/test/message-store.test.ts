@@ -125,4 +125,100 @@ describe("MessageStore", () => {
       second.id,
     ]);
   });
+
+  it("pages visible transcript rows at the store boundary", () => {
+    const db = createDatabase(":memory:");
+    openDatabases.push(db);
+    runMigrations(db);
+
+    const sessionRepo = new SessionRepo(db);
+    const messageRepo = new MessageRepo(db);
+    const messageStore = new MessageStore(sessionRepo, messageRepo);
+    const session = createSession("message-store-visible-transcript");
+    sessionRepo.create(session);
+
+    const userMessage = messageStore.append(session.id, {
+      source: "user",
+      kind: "text",
+      role: "user",
+      content: { text: "hello" },
+      metadata: {
+        middleman: {
+          renderAs: "conversation_message",
+        },
+      },
+      createdAt: "2026-03-13T00:01:00.000Z",
+    });
+    const assistantMessage = messageStore.append(session.id, {
+      source: "assistant",
+      kind: "text",
+      role: "assistant",
+      content: { text: "latest reply" },
+      createdAt: "2026-03-13T00:02:00.000Z",
+    });
+    const speakToUserResult = messageStore.append(session.id, {
+      source: "tool",
+      kind: "tool_result",
+      role: "tool",
+      content: {
+        toolName: "speak_to_user",
+        result: {
+          details: {
+            text: "visible tool result",
+          },
+        },
+      },
+      createdAt: "2026-03-13T00:03:00.000Z",
+    });
+    const sendMessageResult = messageStore.append(session.id, {
+      source: "tool",
+      kind: "tool_result",
+      role: "tool",
+      content: {
+        toolName: "send_message_to_agent",
+        input: {
+          targetAgentId: "manager-1",
+          message: "queued for manager",
+        },
+      },
+      createdAt: "2026-03-13T00:04:00.000Z",
+    });
+    messageStore.append(session.id, {
+      source: "tool",
+      kind: "tool_result",
+      role: "tool",
+      content: {
+        toolName: "spawn_agent",
+      },
+      createdAt: "2026-03-13T00:05:00.000Z",
+    });
+
+    expect(
+      messageStore.listVisibleTranscriptMessages(session.id).map((message) => message.id),
+    ).toEqual([userMessage.id, assistantMessage.id, speakToUserResult.id]);
+    expect(
+      messageStore
+        .listVisibleTranscriptMessages(session.id, {
+          includeSendMessageToolResults: true,
+        })
+        .map((message) => message.id),
+    ).toEqual([userMessage.id, assistantMessage.id, speakToUserResult.id, sendMessageResult.id]);
+    expect(
+      messageStore
+        .listVisibleTranscriptMessages(session.id, {
+          includeSendMessageToolResults: true,
+          limit: 2,
+        })
+        .map((message) => message.id),
+    ).toEqual([speakToUserResult.id, sendMessageResult.id]);
+    expect(
+      messageStore
+        .listVisibleTranscriptMessages(session.id, {
+          includeSendMessageToolResults: true,
+          beforeOrderKey: sendMessageResult.orderKey,
+          limit: 2,
+        })
+        .map((message) => message.id),
+    ).toEqual([assistantMessage.id, speakToUserResult.id]);
+  });
 });

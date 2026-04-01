@@ -35,6 +35,16 @@ interface ProjectStoredMessageOptions {
   includeSendMessageToolResults?: boolean;
 }
 
+interface VisibleSessionPageOptions {
+  before?: string;
+  limit?: number;
+}
+
+interface VisibleSessionEntriesResult {
+  entries: Array<ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent>;
+  hasPersistedRuntimeError: boolean;
+}
+
 export class SwarmTranscriptService {
   constructor(private readonly options: SwarmTranscriptServiceOptions) {}
 
@@ -80,10 +90,6 @@ export class SwarmTranscriptService {
       };
     }
 
-    const visibleEntries: Array<
-      ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent
-    > = [];
-    let hasPersistedRuntimeError = false;
     const projectionOptions: ProjectStoredMessageOptions =
       resolvedDescriptor?.role === "worker"
         ? {
@@ -91,22 +97,8 @@ export class SwarmTranscriptService {
             includeSendMessageToolResults: true,
           }
         : {};
-
-    for (const message of this.listVisibleMessagesForSession(
-      core,
-      resolvedAgentId,
-      projectionOptions.includeSendMessageToolResults === true,
-    )) {
-      const projected = projectStoredMessage(message, projectionOptions);
-      if (!isVisibleTranscriptEntry(projected)) {
-        continue;
-      }
-
-      visibleEntries.push(projected);
-      if (projected.type === "conversation_log" && projected.isError === true) {
-        hasPersistedRuntimeError = true;
-      }
-    }
+    const { entries: visibleEntries, hasPersistedRuntimeError } =
+      this.collectVisibleEntriesForSession(core, resolvedAgentId, projectionOptions, options);
 
     if (resolvedDescriptor?.role === "manager") {
       visibleEntries.push(
@@ -259,10 +251,67 @@ export class SwarmTranscriptService {
     core: SwarmdCoreHandle,
     sessionId: string,
     includeSendMessageToolResults: boolean,
+    options?: {
+      beforeOrderKey?: string;
+      limit?: number;
+    },
   ): SwarmdMessage[] {
     return core.messageStore.listVisibleTranscriptMessages(sessionId, {
+      beforeOrderKey: options?.beforeOrderKey,
       includeSendMessageToolResults,
+      limit: options?.limit,
     });
+  }
+
+  private collectVisibleEntriesForSession(
+    core: SwarmdCoreHandle,
+    sessionId: string,
+    projectionOptions: ProjectStoredMessageOptions,
+    options: VisibleSessionPageOptions,
+  ): VisibleSessionEntriesResult {
+    const entries: Array<ConversationMessageEvent | ConversationLogEvent | AgentMessageEvent> = [];
+    const batchLimit = options.limit !== undefined ? options.limit + 1 : undefined;
+    let beforeOrderKey = resolveBeforeOrderKeyForSession(options.before, sessionId);
+    let hasPersistedRuntimeError = false;
+
+    while (true) {
+      const messages = this.listVisibleMessagesForSession(
+        core,
+        sessionId,
+        projectionOptions.includeSendMessageToolResults === true,
+        {
+          beforeOrderKey,
+          limit: batchLimit,
+        },
+      );
+
+      if (messages.length === 0) {
+        break;
+      }
+
+      beforeOrderKey = messages[0]?.orderKey;
+      for (const message of messages) {
+        const projected = projectStoredMessage(message, projectionOptions);
+        if (!isVisibleTranscriptEntry(projected)) {
+          continue;
+        }
+
+        entries.push(projected);
+        if (projected.type === "conversation_log" && projected.isError === true) {
+          hasPersistedRuntimeError = true;
+        }
+      }
+
+      if (!batchLimit || entries.length >= batchLimit || messages.length < batchLimit) {
+        break;
+      }
+    }
+
+    entries.sort(compareConversationEntries);
+    return {
+      entries: batchLimit ? entries.slice(-batchLimit) : entries,
+      hasPersistedRuntimeError,
+    };
   }
 
   private pageEntries<Entry extends ConversationEntryEvent>(
@@ -295,6 +344,42 @@ function buildStoredMessageHistoryCursor(message: SwarmdMessage): string {
 
 function buildSyntheticHistoryCursor(timestamp: string, agentId: string, kind: string): string {
   return `${timestamp}|${agentId}|${kind}`;
+}
+
+function resolveBeforeOrderKeyForSession(
+  before: string | undefined,
+  sessionId: string,
+): string | undefined {
+  const parsed = parseConversationEntryCursor(before);
+  if (!parsed) {
+    return undefined;
+  }
+
+  if (parsed.sessionId === sessionId) {
+    return parsed.orderKey ?? `${parsed.timestamp}~`;
+  }
+
+  return sessionId.localeCompare(parsed.sessionId) < 0 ? `${parsed.timestamp}~` : parsed.timestamp;
+}
+
+function parseConversationEntryCursor(
+  cursor: string | undefined,
+): { timestamp: string; sessionId: string; orderKey?: string } | null {
+  const trimmed = cursor?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parts = trimmed.split("|");
+  if (parts.length < 3) {
+    return null;
+  }
+
+  return {
+    timestamp: parts[0] ?? "",
+    sessionId: parts[1] ?? "",
+    orderKey: parts.length >= 4 ? parts[2] : undefined,
+  };
 }
 
 function resolveConversationEntryCursor(entry: ConversationEntryEvent): string {
