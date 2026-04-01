@@ -47,6 +47,13 @@
     "onlyBuiltDependencies": [
       "better-sqlite3"
     ],
+    "packageExtensions": {
+      "@mariozechner/pi-coding-agent@*": {
+        "dependencies": {
+          "@sinclair/typebox": "^0.34.49"
+        }
+      }
+    },
     "overrides": {
       "zod": "^4.3.6",
       "@tanstack/router-generator>zod": "3.25.76",
