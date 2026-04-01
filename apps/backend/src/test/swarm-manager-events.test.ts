@@ -271,6 +271,127 @@ describe("SwarmManager core event projection", () => {
         isError: false,
       },
     ]);
-    expect(harness.appendedMessages).toHaveLength(4);
+    expect(harness.appendedMessages).toHaveLength(3);
+  });
+
+  it("samples rapid tool progress updates without persisting them", () => {
+    const descriptor = makeDescriptor({
+      agentId: "worker-1",
+      managerId: "manager-1",
+      role: "worker",
+    });
+    const harness = createManagerHarness(descriptor);
+
+    (harness.manager as any).handleCoreEvent({
+      id: "evt-10",
+      sessionId: "worker-1",
+      threadId: null,
+      source: "worker",
+      type: "tool.started",
+      timestamp: "2026-03-15T00:00:04.000Z",
+      payload: {
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        input: { cmd: "pnpm test" },
+      },
+    });
+    (harness.manager as any).handleCoreEvent({
+      id: "evt-11",
+      sessionId: "worker-1",
+      threadId: null,
+      source: "worker",
+      type: "tool.progress",
+      timestamp: "2026-03-15T00:00:05.000Z",
+      payload: {
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        progress: { chunk: "first" },
+      },
+    });
+    (harness.manager as any).handleCoreEvent({
+      id: "evt-12",
+      sessionId: "worker-1",
+      threadId: null,
+      source: "worker",
+      type: "tool.progress",
+      timestamp: "2026-03-15T00:00:05.100Z",
+      payload: {
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        progress: { chunk: "suppressed" },
+      },
+    });
+    (harness.manager as any).handleCoreEvent({
+      id: "evt-13",
+      sessionId: "worker-1",
+      threadId: null,
+      source: "worker",
+      type: "tool.progress",
+      timestamp: "2026-03-15T00:00:05.700Z",
+      payload: {
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        progress: { chunk: "later" },
+      },
+    });
+    (harness.manager as any).handleCoreEvent({
+      id: "evt-14",
+      sessionId: "worker-1",
+      threadId: null,
+      source: "worker",
+      type: "tool.completed",
+      timestamp: "2026-03-15T00:00:06.000Z",
+      payload: {
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        ok: true,
+        result: { exitCode: 0 },
+      },
+    });
+
+    expect(harness.toolCalls).toEqual([
+      {
+        type: "agent_tool_call",
+        agentId: "worker-1",
+        actorAgentId: "worker-1",
+        timestamp: "2026-03-15T00:00:04.000Z",
+        kind: "tool_execution_start",
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        text: '{"cmd":"pnpm test"}',
+      },
+      {
+        type: "agent_tool_call",
+        agentId: "worker-1",
+        actorAgentId: "worker-1",
+        timestamp: "2026-03-15T00:00:05.000Z",
+        kind: "tool_execution_update",
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        text: '{"chunk":"first"}',
+      },
+      {
+        type: "agent_tool_call",
+        agentId: "worker-1",
+        actorAgentId: "worker-1",
+        timestamp: "2026-03-15T00:00:05.700Z",
+        kind: "tool_execution_update",
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        text: '{"chunk":"later"}',
+      },
+      {
+        type: "agent_tool_call",
+        agentId: "worker-1",
+        actorAgentId: "worker-1",
+        timestamp: "2026-03-15T00:00:06.000Z",
+        kind: "tool_execution_end",
+        toolName: "exec_command",
+        toolCallId: "tool-2",
+        text: '{"exitCode":0}',
+        isError: false,
+      },
+    ]);
+    expect(harness.appendedMessages).toHaveLength(2);
   });
 });

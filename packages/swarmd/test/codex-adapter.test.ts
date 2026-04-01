@@ -80,7 +80,10 @@ function createAdapterCallbacks() {
   };
 }
 
-function createAdapterConfig(serverScript: string): SessionRuntimeConfig {
+function createAdapterConfig(
+  serverScript: string,
+  backendConfigOverrides?: Record<string, unknown>,
+): SessionRuntimeConfig {
   return {
     backend: "codex",
     cwd: process.cwd(),
@@ -91,6 +94,7 @@ function createAdapterConfig(serverScript: string): SessionRuntimeConfig {
       command: "node",
       args: ["-e", serverScript],
       requestTimeoutMs: 1_000,
+      ...(backendConfigOverrides ?? {}),
     },
   };
 }
@@ -568,6 +572,26 @@ describe("codex JSON-RPC client", () => {
 describe("CodexBackendAdapter", () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("emits raw notifications only when experimentalRawEvents is enabled", async () => {
+    const callbacks = createAdapterCallbacks();
+    const adapter = createCodexBackendAdapter(callbacks.callbacks);
+
+    await adapter.bootstrap(
+      createAdapterConfig(createPendingTurnInterruptServerScript(), {
+        experimentalRawEvents: true,
+      }),
+    );
+
+    await waitForCondition(() => callbacks.callbacks.emitEvent.mock.calls.length > 0);
+    const eventTypes = callbacks.callbacks.emitEvent.mock.calls.map(
+      ([event]) => (event as { type: string }).type,
+    );
+
+    expect(eventTypes).toContain("backend.raw");
+
+    await adapter.stop();
   });
 
   it("interrupts a turn that has been requested but has not reported turn/started yet", async () => {

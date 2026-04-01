@@ -42,6 +42,20 @@ function createSocket() {
   };
 }
 
+function createRawSocket() {
+  const payloads: string[] = [];
+  return {
+    payloads,
+    socket: {
+      readyState: WebSocket.OPEN,
+      bufferedAmount: 0,
+      send(payload: string) {
+        payloads.push(payload);
+      },
+    } as unknown as WebSocket,
+  };
+}
+
 function createManagerStub(status: AgentDescriptor["status"] = "idle") {
   const manager: AgentDescriptor = {
     agentId: "manager-1",
@@ -408,8 +422,8 @@ describe("WsHandler", () => {
     (handler as any).wss = {
       clients: new Set([primary.socket, secondary.socket]),
     };
-    (handler as any).subscriptions.set(primary.socket, "manager-1");
-    (handler as any).subscriptions.set(secondary.socket, "other-manager");
+    (handler as any).setSubscription(primary.socket, "manager-1");
+    (handler as any).setSubscription(secondary.socket, "other-manager");
 
     handler.broadcastToSubscribed({
       type: "conversation_message",
@@ -426,6 +440,36 @@ describe("WsHandler", () => {
       text: "scoped",
     });
     expect(secondary.events).toEqual([]);
+  });
+
+  it("serializes a broadcast payload once and reuses it for every recipient", () => {
+    const handler = new WsHandler({
+      swarmManager: createManagerStub() as never,
+    });
+    const primary = createRawSocket();
+    const secondary = createRawSocket();
+    const stringifySpy = vi.spyOn(JSON, "stringify");
+
+    (handler as any).wss = {
+      clients: new Set([primary.socket, secondary.socket]),
+    };
+    (handler as any).setSubscription(primary.socket, "manager-1");
+    (handler as any).setSubscription(secondary.socket, "manager-1");
+
+    handler.broadcastToSubscribed({
+      type: "conversation_message",
+      agentId: "manager-1",
+      role: "assistant",
+      text: "shared payload",
+      timestamp: "2026-03-14T00:00:01.000Z",
+      source: "speak_to_user",
+    });
+
+    expect(stringifySpy).toHaveBeenCalledTimes(1);
+    expect(primary.payloads).toHaveLength(1);
+    expect(secondary.payloads).toEqual(primary.payloads);
+
+    stringifySpy.mockRestore();
   });
 
   it("bootstraps subscriptions against persisted stopped managers", async () => {

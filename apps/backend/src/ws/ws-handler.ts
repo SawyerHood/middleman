@@ -14,10 +14,36 @@ const AGENT_DETAIL_HISTORY_TRUNCATED_CODE = "AGENT_DETAIL_HISTORY_TRUNCATED";
 const MAX_WS_EVENT_BYTES = 5 * 1024 * 1024;
 const MAX_WS_BUFFERED_AMOUNT_BYTES = 5 * 1024 * 1024;
 
+interface PreparedServerEvent {
+  event: ServerEvent;
+  serialized: string;
+  eventBytes: number;
+}
+
 function isPreferredManagerSubscriptionCandidate(
   agent: ReturnType<SwarmManager["listAgents"]>[number],
 ): boolean {
   return agent.role === "manager" && agent.status !== "terminated";
+}
+
+function isAgentScopedEvent(event: ServerEvent): event is Extract<
+  ServerEvent,
+  {
+    type:
+      | "conversation_message"
+      | "conversation_log"
+      | "agent_message"
+      | "agent_tool_call"
+      | "conversation_reset";
+  }
+> {
+  return (
+    event.type === "conversation_message" ||
+    event.type === "conversation_log" ||
+    event.type === "agent_message" ||
+    event.type === "agent_tool_call" ||
+    event.type === "conversation_reset"
+  );
 }
 
 export class WsHandler {
@@ -25,7 +51,9 @@ export class WsHandler {
 
   private wss: WebSocketServer | null = null;
   private readonly subscriptions = new Map<WebSocket, string>();
+  private readonly subscribersByAgentId = new Map<string, Set<WebSocket>>();
   private readonly agentDetailSubscriptions = new Map<WebSocket, string>();
+  private readonly agentDetailSubscribersByAgentId = new Map<string, Set<WebSocket>>();
 
   constructor(options: { swarmManager: SwarmManager }) {
     this.swarmManager = options.swarmManager;
@@ -40,13 +68,11 @@ export class WsHandler {
       });
 
       socket.on("close", () => {
-        this.subscriptions.delete(socket);
-        this.agentDetailSubscriptions.delete(socket);
+        this.clearSocketSubscriptions(socket);
       });
 
       socket.on("error", () => {
-        this.subscriptions.delete(socket);
-        this.agentDetailSubscriptions.delete(socket);
+        this.clearSocketSubscriptions(socket);
       });
     });
   }
@@ -54,7 +80,9 @@ export class WsHandler {
   reset(): void {
     this.wss = null;
     this.subscriptions.clear();
+    this.subscribersByAgentId.clear();
     this.agentDetailSubscriptions.clear();
+    this.agentDetailSubscribersByAgentId.clear();
   }
 
   broadcastToSubscribed(event: ServerEvent): void {
@@ -62,30 +90,23 @@ export class WsHandler {
       return;
     }
 
-    for (const client of this.wss.clients) {
-      if (client.readyState !== WebSocket.OPEN) {
-        continue;
-      }
+    const recipients = this.resolveBroadcastRecipients(event);
+    if (recipients.size === 0) {
+      return;
+    }
 
-      const subscribedAgent = this.subscriptions.get(client);
-      if (!subscribedAgent) {
-        continue;
-      }
-      const detailSubscribedAgent = this.agentDetailSubscriptions.get(client);
+    const prepared = this.serializeEvent(event);
+    if (!prepared) {
+      return;
+    }
 
-      if (
-        event.type === "conversation_message" ||
-        event.type === "conversation_log" ||
-        event.type === "agent_message" ||
-        event.type === "agent_tool_call" ||
-        event.type === "conversation_reset"
-      ) {
-        if (subscribedAgent !== event.agentId && detailSubscribedAgent !== event.agentId) {
-          continue;
-        }
-      }
+    if (!this.isPreparedEventWithinSizeLimit(prepared)) {
+      this.logOversizedEvent(prepared);
+      return;
+    }
 
-      this.send(client, event);
+    for (const client of recipients) {
+      this.sendPrepared(client, prepared);
     }
   }
 
@@ -208,7 +229,7 @@ export class WsHandler {
       return;
     }
 
-    this.subscriptions.set(socket, targetAgentId);
+    this.setSubscription(socket, targetAgentId);
     this.sendSubscriptionBootstrap(socket, targetAgentId);
   }
 
@@ -227,7 +248,7 @@ export class WsHandler {
       return subscribedAgentId;
     }
 
-    this.subscriptions.set(socket, fallbackAgentId);
+    this.setSubscription(socket, fallbackAgentId);
     this.sendSubscriptionBootstrap(socket, fallbackAgentId);
 
     return fallbackAgentId;
@@ -244,7 +265,7 @@ export class WsHandler {
       return;
     }
 
-    this.agentDetailSubscriptions.set(socket, targetAgentId);
+    this.setAgentDetailSubscription(socket, targetAgentId);
     const transcriptPage = this.swarmManager.getVisibleTranscriptPage(targetAgentId, {
       limit: BOOTSTRAP_HISTORY_LIMIT,
     });
@@ -266,7 +287,7 @@ export class WsHandler {
       return;
     }
 
-    this.agentDetailSubscriptions.delete(socket);
+    this.setAgentDetailSubscription(socket, undefined);
   }
 
   private resolveManagerContextAgentId(subscribedAgentId: string): string | undefined {
@@ -289,11 +310,11 @@ export class WsHandler {
 
       const fallbackAgentId = this.resolvePreferredManagerSubscriptionId();
       if (!fallbackAgentId) {
-        this.subscriptions.set(socket, this.resolveDefaultSubscriptionAgentId());
+        this.setSubscription(socket, this.resolveDefaultSubscriptionAgentId());
         continue;
       }
 
-      this.subscriptions.set(socket, fallbackAgentId);
+      this.setSubscription(socket, fallbackAgentId);
       this.sendSubscriptionBootstrap(socket, fallbackAgentId);
     }
 
@@ -302,7 +323,7 @@ export class WsHandler {
         continue;
       }
 
-      this.agentDetailSubscriptions.delete(socket);
+      this.setAgentDetailSubscription(socket, undefined);
     }
   }
 
@@ -372,8 +393,11 @@ export class WsHandler {
         hasMore: options.hasMore || sendCount < totalCount,
       };
 
-      if (this.isEventWithinSizeLimit(event)) {
-        this.send(socket, event);
+      const prepared = this.serializeEvent(event, {
+        logSerializeFailures: false,
+      });
+      if (prepared && this.isPreparedEventWithinSizeLimit(prepared)) {
+        this.sendPrepared(socket, prepared);
 
         if (sendCount < totalCount) {
           this.sendConversationHistoryTruncatedNotice(
@@ -493,49 +517,137 @@ export class WsHandler {
   }
 
   private send(socket: WebSocket, event: ServerEvent): void {
+    const prepared = this.serializeEvent(event);
+    if (!prepared) {
+      return;
+    }
+
+    if (!this.isPreparedEventWithinSizeLimit(prepared)) {
+      this.logOversizedEvent(prepared);
+      return;
+    }
+
+    this.sendPrepared(socket, prepared);
+  }
+
+  private sendPrepared(socket: WebSocket, prepared: PreparedServerEvent): void {
     if (socket.readyState !== WebSocket.OPEN) {
       return;
     }
 
     if (socket.bufferedAmount > MAX_WS_BUFFERED_AMOUNT_BYTES) {
       console.warn("[swarm] ws:drop_event:backpressure", {
-        eventType: event.type,
+        eventType: prepared.event.type,
         bufferedAmount: socket.bufferedAmount,
         maxBufferedAmountBytes: MAX_WS_BUFFERED_AMOUNT_BYTES,
       });
       return;
     }
 
-    let serialized: string;
-    try {
-      serialized = JSON.stringify(event);
-    } catch (error) {
-      console.warn("[swarm] ws:drop_event:serialize_failed", {
-        eventType: event.type,
-        message: error instanceof Error ? error.message : String(error),
-      });
-      return;
-    }
-
-    const eventBytes = Buffer.byteLength(serialized, "utf8");
-    if (eventBytes > MAX_WS_EVENT_BYTES) {
-      console.warn("[swarm] ws:drop_event:oversized", {
-        eventType: event.type,
-        eventBytes,
-        maxEventBytes: MAX_WS_EVENT_BYTES,
-      });
-      return;
-    }
-
-    socket.send(serialized);
+    socket.send(prepared.serialized);
   }
 
-  private isEventWithinSizeLimit(event: ServerEvent): boolean {
+  private serializeEvent(
+    event: ServerEvent,
+    options?: {
+      logSerializeFailures?: boolean;
+    },
+  ): PreparedServerEvent | null {
     try {
       const serialized = JSON.stringify(event);
-      return Buffer.byteLength(serialized, "utf8") <= MAX_WS_EVENT_BYTES;
-    } catch {
-      return false;
+      return {
+        event,
+        serialized,
+        eventBytes: Buffer.byteLength(serialized, "utf8"),
+      };
+    } catch (error) {
+      if (options?.logSerializeFailures !== false) {
+        console.warn("[swarm] ws:drop_event:serialize_failed", {
+          eventType: event.type,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return null;
+    }
+  }
+
+  private isPreparedEventWithinSizeLimit(prepared: PreparedServerEvent): boolean {
+    return prepared.eventBytes <= MAX_WS_EVENT_BYTES;
+  }
+
+  private logOversizedEvent(prepared: PreparedServerEvent): void {
+    console.warn("[swarm] ws:drop_event:oversized", {
+      eventType: prepared.event.type,
+      eventBytes: prepared.eventBytes,
+      maxEventBytes: MAX_WS_EVENT_BYTES,
+    });
+  }
+
+  private clearSocketSubscriptions(socket: WebSocket): void {
+    this.setSubscription(socket, undefined);
+    this.setAgentDetailSubscription(socket, undefined);
+  }
+
+  private setSubscription(socket: WebSocket, agentId: string | undefined): void {
+    this.updateSubscriptionIndex(socket, this.subscriptions, this.subscribersByAgentId, agentId);
+  }
+
+  private setAgentDetailSubscription(socket: WebSocket, agentId: string | undefined): void {
+    this.updateSubscriptionIndex(
+      socket,
+      this.agentDetailSubscriptions,
+      this.agentDetailSubscribersByAgentId,
+      agentId,
+    );
+  }
+
+  private updateSubscriptionIndex(
+    socket: WebSocket,
+    subscriptionMap: Map<WebSocket, string>,
+    reverseIndex: Map<string, Set<WebSocket>>,
+    nextAgentId: string | undefined,
+  ): void {
+    const currentAgentId = subscriptionMap.get(socket);
+    if (currentAgentId) {
+      const sockets = reverseIndex.get(currentAgentId);
+      sockets?.delete(socket);
+      if (sockets && sockets.size === 0) {
+        reverseIndex.delete(currentAgentId);
+      }
+    }
+
+    if (!nextAgentId) {
+      subscriptionMap.delete(socket);
+      return;
+    }
+
+    subscriptionMap.set(socket, nextAgentId);
+    let sockets = reverseIndex.get(nextAgentId);
+    if (!sockets) {
+      sockets = new Set<WebSocket>();
+      reverseIndex.set(nextAgentId, sockets);
+    }
+    sockets.add(socket);
+  }
+
+  private resolveBroadcastRecipients(event: ServerEvent): Set<WebSocket> {
+    if (!isAgentScopedEvent(event)) {
+      return new Set(this.subscriptions.keys());
+    }
+
+    const recipients = new Set<WebSocket>();
+    this.addRecipients(recipients, this.subscribersByAgentId.get(event.agentId));
+    this.addRecipients(recipients, this.agentDetailSubscribersByAgentId.get(event.agentId));
+    return recipients;
+  }
+
+  private addRecipients(target: Set<WebSocket>, sockets?: Set<WebSocket>): void {
+    if (!sockets) {
+      return;
+    }
+
+    for (const socket of sockets) {
+      target.add(socket);
     }
   }
 }

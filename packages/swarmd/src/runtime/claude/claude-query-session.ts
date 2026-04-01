@@ -9,6 +9,7 @@ import type {
 } from "../../core/types/index.js";
 import { createNormalizedEvent, turnStartedEvent } from "../common/index.js";
 import type { AdapterCallbacks } from "../common/adapter.js";
+import { shouldEmitRawBackendEvents } from "../common/raw-events.js";
 import {
   ClaudeEventMapper,
   extractClaudeSessionId,
@@ -121,7 +122,7 @@ export interface ClaudeQuerySessionOptions {
 }
 
 export class ClaudeQuerySession {
-  private readonly mapper = new ClaudeEventMapper();
+  private readonly mapper: ClaudeEventMapper;
   private readonly abortController = new AbortController();
   private readonly started = createDeferred<ClaudeCheckpoint>();
   private readonly idleWaiters = new Set<() => void>();
@@ -146,6 +147,9 @@ export class ClaudeQuerySession {
   private pendingStderr = "";
 
   constructor(private readonly options: ClaudeQuerySessionOptions) {
+    this.mapper = new ClaudeEventMapper({
+      emitRawEvents: shouldEmitRawBackendEvents(options.config.backendConfig),
+    });
     this.currentCheckpoint = options.checkpoint;
   }
 
