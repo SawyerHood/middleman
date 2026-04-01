@@ -103,7 +103,10 @@ export interface PiModuleLike {
   AuthStorage?: {
     create(authPath?: string): unknown;
   };
-  ModelRegistry?: new (authStorage: unknown, modelsJsonPath?: string) => unknown;
+  ModelRegistry?: {
+    new (authStorage: unknown, modelsJsonPath?: string): unknown;
+    create?(authStorage: unknown, modelsJsonPath?: string): unknown;
+  };
   DefaultResourceLoader?: new (options: {
     cwd?: string;
     agentDir?: string;
@@ -667,7 +670,11 @@ export class PiSessionHost implements PiSessionHostLike {
         ? piModule.AuthStorage.create(backendConfig.authFile)
         : undefined;
     const modelRegistry =
-      authStorage && piModule.ModelRegistry ? new piModule.ModelRegistry(authStorage) : undefined;
+      authStorage && piModule.ModelRegistry
+        ? typeof piModule.ModelRegistry.create === "function"
+          ? piModule.ModelRegistry.create(authStorage)
+          : new piModule.ModelRegistry(authStorage)
+        : undefined;
     const thinkingLevel = resolveConfiguredThinkingLevel(config);
     const tools = piModule.createCodingTools
       ? piModule.createCodingTools(config.cwd, {
