@@ -212,7 +212,6 @@ describe("SwarmManager bootstrap transcript", () => {
       {
         dataDir,
         dbPath,
-        logLevel: "error",
       },
       {
         migrations: MIDDLEMAN_STORE_MIGRATIONS,

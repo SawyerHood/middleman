@@ -49,7 +49,6 @@ import {
   extractEventText,
   fromSwarmdDeliveryMode,
   isAgentStatus,
-  readBoolean,
   readObject,
   readRole,
   readString,
