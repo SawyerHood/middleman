@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { config as loadDotenv } from "dotenv";
 import { createConfig, type CreateConfigOptions } from "./config.js";
 import {
@@ -382,7 +383,7 @@ function isErrorWithCode(error: unknown, code: string): boolean {
   );
 }
 
-if (import.meta.url === new URL(process.argv[1] ?? "", "file://").href) {
+if (resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1] ?? "")) {
   void main().catch((error) => {
     if (
       error &&
