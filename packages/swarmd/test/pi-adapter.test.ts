@@ -656,4 +656,161 @@ describe("PiSessionHost", () => {
       "Manual compaction is already in progress for ses_pi.",
     );
   });
+
+  it("recovers from stuck busy state via prompt timeout when session.prompt() never settles", async () => {
+    vi.useFakeTimers();
+
+    const sessionManager = {
+      appendMessage: vi.fn(),
+      branch: vi.fn(),
+      getSessionFile: vi.fn().mockReturnValue("/tmp/pi-session.jsonl"),
+      getSessionDir: vi.fn().mockReturnValue("/tmp"),
+      getCwd: vi.fn().mockReturnValue("/tmp"),
+      _rewriteFile: vi.fn(),
+    };
+
+    const session = {
+      isStreaming: false,
+      sessionManager,
+      // Simulates a hung tool execution (e.g. bash command that backgrounds
+      // a long-running process whose children hold stdout pipes open).
+      prompt: vi.fn().mockReturnValue(new Promise(() => {})),
+      steer: vi.fn(),
+      followUp: vi.fn(),
+      abort: vi.fn(),
+      compact: vi.fn(),
+      subscribe: vi.fn().mockReturnValue(() => {}),
+      dispose: vi.fn(),
+    };
+
+    const callbacks = createCallbacks();
+    const host = new PiSessionHost(callbacks, {
+      sessionId: "ses_pi",
+      threadId: "thr_pi",
+      loadModule: async () => ({
+        createAgentSession: vi.fn().mockResolvedValue({ session }),
+        SessionManager: {
+          create: vi.fn().mockReturnValue(sessionManager),
+          open: vi.fn().mockReturnValue(sessionManager),
+          forkFrom: vi.fn().mockReturnValue(sessionManager),
+        },
+      }),
+    });
+
+    await host.bootstrap({
+      backend: "pi",
+      cwd: "/tmp/project",
+      model: "openai-codex/gpt-5.4",
+      backendConfig: {
+        authFile: "/tmp/auth.json",
+        modelProvider: "openai-codex",
+        modelId: "gpt-5.4",
+      },
+    });
+
+    expect(host.isBusy()).toBe(false);
+
+    await host.sendPrompt(createUserInput());
+    expect(host.isBusy()).toBe(true);
+
+    // Advance past the 5-minute prompt timeout
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+    // Session should have recovered via the timeout — no longer stuck
+    expect(host.isBusy()).toBe(false);
+
+    expect(callbacks.emitStatusChange).toHaveBeenCalledWith(
+      "errored",
+      expect.objectContaining({
+        code: "PROMPT_DISPATCH_FAILED",
+        message: "Prompt timed out",
+        retryable: true,
+      }),
+      null,
+    );
+
+    expect(callbacks.emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "session.errored",
+        payload: {
+          error: {
+            code: "PROMPT_DISPATCH_FAILED",
+            message: "Prompt timed out",
+            retryable: true,
+          },
+        },
+      }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("does not remain permanently stuck when steer is sent during a hanging prompt", async () => {
+    vi.useFakeTimers();
+
+    const sessionManager = {
+      appendMessage: vi.fn(),
+      branch: vi.fn(),
+      getSessionFile: vi.fn().mockReturnValue("/tmp/pi-session.jsonl"),
+      getSessionDir: vi.fn().mockReturnValue("/tmp"),
+      getCwd: vi.fn().mockReturnValue("/tmp"),
+      _rewriteFile: vi.fn(),
+    };
+
+    const session = {
+      isStreaming: false,
+      sessionManager,
+      prompt: vi.fn().mockReturnValue(new Promise(() => {})),
+      steer: vi.fn(),
+      followUp: vi.fn(),
+      abort: vi.fn(),
+      compact: vi.fn(),
+      subscribe: vi.fn().mockReturnValue(() => {}),
+      dispose: vi.fn(),
+    };
+
+    const callbacks = createCallbacks();
+    const host = new PiSessionHost(callbacks, {
+      sessionId: "ses_pi",
+      threadId: "thr_pi",
+      loadModule: async () => ({
+        createAgentSession: vi.fn().mockResolvedValue({ session }),
+        SessionManager: {
+          create: vi.fn().mockReturnValue(sessionManager),
+          open: vi.fn().mockReturnValue(sessionManager),
+          forkFrom: vi.fn().mockReturnValue(sessionManager),
+        },
+      }),
+    });
+
+    await host.bootstrap({
+      backend: "pi",
+      cwd: "/tmp/project",
+      model: "openai-codex/gpt-5.4",
+      backendConfig: {
+        authFile: "/tmp/auth.json",
+        modelProvider: "openai-codex",
+        modelId: "gpt-5.4",
+      },
+    });
+
+    // Enter stuck state
+    await host.sendPrompt(createUserInput());
+    expect(host.isBusy()).toBe(true);
+
+    // Steer while stuck — accepted but cannot rescue on its own
+    await host.sendSteer({
+      id: "steer-1",
+      role: "user" as const,
+      parts: [{ type: "text" as const, text: "change direction" }],
+    });
+    expect(session.steer).toHaveBeenCalledWith("change direction", undefined);
+    expect(host.isBusy()).toBe(true);
+
+    // Timeout fires and recovers the session
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    expect(host.isBusy()).toBe(false);
+
+    vi.useRealTimers();
+  });
 });

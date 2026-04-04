@@ -423,6 +423,8 @@ function applySystemPrompt(session: PiAgentSessionLike, systemPrompt: string | u
   session.agent?.setSystemPrompt(systemPrompt);
 }
 
+const PROMPT_TIMEOUT_MS = 5 * 60 * 1000;
+
 export class PiSessionHost implements PiSessionHostLike {
   private readonly callbacks: PiSessionHostCallbacks;
   private readonly sessionId: string;
@@ -534,11 +536,15 @@ export class PiSessionHost implements PiSessionHostLike {
     this.dispatchPending = true;
     this.setStatus("busy");
 
-    void session
-      .prompt(
+    void Promise.race([
+      session.prompt(
         normalized.text,
         normalized.images.length > 0 ? { images: normalized.images } : undefined,
-      )
+      ),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Prompt timed out")), PROMPT_TIMEOUT_MS),
+      ),
+    ])
       .catch((error) => {
         this.dispatchPending = false;
         const message = describePiRuntimeError(error);
