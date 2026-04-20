@@ -34,7 +34,7 @@ function makeWorkerDescriptor(agentId: string, managerId = "manager"): AgentDesc
     cwd: "/tmp/swarm",
     model: {
       provider: "anthropic",
-      modelId: "claude-opus-4-6",
+      modelId: "claude-opus-4-7",
       thinkingLevel: "xhigh",
     },
   };
@@ -152,7 +152,7 @@ describe("buildSwarmTools", () => {
           status: "created",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -163,7 +163,7 @@ describe("buildSwarmTools", () => {
           status: "starting",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -174,7 +174,7 @@ describe("buildSwarmTools", () => {
           status: "idle",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -185,7 +185,7 @@ describe("buildSwarmTools", () => {
           status: "busy",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -196,7 +196,7 @@ describe("buildSwarmTools", () => {
           status: "interrupting",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -207,7 +207,7 @@ describe("buildSwarmTools", () => {
           status: "stopping",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -218,7 +218,7 @@ describe("buildSwarmTools", () => {
           status: "stopped",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -258,7 +258,7 @@ describe("buildSwarmTools", () => {
           status: "created",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -269,7 +269,7 @@ describe("buildSwarmTools", () => {
           status: "starting",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -280,7 +280,7 @@ describe("buildSwarmTools", () => {
           status: "idle",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -291,7 +291,7 @@ describe("buildSwarmTools", () => {
           status: "busy",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -302,7 +302,7 @@ describe("buildSwarmTools", () => {
           status: "interrupting",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -313,7 +313,7 @@ describe("buildSwarmTools", () => {
           status: "stopping",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -324,7 +324,7 @@ describe("buildSwarmTools", () => {
           status: "stopped",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -335,7 +335,7 @@ describe("buildSwarmTools", () => {
           status: "errored",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -346,7 +346,7 @@ describe("buildSwarmTools", () => {
           status: "terminated",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -413,7 +413,7 @@ describe("buildSwarmTools", () => {
           status: "idle",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -493,7 +493,7 @@ describe("buildSwarmTools", () => {
           status: "idle",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -526,7 +526,7 @@ describe("buildSwarmTools", () => {
           status: "idle",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -537,7 +537,7 @@ describe("buildSwarmTools", () => {
           status: "terminated",
           model: {
             provider: "anthropic",
-            modelId: "claude-opus-4-6",
+            modelId: "claude-opus-4-7",
             thinkingLevel: "xhigh",
           },
         },
@@ -569,7 +569,7 @@ describe("buildSwarmTools", () => {
       agentId: "worker-opus",
       model: {
         provider: "anthropic",
-        modelId: "claude-opus-4-6",
+        modelId: "claude-opus-4-7",
         thinkingLevel: "xhigh",
       },
     });

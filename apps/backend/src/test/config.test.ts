@@ -107,7 +107,7 @@ describe("createConfig", () => {
         SWARM_AUTH_FILE: "/tmp/swarm-auth/auth.json",
         SWARM_DEFAULT_CWD: "/tmp/swarm-cwd",
         SWARM_MODEL_PROVIDER: "anthropic",
-        SWARM_MODEL_ID: "claude-opus-4-6",
+        SWARM_MODEL_ID: "claude-opus-4-7",
         SWARM_THINKING_LEVEL: "low",
         SWARM_CWD_ALLOWLIST_ROOTS: "/tmp/swarm-allowlist",
       },

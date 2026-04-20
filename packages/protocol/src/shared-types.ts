@@ -47,7 +47,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
   },
   "pi-opus": {
     provider: "anthropic",
-    modelId: "claude-opus-4-6",
+    modelId: "claude-opus-4-7",
     defaultThinkingLevel: "xhigh",
     contextWindow: 200_000,
     telemetryBacked: true,
@@ -102,7 +102,7 @@ export const MANAGER_MODEL_PRESET_REGISTRY = {
   },
   "claude-code": {
     provider: "anthropic-claude-code",
-    modelId: "claude-opus-4-6",
+    modelId: "claude-opus-4-7",
     defaultThinkingLevel: "xhigh",
     contextWindow: 200_000,
     telemetryBacked: true,

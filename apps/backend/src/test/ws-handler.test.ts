@@ -156,7 +156,7 @@ function createRichManagerStub() {
     cwd: "/tmp/project",
     model: {
       provider: "anthropic-claude-code",
-      modelId: "claude-opus-4-6",
+      modelId: "claude-opus-4-7",
       thinkingLevel: "xhigh",
     },
   };
