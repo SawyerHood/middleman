@@ -16,8 +16,8 @@
   "dependencies": {
     "@google/genai": "^1.48.0",
     "@hono/node-server": "^1.19.11",
-    "@mariozechner/pi-ai": "^0.64.0",
-    "@mariozechner/pi-coding-agent": "^0.64.0",
+    "@mariozechner/pi-ai": "^0.67.68",
+    "@mariozechner/pi-coding-agent": "^0.67.68",
     "@middleman/protocol": "workspace:*",
     "@mozilla/readability": "^0.6.0",
     "@sinclair/typebox": "^0.34.49",
