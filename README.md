@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> Middleman is being superseded by [bb](https://github.com/ymichael/bb), an agentic IDE that orchestrates Claude Code, Codex, and Pi in long-lived threads you can follow live and steer at any turn.
+> Try it with `npx bb-app@latest`, then open `http://localhost:38886`. Requires Node 22.12.0+ on macOS/Linux, or Windows via WSL2.
+
 <p align="center">
   <img src="docs/images/middleman-header.png" alt="Middleman" width="100%">
 </p>
